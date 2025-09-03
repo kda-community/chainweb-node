@@ -86,6 +86,9 @@ import qualified Pact.Core.Builtin as Pact5
 import qualified Pact.Core.Persistence as Pact5
 import qualified Pact.Core.Gas as Pact5
 import qualified Pact.Core.Info as Pact5
+import qualified Pact.Core.Command.Types as Pact5
+import qualified Pact.Core.Command.RPC as Pact5
+import qualified Pact.Core.Hash as Pact5
 
 import qualified Chainweb.Pact4.TransactionExec as Pact4
 import qualified Chainweb.Pact4.Validations as Pact4
@@ -121,8 +124,6 @@ import Data.Time.Format.ISO8601
 import qualified Chainweb.Pact.PactService.Pact4.ExecBlock as Pact4
 import qualified Chainweb.Pact4.Types as Pact4
 import qualified Chainweb.Pact5.Backend.ChainwebPactDb as Pact5
-import qualified Pact.Core.Command.Types as Pact5
-import qualified Pact.Core.Hash as Pact5
 import qualified Data.ByteString.Short as SB
 import Data.Coerce (coerce)
 import Data.Void
@@ -1187,7 +1188,26 @@ execPreInsertCheckReq txs = pactLabel "execPreInsertCheckReq" $ do
                         -- only used to check for duplicate pending txs in a block
                         pact5Tx <- mapExceptT liftIO $ Pact5.validateRawChainwebTx
                             logger v cid db initialBlockHandle parentTime currHeight isGenesis tx
-                        attemptBuyGasPact5 logger ph noMiner pact5Tx
+                        let logger' = addLabel ("transaction", "attemptBuyGas") logger
+                        ExceptT $ Pact5.pactTransaction Nothing $ \pactDb -> runExceptT $ do
+                            let txCtx = Pact5.TxContext ph noMiner
+                            -- Note: `mempty` is fine here for the milligas limit. `buyGas` sets its own limit
+                            -- by necessity
+                            gasEnv <- liftIO $ Pact5.mkTableGasEnv (Pact5.MilliGasLimit mempty) Pact5.GasLogsDisabled
+                            liftIO (Pact5.buyGas logger' gasEnv pactDb txCtx (view Pact5.payloadObj <$> pact5Tx)) >>= \case
+                                Left err -> do
+                                    throwError $ InsertErrorBuyGas $ prettyPact5GasPurchaseFailure $ BuyGasError (Pact5.cmdToRequestKey pact5Tx) err
+                                Right (_ :: Pact5.EvalResult) -> return ()
+
+                            -- check if the continuation is continuing a defpact that has already finished
+                            case pact5Tx ^? Pact5.cmdPayload . Pact5.payloadObj . Pact5.pPayload . Pact5._Continuation of
+                                Just contMsg -> do
+                                    let pactId = Pact5._cmPactId contMsg
+                                    defPactState <- liftIO $ Pact5.ignoreGas (Pact5.LineInfo 0) $ Pact5._pdbRead pactDb Pact5.DDefPacts pactId
+                                    let isComplete = defPactState == Just Nothing
+                                    when isComplete $
+                                        throwError (InsertErrorDefPactComplete (sshow pactId))
+                                Nothing -> return ()
             )
     withPactState $ \run ->
         timeoutYield timeoutLimit (run act) >>= \case
@@ -1239,26 +1259,6 @@ execPreInsertCheckReq txs = pactLabel "execPreInsertCheckReq" $ do
                     $! Pact4.buyGas pd cmd miner
 
                 return $ bimap (InsertErrorBuyGas . sshow) (\_ -> ()) cr
-
-    attemptBuyGasPact5
-        :: (Logger logger)
-        => logger
-        -> ParentHeader
-        -> Miner
-        -> Pact5.Transaction
-        -> ExceptT InsertError (Pact5.PactBlockM logger tbl) ()
-    attemptBuyGasPact5 logger ph miner tx = do
-        let logger' = addLabel ("transaction", "attemptBuyGas") logger
-        result <- lift $ Pact5.pactTransaction Nothing $ \pactDb -> do
-            let txCtx = Pact5.TxContext ph miner
-            -- Note: `mempty` is fine here for the milligas limit. `buyGas` sets its own limit
-            -- by necessity
-            gasEnv <- Pact5.mkTableGasEnv (Pact5.MilliGasLimit mempty) Pact5.GasLogsDisabled
-            Pact5.buyGas logger' gasEnv pactDb txCtx (view Pact5.payloadObj <$> tx)
-        case result of
-            Left err -> do
-                throwError $ InsertErrorBuyGas $ prettyPact5GasPurchaseFailure $ BuyGasError (Pact5.cmdToRequestKey tx) err
-            Right (_ :: Pact5.EvalResult) -> return ()
 
 
 execLookupPactTxs
