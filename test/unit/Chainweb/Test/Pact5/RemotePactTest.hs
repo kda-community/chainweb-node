@@ -306,37 +306,46 @@ crosschainTest baseRdb step = runResourceT $ do
 
         recv <- buildTextCmd v
             $ set cbRPC (mkCont contMsg)
+            $ set cbGasPrice (GasPrice 1)
             $ defaultCmd targetChain
-        send fx v targetChain [recv]
-        let recvReqKey = cmdToRequestKey recv
-        advanceAllChains_ fx
-        poll fx v targetChain [recvReqKey]
-            >>= P.match (_head . _Just)
-            ? P.checkAll
-                [ P.fun _crResult ? P.match _PactResultOk P.succeed
-                , P.fun _crEvents ? P.alignExact
-                    [ P.succeed
-                    , P.checkAll
-                        [ P.fun _peName ? P.equals "TRANSFER_XCHAIN_RECD"
-                        , P.fun _peArgs ? P.equals
-                            [PString "", PString "sender01", PDecimal 1.0, PString (chainIdToText srcChain)]
-                        ]
-                    , P.fun _peName ? P.equals "X_RESUME"
-                    , P.succeed
-                    ]
-                ]
-
-        -- what if we try to complete an already-completed xchain?
+        -- what if we try to finish the xchain twice?
+        -- we need to submit this duplicate finisher *before* the completion for
+        -- coverage, because if we submit it *after*, the mempool will kick it
+        -- out, as we test later
         recvRepeated <- buildTextCmd v
             $ set cbRPC (mkCont contMsg)
+            $ set cbGasPrice (GasPrice 0.1)
             $ defaultCmd targetChain
-        send fx v targetChain [recvRepeated]
+        send fx v targetChain [recv, recvRepeated]
+        let recvReqKey = cmdToRequestKey recv
         let recvRepeatedReqKey = cmdToRequestKey recvRepeated
         advanceAllChains_ fx
-        poll fx v targetChain [recvRepeatedReqKey]
-            >>= P.match (_head . _Just)
-            ? P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.fun _boundedText
-            ? P.equals ("Requested defpact execution already completed for defpact id: " <> T.take 20 (renderDefPactId $ _peDefPactId cont) <> "...")
+        poll fx v targetChain [recvReqKey, recvRepeatedReqKey]
+            >>= P.alignExact ?
+                [ P.match _Just ? P.checkAll
+                    [ P.fun _crResult ? P.match _PactResultOk P.succeed
+                    , P.fun _crEvents ? P.alignExact
+                        [ P.succeed
+                        , P.checkAll
+                            [ P.fun _peName ? P.equals "TRANSFER_XCHAIN_RECD"
+                            , P.fun _peArgs ? P.equals
+                                [PString "", PString "sender01", PDecimal 1.0, PString (chainIdToText srcChain)]
+                            ]
+                        , P.fun _peName ? P.equals "X_RESUME"
+                        , P.succeed
+                        ]
+                    ]
+                , P.match _Just ? P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.fun _boundedText
+                    ? P.equals ("Requested defpact execution already completed for defpact id: " <> T.take 20 (renderDefPactId $ _peDefPactId cont) <> "...")
+                ]
+        recvRepeatedAfter <- buildTextCmd v
+            $ set cbRPC (mkCont contMsg)
+            $ defaultCmd targetChain
+        -- what if we try to continue an already-completed xchain, and submit
+        -- the continuation after the completion?
+        send fx v targetChain [recvRepeatedAfter]
+            & P.throws ? P.match _FailureResponse ? P.fun responseBody
+            ? textContains "failed with: This transaction is attempting to complete an already-completed defpact"
 
 spvExpirationTest :: RocksDb -> Step -> IO ()
 spvExpirationTest baseRdb _step = runResourceT $ do
