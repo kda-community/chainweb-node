@@ -53,6 +53,7 @@ module Chainweb.Version.Guards
     , chainweb230Pact
     , chainweb231Pact
     , chainweb232Pact
+    , migratePlatformShare
     , pact5
     , pact44NewTrans
     , pact4ParserVersion
@@ -106,6 +107,11 @@ before :: BlockHeight -> ForkHeight -> Bool
 before bh (ForkAtBlockHeight bh') = bh < bh'
 before _ ForkAtGenesis = False
 before _ ForkNever = True
+
+atNotGenesis :: BlockHeight -> ForkHeight -> Bool
+atNotGenesis bh (ForkAtBlockHeight bh') = bh == bh'
+atNotGenesis _ ForkAtGenesis = error "fork cannot be at genesis"
+atNotGenesis _ ForkNever = False
 
 -- -------------------------------------------------------------------------- --
 -- Header Validation Guards
@@ -289,6 +295,9 @@ chainweb231Pact = checkFork atOrAfter Chainweb231Pact
 
 chainweb232Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb232Pact = checkFork atOrAfter Chainweb232Pact
+
+migratePlatformShare :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+migratePlatformShare = checkFork atNotGenesis MigratePlatformShare
 
 pact5Serialiser :: ChainwebVersion -> ChainId -> BlockHeight -> Pact5.PactSerialise Pact5.CoreBuiltin Pact5.LineInfo
 pact5Serialiser v cid bh

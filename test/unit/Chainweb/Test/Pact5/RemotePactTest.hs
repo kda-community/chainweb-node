@@ -61,6 +61,7 @@ import Data.List qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
@@ -96,7 +97,7 @@ import Pact.Core.Command.Types
 import Pact.Core.DefPacts.Types
 import Pact.Core.Errors
 import Pact.Core.Gas.Types
-import Pact.Core.Guards (Guard(GKeySetRef), KeySetName (..))
+import Pact.Core.Guards
 import Pact.Core.Hash
 import Pact.Core.Names
 import Pact.Core.PactValue
@@ -155,6 +156,7 @@ tests rdb = withResource' (evaluate httpManager >> evaluate cert) $ \_ ->
         , testCaseSteps "upgradeNamespaceTests" (upgradeNamespaceTests rdb)
         , testCaseSteps "invalidSigCapNameTest" (invalidSigCapNameTest rdb)
         , testCaseSteps "pact53TransitionTest" (pact53TransitionTest rdb)
+        , testCaseSteps "migratePlatformShareTest" (migratePlatformShareTest rdb)
         , localTests rdb
         ]
 
@@ -630,6 +632,33 @@ caplistTest baseRdb step = runResourceT $ do
                     [ P.fun _crResult ? P.match (_PactResultOk . _PString) ? P.equals "Write succeeded"
                     , P.fun _crMetaData ? P.match (_Just . A._Object . at "blockHash") ? P.match _Just P.succeed
                     ]
+
+migratePlatformShareTest :: RocksDb -> Step -> IO ()
+migratePlatformShareTest baseRdb _step = runResourceT $ do
+    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let cid = unsafeChainId 0
+    fx <- mkFixture v baseRdb
+    cmd <- buildTextCmd v $ set cbRPC (mkExec' "(describe-keyset \"PS_C0\")") $ defaultCmd cid
+    let platformShareKeySet = KeySet
+            { _ksKeys = S.fromList
+            [ PublicKeyText "be6918da77866bd20fc2f6581dc9cdacd98372b9c427ac6f9e4f731f7861bca8"
+            , PublicKeyText "128ad09365148288f27c16ce4ee3aceb524e00717cb253cb9f233bdea59b227e"
+            , PublicKeyText "b21b3614b1e36c9b15d74efb4f3acaa846e2d96e81aa1661ae5686c8cbc36e7c"
+            , PublicKeyText "4a6a31a21c0561a05b0d608bd27e9042e2d6d66eca855c7b5a20d052398257a9"
+            , PublicKeyText "09f3981dc8855bc5eea026d266c9f055eae79dc9bfb8a34a6af50dad062be55a"
+            ]
+            , _ksPredFun = CustomPredicate
+            (TQN
+                (QualifiedName "keys-3" (ModuleName "pred" $ Just (NamespaceName "user")))
+            )
+            }
+    liftIO $ do
+        local fx v cid Nothing Nothing Nothing cmd
+            >>= P.match _Pact5LocalResultLegacy
+                ? P.fun _crResult
+                ? P.match _PactResultOk
+                ? P.match _PGuard
+                ? P.equals (GKeyset platformShareKeySet)
 
 pact53TransitionTest :: RocksDb -> Step -> IO ()
 pact53TransitionTest baseRdb step = runResourceT $ do
