@@ -195,7 +195,7 @@ chainwebNodeVersionHeaderName = fromString $ symbolVal (Proxy @ChainwebNodeVersi
 {-# INLINE chainwebNodeVersionHeaderName #-}
 
 chainwebNodeVersionHeaderValue :: IsString a => a
-chainwebNodeVersionHeaderValue = fromString $ symbolVal (Proxy @ChainwebNodeVersionHeaderValue)
+chainwebNodeVersionHeaderValue = fromString $ CURRENT_PACKAGE_VERSION <> "-community"
 {-# INLINE chainwebNodeVersionHeaderValue #-}
 
 chainwebNodeVersionHeader :: HTTP.Header
@@ -531,4 +531,3 @@ deallocateSocket (_, sock) = N.close sock
 
 withSocket :: Port -> HostPreference -> ((Port, N.Socket) -> IO a) -> IO a
 withSocket port interface = bracket (allocateSocket port interface) deallocateSocket
-
