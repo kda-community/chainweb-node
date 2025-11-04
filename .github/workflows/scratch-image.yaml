@@ -125,7 +125,7 @@ jobs:
       id: docker_meta
       uses: crazy-max/ghaction-docker-meta@v1
       with:
-        images: ghcr.io/kadena-io/chainweb-node-${{ github.event.inputs.baseImage }}
+        images: ghcr.io/kda-community/chainweb-node-${{ github.event.inputs.baseImage }}
         tag-sha: true
 
     - name: Set up QEMU
@@ -159,4 +159,3 @@ jobs:
         labels: ${{ steps.docker_meta.outputs.labels }}
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
-
