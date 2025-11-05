@@ -108,7 +108,7 @@ jobs:
           ref: master
           path: .github/chainweb-node-docker
       - name: Dockerhub release
-        uses: .github/chainweb-node-docker/.github/workflows/dockerhub_release.yml
+        uses: ./.github/chainweb-node-docker/.github/workflows/dockerhub_release.yml
         with:
           SHORT_SHA: ${{ needs.release_vars.outputs.SHORT_REVISION }}
           VERSION_NEW: ${{ needs.release_vars.outputs.VERSION_NEW }}
