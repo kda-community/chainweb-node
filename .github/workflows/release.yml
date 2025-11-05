@@ -98,13 +98,21 @@ jobs:
           echo "UBUNTU_VERSION=$VERSION_OS" >> $GITHUB_OUTPUT
 
   chainweb-node-dockerhub:
-    uses: kda-community/chainweb-node-docker/.github/workflows/dockerhub_release.yml@master
+    runs-on: ubuntu-latest
     needs: release_vars
-    with:
-      SHORT_SHA: ${{ needs.release_vars.outputs.SHORT_REVISION }}
-      VERSION_NEW: ${{ needs.release_vars.outputs.VERSION_NEW }}
-      GHC_VERSION: ${{ needs.release_vars.outputs.GHC_VERSION }}
-    secrets: inherit
+    steps:
+      - name: Check out chainweb-node-docker
+        uses: actions/checkout@v2
+        with:
+          repository: kda-community/chainweb-node-docker
+          ref: master
+          path: .github/chainweb-node-docker
+      - name: Dockerhub release
+        uses: .github/chainweb-node-docker/.github/workflows/dockerhub_release.yml
+        with:
+          SHORT_SHA: ${{ needs.release_vars.outputs.SHORT_REVISION }}
+          VERSION_NEW: ${{ needs.release_vars.outputs.VERSION_NEW }}
+          GHC_VERSION: ${{ needs.release_vars.outputs.GHC_VERSION }}
 
   release_repo:
     needs:
