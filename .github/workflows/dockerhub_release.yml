@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: kda-community/chainweb-node
+          repository: kadena-io/chainweb-node-docker
           ssh-key: ${{ secrets.GH_DEPLOYKEY_CHAINWEBDOCKER }}
 
       - name: Login to Docker Hub
