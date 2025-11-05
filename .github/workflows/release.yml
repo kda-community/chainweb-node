@@ -98,7 +98,7 @@ jobs:
           echo "UBUNTU_VERSION=$VERSION_OS" >> $GITHUB_OUTPUT
 
   chainweb-node-dockerhub:
-    uses: kda-community/chainweb-node-docker/.github/workflows/dockerhub_release.yml@master
+    uses: ./.github/workflows/dockerhub_release.yml@master
     needs: release_vars
     with:
       SHORT_SHA: ${{ needs.release_vars.outputs.SHORT_REVISION }}
