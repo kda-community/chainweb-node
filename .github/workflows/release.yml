@@ -104,7 +104,10 @@ jobs:
       SHORT_SHA: ${{ needs.release_vars.outputs.SHORT_REVISION }}
       VERSION_NEW: ${{ needs.release_vars.outputs.VERSION_NEW }}
       GHC_VERSION: ${{ needs.release_vars.outputs.GHC_VERSION }}
-    secrets: inherit
+    secrets:
+      dockerhub_pat: ${{ secrets.DOCKERHUB_PAT }}
+      dockerhub_user: ${{ secrets.DOCKERHUB_USER }}
+      gh_deploykey_chainwebdocker: ${{ secrets.GH_DEPLOYKEY_CHAINWEBDOCKER }}
 
   release_repo:
     needs:
