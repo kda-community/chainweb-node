@@ -1,5 +1,11 @@
 name: Release - chainweb-node - binary release scripts
 
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
+
 ## Release automation for chainweb-node
 # Designed to run systems in chainweb/binary-release
 
