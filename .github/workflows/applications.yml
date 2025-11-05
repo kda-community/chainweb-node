@@ -1,5 +1,11 @@
 name: Build and publish application binaries
 
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -24,11 +30,11 @@ on:
       - 'gh-readonly-queue/**'
 
 env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.kadena_cabal_cache_aws_access_key_id }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.kadena_cabal_cache_aws_secret_access_key }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.kda_community_cabal_cache_aws_access_key_id }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.kda_community_cabal_cache_aws_secret_access_key }}
   AWS_DEFAULT_REGION: us-east-1
 
-  S3_ARTIFACT_BUCKET: kadena-cabal-cache
+  S3_ARTIFACT_BUCKET: community-kda-cabal-cache
   S3_ARTIFACT_FOLDER: chainweb-node
 
   USE_CABAL_CACHE: true
@@ -193,29 +199,6 @@ jobs:
         echo "::endgroup::"
 
   # ########################################################################## #
-  # Download Development Database for Testing
-  #
-  # Uploading artifacts is slow, but downloading is fast.
-  # For the development database that pays off.
-
-  sync-chain-db:
-    name: Download test chain database
-    needs: [config]
-    runs-on: 'ubuntu-latest'
-    strategy:
-      fail-fast: false
-    env:
-      DB_SNAPSHOT_URI: 's3://chainweb-chain-db/${{ needs.config.outputs.chainweb-network-version }}/pipeline-db/rocksDb'
-    steps:
-    - name: Sync chain database from S3
-      run: aws s3 sync "$DB_SNAPSHOT_URI" db/0/rocksDb --delete --exclude=LOCK
-    - name: Store chain database as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: chain-db-${{ needs.config.outputs.chainweb-network-version }}
-        path: db
-
-  # ########################################################################## #
   # Build and Upload Artifacts
 
   build:
@@ -349,12 +332,12 @@ jobs:
       if: env.USE_CABAL_CACHE == 'true'
       uses: larskuhtz/cabal-cache-action@4b537195b33898fcd9adc62cee2a44986fd7b1b6
       with:
-        bucket: "kadena-cabal-cache"
+        bucket: "community-kda-cabal-cache"
         region: "us-east-1"
         folder: "packages/${{ matrix.os }}"
         store_path: ${{ steps.setup.outputs.cabal-store }}
-        aws_access_key_id: "${{ secrets.kadena_cabal_cache_aws_access_key_id }}"
-        aws_secret_access_key: "${{ secrets.kadena_cabal_cache_aws_secret_access_key }}"
+        aws_access_key_id: "${{ secrets.kda_community_cabal_cache_aws_access_key_id }}"
+        aws_secret_access_key: "${{ secrets.kda_community_cabal_cache_aws_secret_access_key }}"
     - name: Install build dependencies
       run: cabal build chainweb --only-dependencies
     - name: Build chainweb library
@@ -561,7 +544,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       BENCH_FILE: results.${{ github.run_id }}.${{ github.run_number }}.json
-      BENCH_BUCKET: kadena-cabal-cache
+      BENCH_BUCKET: community-kda-cabal-cache
       BENCH_FOLDER: chainweb-benchmark-results/${{ matrix.ghc }}/${{ matrix.os }}
       ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
     steps:
@@ -582,97 +565,98 @@ jobs:
       run: bench --json $BENCH_FILE +RTS -N
     - name: Upload results
       run: |
-        aws s3 cp $BENCH_FILE s3://$BENCH_BUCKET/$BENCH_FOLDER/
-        aws s3api put-object-acl --bucket $BENCH_BUCKET --key=$BENCH_FOLDER/$BENCH_FILE --acl public-read
+        echo "Not uploading results"
+        # aws s3 cp $BENCH_FILE s3://$BENCH_BUCKET/$BENCH_FOLDER/
+        # aws s3api put-object-acl --bucket $BENCH_BUCKET --key=$BENCH_FOLDER/$BENCH_FILE --acl public-read
 
   # ########################################################################## #
   # Validate Devnet Database and Replay Pact History
 
-  validate-devnet-database:
-    name: Validate Devnet Database Snapshot and Replay Pact History
-    needs: [config, sync-chain-db, build]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.config.outputs.matrix) }}
-    runs-on: ${{ matrix.os }}
-    env:
-      ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
-    steps:
-    - uses: actions/checkout@v4
-    - name: Download ${{ needs.config.outputs.chainweb-network-version }} chain database artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: chain-db-${{ needs.config.outputs.chainweb-network-version }}
-        path: db
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ${{ env.ARTIFACTS_NAME }}
-        path: .
-    - name: Install chainweb from artifacts
-      uses: ./.github/actions/install-chainweb-from-artifacts
-      with:
-        os: ${{ matrix.os }}
-        ghc: ${{ matrix.ghc }}
-        use-freeze-file: ${{ matrix.use-freeze-file }}
-    - name: Write chainweb-node configuration
-      run: |
-        cat >> config.yaml <<EOF
-          databaseDirectory: "db"
-          chainweb:
-            onlySyncPact: true
-            logGas: true
-            chainwebVersion: ${{ needs.config.outputs.chainweb-network-version }}
-            validateHashesOnReplay: true
-            p2p:
-              peer:
-                interface: localhost
-                hostaddress:
-                  port: 4445
-              private: true
-              ignoreBootstrapNodes: true
-            transactionIndex:
-              enabled: false
-            mempoolP2p:
-              enabled: false
-            cuts:
-              pruneChainDatabase: headers-checked
-          logging:
-            telemetryBackend:
-              enabled: false
-              configuration:
-                color: 'true'
-            backend:
-              color: 'true'
-            filter:
-              rules:
-              - value: mempool
-                key: component
-                level: warn
-              - value: connection-manager
-                key: component
-                level: warn
-              - value: sync
-                key: sub-component
-                level: warn
-              - value: MempoolAccess
-                key: sub-component
-                level: warn
-              - value: PactService
-                key: logger
-                level: warn
-              - value: Checkpointer
-                key: logger
-                level: warn
-              default: info
-        EOF
-    - name: Validate database and replay pact transactions
-      timeout-minutes: 6
-      run: |
-        chainweb-node +RTS -T -H1G -A64M -RTS \
-          --config-file=config.yaml \
-          --log-level=info \
-          --disable-pow
+  # validate-devnet-database:
+    # name: Validate Devnet Database Snapshot and Replay Pact History
+    # needs: [config, sync-chain-db, build]
+    # strategy:
+      # fail-fast: false
+      # matrix: ${{ fromJson(needs.config.outputs.matrix) }}
+    # runs-on: ${{ matrix.os }}
+    # env:
+      # ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
+    # steps:
+    # - uses: actions/checkout@v4
+    # - name: Download ${{ needs.config.outputs.chainweb-network-version }} chain database artifact
+    #   uses: actions/download-artifact@v4
+    #   with:
+    #     name: chain-db-${{ needs.config.outputs.chainweb-network-version }}
+    #     path: db
+    # - name: Download build artifacts
+    #   uses: actions/download-artifact@v4
+    #   with:
+    #     name: ${{ env.ARTIFACTS_NAME }}
+    #     path: .
+    # - name: Install chainweb from artifacts
+    #   uses: ./.github/actions/install-chainweb-from-artifacts
+    #   with:
+    #     os: ${{ matrix.os }}
+    #     ghc: ${{ matrix.ghc }}
+    #     use-freeze-file: ${{ matrix.use-freeze-file }}
+    # - name: Write chainweb-node configuration
+    #   run: |
+    #     cat >> config.yaml <<EOF
+    #       databaseDirectory: "db"
+    #       chainweb:
+    #         onlySyncPact: true
+    #         logGas: true
+    #         chainwebVersion: ${{ needs.config.outputs.chainweb-network-version }}
+    #         validateHashesOnReplay: true
+    #         p2p:
+    #           peer:
+    #             interface: localhost
+    #             hostaddress:
+    #               port: 4445
+    #           private: true
+    #           ignoreBootstrapNodes: true
+    #         transactionIndex:
+    #           enabled: false
+    #         mempoolP2p:
+    #           enabled: false
+    #         cuts:
+    #           pruneChainDatabase: headers-checked
+    #       logging:
+    #         telemetryBackend:
+    #           enabled: false
+    #           configuration:
+    #             color: 'true'
+    #         backend:
+    #           color: 'true'
+    #         filter:
+    #           rules:
+    #           - value: mempool
+    #             key: component
+    #             level: warn
+    #           - value: connection-manager
+    #             key: component
+    #             level: warn
+    #           - value: sync
+    #             key: sub-component
+    #             level: warn
+    #           - value: MempoolAccess
+    #             key: sub-component
+    #             level: warn
+    #           - value: PactService
+    #             key: logger
+    #             level: warn
+    #           - value: Checkpointer
+    #             key: logger
+    #             level: warn
+    #           default: info
+    #     EOF
+    # - name: Validate database and replay pact transactions
+    #   timeout-minutes: 6
+    #   run: |
+    #     chainweb-node +RTS -T -H1G -A64M -RTS \
+    #       --config-file=config.yaml \
+    #       --log-level=info \
+    #       --disable-pow
 
   # ########################################################################## #
   # Run Unit Tests
@@ -686,7 +670,7 @@ jobs:
       matrix: ${{ fromJson(needs.config.outputs.matrix) }}
     env:
       TEST_RESULT_FILE: test-results.${{ github.run_id }}.${{ github.run_number }}.json
-      TEST_RESULT_BUCKET: kadena-cabal-cache
+      TEST_RESULT_BUCKET: community-kda-cabal-cache
       TEST_RESULT_FOLDER: chainweb-test-results/ghc-${{ matrix.ghc }}/${{ matrix.os }}
       ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
     steps:
@@ -745,7 +729,7 @@ jobs:
     - name: Publish applications to S3
       run: |
         aws s3 cp $ARTIFACTS_ARCHIVE s3://$S3_ARTIFACT_BUCKET/$S3_ARTIFACT_FOLDER/
-        aws s3api put-object-acl --bucket $S3_ARTIFACT_BUCKET --key=$S3_ARTIFACT_FOLDER/$ARTIFACTS_ARCHIVE --acl public-read
+        # aws s3api put-object-acl --bucket $S3_ARTIFACT_BUCKET --key=$S3_ARTIFACT_FOLDER/$ARTIFACTS_ARCHIVE --acl public-read
 
   # ########################################################################## #
   # Build and publish docker image
@@ -836,7 +820,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v4
       with:
-        images: ghcr.io/kadena-io/chainweb-node
+        images: ghcr.io/kda-community/chainweb-node
         flavor: |
           suffix=${{ steps.frozen-tag.outputs.value }}${{ needs.config.outputs.tag-suffix }}
         tags: |
@@ -874,29 +858,3 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
-
-  # ########################################################################## #
-  # Trigger Integration Tests Run
-
-  integration-tests:
-    name: Run Integration Tests from remote repo
-    needs: [ config, docker-image ]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Get auth token
-      uses: Nastaliss/get-github-app-pat@683b0b370911354c411dbbc586b7c64f32b2b850
-      id: githubAppAuth
-      with:
-        app-id: ${{ secrets.GH_KADENAINFRA_APP_ID }}
-        app-installation-id: ${{ secrets.GH_KADENAINFRA_APP_INSTALLATION_ID }}
-        app-private-key: ${{ secrets.GH_KADENAINFRA_APP_PRIVATE_KEY }}
-    - name: Start remote integration tests
-      uses: the-actions-org/workflow-dispatch@v4.0.0
-      with:
-        workflow: Integration Tests on devnet chain
-        token: ${{ steps.githubAppAuth.outputs.access-token }}
-        inputs: '{ "chainweb_node_container_id" : "sha-${{ needs.config.outputs.git-sha-short }}${{ needs.docker-image.outputs.docker-suffix }}" }'
-        ref: refs/heads/master
-        repo: kadena-io/integration-tests
-        display-workflow-run-url: true
-        wait-for-completion: true # here you could make this pipeline wait them out
