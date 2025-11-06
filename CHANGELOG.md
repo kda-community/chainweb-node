@@ -1,4 +1,4 @@
-## 2.32 (2025-11-02)
+## 3.0 (2025-11-06)
 This is the first release of chainweb-node Community Edition. Upgrading is
 required to participate in this version of the Kadena network.
 
