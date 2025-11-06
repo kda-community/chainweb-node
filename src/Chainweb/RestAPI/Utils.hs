@@ -195,7 +195,7 @@ chainwebNodeVersionHeaderName = fromString $ symbolVal (Proxy @ChainwebNodeVersi
 {-# INLINE chainwebNodeVersionHeaderName #-}
 
 chainwebNodeVersionHeaderValue :: IsString a => a
-chainwebNodeVersionHeaderValue = fromString $ CURRENT_PACKAGE_VERSION <> "-community"
+chainwebNodeVersionHeaderValue = fromString $ symbolVal (Proxy @ChainwebNodeVersionHeaderValue)
 {-# INLINE chainwebNodeVersionHeaderValue #-}
 
 chainwebNodeVersionHeader :: HTTP.Header
