@@ -22,7 +22,6 @@
 --
 module Chainweb.NodeVersion
 ( NodeVersion(..)
-, minAcceptedVersion
 , isAcceptedVersion
 , getNodeVersion
 
@@ -58,6 +57,7 @@ import qualified Network.HTTP.Types as HTTP
 
 import Chainweb.HostAddress
 import Chainweb.RestAPI.Utils
+import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Version
 
@@ -84,12 +84,13 @@ instance FromJSON NodeVersion where
     parseJSON = parseJsonFromText "NodeVersion"
     {-# INLINE parseJSON #-}
 
-minAcceptedVersion :: NodeVersion
-minAcceptedVersion = NodeVersion [1,2]
-{-# INLINE minAcceptedVersion #-}
-
-isAcceptedVersion :: NodeVersion -> Bool
-isAcceptedVersion = (<=) minAcceptedVersion
+isAcceptedVersion :: NodeVersion -> IO Bool
+isAcceptedVersion v = do
+    let forkTime = fromJuste $ parseTimeMicros "2025-11-07T04:00:00"
+    now <- getCurrentTimeIntegral
+    return $! now < forkTime || v >= forkVersion
+    where
+    forkVersion = NodeVersion [3, 0]
 {-# INLINE isAcceptedVersion #-}
 
 -- -------------------------------------------------------------------------- --

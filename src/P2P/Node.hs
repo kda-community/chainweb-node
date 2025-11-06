@@ -381,7 +381,9 @@ guardPeerDb v nid peerDb pinf = do
         | isReserved -> return $ Left $ IsReservedHostAddress
         | otherwise -> canConnect >>= \case
             Left e -> return $ Left $ IsNotReachable e
-            Right nodeVersion -> if isAcceptedVersion nodeVersion
+            Right nodeVersion -> do
+                accepted <- isAcceptedVersion nodeVersion
+                if accepted
                 then return $ Right pinf
                 else return $ Left $ NodeVersionNotAccepted nodeVersion
   where
