@@ -188,7 +188,7 @@ makeLenses ''CutDbParams
 defaultCutDbParams :: ChainwebVersion -> Int -> CutDbParams
 defaultCutDbParams v ft = CutDbParams
     { _cutDbParamsInitialCutFile = Nothing
-    , _cutDbParamsBufferSize = (order g ^ (2 :: Int)) * diameter g
+    , _cutDbParamsBufferSize = (order g ^ (2 :: Int)) * max 2 (diameter g)
     , _cutDbParamsLogLevel = Warn
     , _cutDbParamsTelemetryLevel = Warn
     , _cutDbParamsFetchTimeout = ft
