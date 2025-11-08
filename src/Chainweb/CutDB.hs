@@ -145,6 +145,7 @@ import Chainweb.TreeDB
 import Chainweb.Utils hiding (Codec, check)
 import Chainweb.Utils.Serialization
 import Chainweb.Version
+import Chainweb.Version.Mainnet
 import Chainweb.Version.Utils
 import Chainweb.WebBlockHeaderDB
 import Chainweb.WebPactExecutionService
@@ -464,14 +465,29 @@ startCutDb config logfun headerStore payloadStore cutHashesStore = mask_ $ do
     readInitialCut = do
         unsafeMkCut v <$> do
             hm <- readHighestCutHeaders v logg wbhdb cutHashesStore
-            case _cutDbParamsInitialHeightLimit config of
-                Nothing -> return hm
+            initialHeightLimit <- case _cutDbParamsInitialHeightLimit config of
+                Nothing -> do
+                    if _versionCode v == _versionCode mainnet
+                    then do
+                        communityForkBlock <- RankedBlockHash 6335871 <$> decodeStrictOrThrow' "\"2Jo9_JZDTYNx2V108DyV5DoNeE1TcMKQnkJPbQnx6u4\""
+                        chain2Db <- getWebBlockHeaderDb wbhdb (unsafeChainId 2)
+                        let chain2Block = hm ^?! ix (unsafeChainId 2)
+                        onCommunityFork <-
+                            ancestorOfEntry chain2Db (_rankedBlockHashHash communityForkBlock) chain2Block
+                        if onCommunityFork then return Nothing
+                        else return $ Just (6335858 - 1)
+                    else return Nothing
+
+                Just configuredHeightLimit -> return (Just configuredHeightLimit)
+
+            case initialHeightLimit of
                 Just h -> do
                     limitedCutHeaders <- limitCutHeaders wbhdb h hm
                     let limitedCut = unsafeMkCut v limitedCutHeaders
                     unless (_cutDbParamsReadOnly config) $
                         casInsert cutHashesStore (cutToCutHashes Nothing limitedCut)
                     return limitedCutHeaders
+                Nothing -> return hm
 
 readHighestCutHeaders :: ChainwebVersion -> LogFunctionText -> WebBlockHeaderDb -> Casify RocksDbTable CutHashes -> IO (HM.HashMap ChainId BlockHeader)
 readHighestCutHeaders v logg wbhdb cutHashesStore = withTableIterator (unCasify cutHashesStore) $ \it -> do
