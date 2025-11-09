@@ -547,7 +547,7 @@ newWebBlockHeaderStore
     -> IO WebBlockHeaderStore
 newWebBlockHeaderStore mgr wdb logfun = do
     m <- new
-    queue <- newEmptyPQueue
+    queue <- newEmptyPQueue _taskPriority _taskId Nothing
     return $! WebBlockHeaderStore wdb m queue logfun mgr
 
 newEmptyWebPayloadStore
@@ -569,7 +569,7 @@ newWebPayloadStore
     -> LogFunction
     -> IO (WebBlockPayloadStore tbl)
 newWebPayloadStore mgr pact payloadDb logfun = do
-    payloadTaskQueue <- newEmptyPQueue
+    payloadTaskQueue <- newEmptyPQueue _taskPriority _taskId Nothing
     payloadMemo <- new
     return $! WebBlockPayloadStore
         payloadDb payloadMemo payloadTaskQueue logfun mgr pact

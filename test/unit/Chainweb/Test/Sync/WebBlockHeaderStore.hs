@@ -130,7 +130,7 @@ testQueueServer limit q = forM_ [0..] $ session_ limit q (\_ _ -> return ())
 
 withNoopQueueServer :: (PQueue (Task env a) -> IO b) -> IO b
 withNoopQueueServer a = do
-    q <- newEmptyPQueue
+    q <- newEmptyPQueue _taskPriority _taskId Nothing
     let failTask = do
             task <- pQueueRemove q
             putIVar (_taskResult task) $ Left $ []
@@ -138,7 +138,7 @@ withNoopQueueServer a = do
 
 startNoopQueueServer :: IO (Async (), PQueue (Task env a))
 startNoopQueueServer = do
-    q <- newEmptyPQueue
+    q <- newEmptyPQueue _taskPriority _taskId Nothing
     let failTask = do
             task <- pQueueRemove q
             putIVar (_taskResult task) $ Left $ []
