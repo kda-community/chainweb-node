@@ -188,7 +188,7 @@ makeLenses ''CutDbParams
 defaultCutDbParams :: ChainwebVersion -> Int -> CutDbParams
 defaultCutDbParams v ft = CutDbParams
     { _cutDbParamsInitialCutFile = Nothing
-    , _cutDbParamsBufferSize = (order g ^ (2 :: Int)) * diameter g
+    , _cutDbParamsBufferSize = max 10 $ (order g ^ (2 :: Int)) * diameter g
     , _cutDbParamsLogLevel = Warn
     , _cutDbParamsTelemetryLevel = Warn
     , _cutDbParamsFetchTimeout = ft
@@ -258,7 +258,7 @@ instance Exception CutDbStopped where
 --
 data CutDb tbl = CutDb
     { _cutDbCut :: !(TVar Cut)
-    , _cutDbQueue :: !(PQueue (Down CutHashes))
+    , _cutDbQueue :: !(PQueue CutHashes)
     , _cutDbAsync :: !(Async ())
     , _cutDbLogFunction :: !LogFunction
     , _cutDbHeaderStore :: !WebBlockHeaderStore
@@ -316,7 +316,7 @@ cut :: Getter (CutDb tbl) (IO Cut)
 cut = to _cut
 
 addCutHashes :: CutDb tbl -> CutHashes -> IO ()
-addCutHashes db = pQueueInsertLimit (_cutDbQueue db) (_cutDbQueueSize db) . Down
+addCutHashes db = pQueueInsert (_cutDbQueue db)
 
 -- | An 'STM' version of '_cut'.
 --
@@ -437,7 +437,7 @@ startCutDb config logfun headerStore payloadStore cutHashesStore = mask_ $ do
     c <- readTVarIO cutVar
     logg Info $ T.unlines $
         "got initial cut:" : ["    " <> block | block <- cutToTextShort c]
-    queue <- newEmptyPQueue
+    queue <- newEmptyPQueue _cutHashesWeight _cutHashesId (Just $ _cutDbParamsBufferSize config)
     cutAsync <- asyncWithUnmask $ \u -> u $ processor queue cutVar
     logg Debug "CutDB started"
     return CutDb
@@ -457,7 +457,7 @@ startCutDb config logfun headerStore payloadStore cutHashesStore = mask_ $ do
     wbhdb = _webBlockHeaderStoreCas headerStore
     v = _chainwebVersion headerStore
 
-    processor :: PQueue (Down CutHashes) -> TVar Cut -> IO ()
+    processor :: PQueue CutHashes -> TVar Cut -> IO ()
     processor queue cutVar = runForever logfun "CutDB" $
         processCuts config logfun headerStore payloadStore cutHashesStore queue cutVar
 
@@ -564,7 +564,7 @@ processCuts
     -> WebBlockHeaderStore
     -> WebBlockPayloadStore tbl
     -> Casify RocksDbTable CutHashes
-    -> PQueue (Down CutHashes)
+    -> PQueue CutHashes
     -> TVar Cut
     -> IO ()
 processCuts conf logFun headerStore payloadStore cutHashesStore queue cutVar = do
@@ -617,7 +617,7 @@ processCuts conf logFun headerStore payloadStore cutHashesStore queue cutVar = d
     hdrStore = _webBlockHeaderStoreCas headerStore
 
     queueToStream = do
-        Down a <- liftIO (pQueueRemove queue)
+        a <- liftIO (pQueueRemove queue)
         S.yield a
         queueToStream
 
@@ -830,7 +830,7 @@ cutHashesToBlockHeaderMap conf logfun headerStore payloadStore hs =
             return $! Left missing
 
     origin = _cutOrigin hs
-    priority = Priority (- int (_cutHashesHeight hs))
+    priority = Priority (int (_cutHashesHeight hs))
 
     tryGetBlockHeader hdrs plds localPayload cv@(cid, _) =
         (Right <$> mapM (getBlockHeader headerStore payloadStore hdrs plds localPayload cid priority origin) cv)
