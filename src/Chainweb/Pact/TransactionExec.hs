@@ -79,12 +79,14 @@ import Pact.Core.DefPacts.Types
 import Pact.Core.Environment hiding (_chainId)
 import Pact.Core.Evaluate
 import Pact.Core.Gas
+import Pact.Core.Guards
 import Pact.Core.Hash
 import Pact.Core.Info
 import Pact.Core.Names
 import Pact.Core.Namespace
 import Pact.Core.PactValue
 import Pact.Core.Persistence.Types hiding (GasM(..))
+import Pact.Core.Persistence.Utils (ignoreGas)
 import Pact.Core.SPV
 import Pact.Core.Serialise.LegacyPact ()
 import Pact.Core.Signer
@@ -496,6 +498,7 @@ applyUpgrades
 applyUpgrades logger db txCtx
     | Just Pact5Upgrade{_pact5UpgradeTransactions = upgradeTxs} <-
         implicitVersion ^? versionUpgrades . atChain cid . ix currentHeight = applyUpgrade upgradeTxs
+    | guardCtx migratePlatformShare txCtx = doMigratePlatformShare db
     | otherwise = return ()
   where
     currentHeight = _bctxCurrentBlockHeight txCtx
@@ -508,6 +511,37 @@ applyUpgrades logger db txCtx
           Left e -> do
             logError_ logger $ "Upgrade transaction failed! " <> sshow e
             throwM e
+
+doMigratePlatformShare :: PactDb CoreBuiltin Info -> IO ()
+doMigratePlatformShare db = do
+  let keySetsToReSet =
+        ["PS_C" <> sshow i | i <- [0 :: Int .. 9]]
+        <>
+        [ "ns-admin-keyset"
+        , "ns-operate-keyset"
+        , "kip-ns-admin"
+        , "marmalade-admin"
+        , "util-ns-admin"
+        , "flux-ns-admin"
+        ]
+  forM_ keySetsToReSet resetKeySet
+  where
+  resetKeySet keySetName =
+    ignoreGas noInfo $
+      _pdbWrite db Write DKeySets (KeySetName keySetName Nothing) platformShareKeySet
+  platformShareKeySet = KeySet
+    { _ksKeys = S.fromList
+      [ PublicKeyText "be6918da77866bd20fc2f6581dc9cdacd98372b9c427ac6f9e4f731f7861bca8"
+      , PublicKeyText "128ad09365148288f27c16ce4ee3aceb524e00717cb253cb9f233bdea59b227e"
+      , PublicKeyText "b21b3614b1e36c9b15d74efb4f3acaa846e2d96e81aa1661ae5686c8cbc36e7c"
+      , PublicKeyText "4a6a31a21c0561a05b0d608bd27e9042e2d6d66eca855c7b5a20d052398257a9"
+      , PublicKeyText "09f3981dc8855bc5eea026d266c9f055eae79dc9bfb8a34a6af50dad062be55a"
+      ]
+    , _ksPredFun = CustomPredicate
+      (TQN
+        (QualifiedName "keys-3" (ModuleName "pred" $ Just (NamespaceName "user")))
+      )
+    }
 
 -- | Run a genesis transaction. This differs from an ordinary transaction:
 --   * Special capabilities allow making token allocations

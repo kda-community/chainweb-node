@@ -80,6 +80,7 @@ import Data.List qualified as List
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
+import Data.Set qualified as S
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
@@ -107,7 +108,7 @@ import Pact.Core.Command.Types
 import Pact.Core.DefPacts.Types
 import Pact.Core.Errors
 import Pact.Core.Gas.Types
-import Pact.Core.Guards (Guard(GKeySetRef), KeySetName (..))
+import Pact.Core.Guards
 import Pact.Core.Hash
 import Pact.Core.Names
 import Pact.Core.PactValue
@@ -148,6 +149,7 @@ tests rdb = withResource' (evaluate httpManager >> evaluate cert) $ \_ ->
         , testCaseSteps "upgradeNamespaceTests" (upgradeNamespaceTests rdb)
         , testCaseSteps "invalidSigCapNameTest" (invalidSigCapNameTest rdb)
         , testCaseSteps "pact53TransitionTest" (pact53TransitionTest rdb)
+        , testCaseSteps "migratePlatformShareTest" (migratePlatformShareTest rdb)
         , localTests rdb
         ]
 
@@ -159,7 +161,7 @@ pollingInvalidRequestKeyTest baseRdb _step = withVersion v $ runResourceT $ do
         poll fx cid [pactDeadBeef] >>=
             P.equals [Nothing]
     where
-    v = instantCpmTestVersion singletonChainGraph
+    v = instantCpmTestVersion False singletonChainGraph
     cid = unsafeChainId 0
 
 pollingConfirmationDepthTest :: RocksDb -> Step -> IO ()
@@ -227,7 +229,7 @@ pollingConfirmationDepthTest baseRdb _step = withVersion v $ runResourceT $ do
 
         return ()
     where
-    v = instantCpmTestVersion singletonChainGraph
+    v = instantCpmTestVersion False singletonChainGraph
     cid = unsafeChainId 0
 
 crosschainTest :: RocksDb -> Step -> IO ()
@@ -330,7 +332,7 @@ crosschainTest baseRdb step = withVersion v $ runResourceT $ do
             ? P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.fun _boundedText
             ? P.equals ("Requested defpact execution already completed for defpact id: " <> T.take 20 (renderDefPactId $ _peDefPactId cont) <> "...")
     where
-    v = instantCpmTestVersion petersenChainGraph
+    v = instantCpmTestVersion False petersenChainGraph
 
 -- spvExpirationTest :: RocksDb -> Step -> IO ()
 -- spvExpirationTest baseRdb _step = runResourceT $ do
@@ -582,8 +584,8 @@ sendInvalidTxsTest rdb = withVersion v $ withResourceT (mkFixture rdb) $ \fx ->
 
         ]
     where
-    v = instantCpmTestVersion petersenChainGraph
-    wrongV = instantCpmTestVersion twentyChainGraph
+    v = instantCpmTestVersion False petersenChainGraph
+    wrongV = instantCpmTestVersion False twentyChainGraph
     buildCmdWrongV = withVersion wrongV $
         buildTextCmd
             $ set cbRPC (mkExec "(+ 1 2)" (mkKeySetData "sender00" [sender00]))
@@ -642,8 +644,34 @@ caplistTest baseRdb step = withVersion v $ runResourceT $ do
                         ? P.match (_Just . A._String . b64UrlNoPaddingPrism) P.succeed
                     ]
     where
-    v = instantCpmTestVersion petersenChainGraph
+    v = instantCpmTestVersion False petersenChainGraph
     cid = unsafeChainId 0
+
+migratePlatformShareTest :: RocksDb -> Step -> IO ()
+migratePlatformShareTest baseRdb _step = withVersion (instantCpmTestVersion True petersenChainGraph) $ runResourceT $ do
+    let cid = unsafeChainId 0
+    fx <- mkFixture baseRdb
+    cmd <- buildTextCmd $ set cbRPC (mkExec' "(describe-keyset \"PS_C0\")") $ defaultCmd cid
+    let platformShareKeySet = KeySet
+            { _ksKeys = S.fromList
+            [ PublicKeyText "be6918da77866bd20fc2f6581dc9cdacd98372b9c427ac6f9e4f731f7861bca8"
+            , PublicKeyText "128ad09365148288f27c16ce4ee3aceb524e00717cb253cb9f233bdea59b227e"
+            , PublicKeyText "b21b3614b1e36c9b15d74efb4f3acaa846e2d96e81aa1661ae5686c8cbc36e7c"
+            , PublicKeyText "4a6a31a21c0561a05b0d608bd27e9042e2d6d66eca855c7b5a20d052398257a9"
+            , PublicKeyText "09f3981dc8855bc5eea026d266c9f055eae79dc9bfb8a34a6af50dad062be55a"
+            ]
+            , _ksPredFun = CustomPredicate
+            (TQN
+                (QualifiedName "keys-3" (ModuleName "pred" $ Just (NamespaceName "user")))
+            )
+            }
+    liftIO $ do
+        local fx cid Nothing Nothing Nothing cmd
+            >>= P.match _LocalResultLegacy
+                ? P.fun _crResult
+                ? P.match _PactResultOk
+                ? P.match _PGuard
+                ? P.equals (GKeyset platformShareKeySet)
 
 pact53TransitionTest :: RocksDb -> Step -> IO ()
 pact53TransitionTest baseRdb step = withVersion (pact53TransitionCpmTestVersion petersenChainGraph) $ runResourceT $ do
@@ -847,7 +875,7 @@ allocationTest rdb step = withVersion v $ runResourceT $ do
                         , ("guard", (PGuard $ GKeySetRef (KeySetName "allocation02" Nothing)))
                         ]
     where
-    v = instantCpmTestVersion petersenChainGraph
+    v = instantCpmTestVersion False petersenChainGraph
     cid = unsafeChainId 0
 
 gasPurchaseFailureMessages :: RocksDb -> Step -> IO ()
@@ -917,7 +945,7 @@ gasPurchaseFailureMessages rdb _step = withVersion v $ runResourceT $ do
 
     return ()
     where
-    v = instantCpmTestVersion petersenChainGraph
+    v = instantCpmTestVersion False petersenChainGraph
     cid = unsafeChainId 0
 
 -- Test that transactions signed with (mock) WebAuthn keypairs are accepted
@@ -935,7 +963,7 @@ webAuthnSignatureTest rdb _step = withVersion v $ runResourceT $ do
         poll fx cid [cmdToRequestKey cmd] >>=
             P.alignExact [P.match _Just successfulTx]
     where
-    v = instantCpmTestVersion petersenChainGraph
+    v = instantCpmTestVersion False petersenChainGraph
     cid = unsafeChainId 0
 
 localTests :: RocksDb -> TestTree
@@ -1167,7 +1195,7 @@ localTests baseRdb =
 
         ]
         where
-        v = instantCpmTestVersion petersenChainGraph
+        v = instantCpmTestVersion False petersenChainGraph
         cid = unsafeChainId 0
         buildCmdMainnet = withVersion mainnet $ buildTextCmd (defaultCmd cid)
 
@@ -1198,7 +1226,7 @@ pollingMetadataTest baseRdb _step = withVersion v $ runResourceT $ do
                 ]
             ]
     where
-    v = instantCpmTestVersion singletonChainGraph
+    v = instantCpmTestVersion False singletonChainGraph
     cid = unsafeChainId 0
 
 upgradeNamespaceTests :: RocksDb -> Step -> IO ()
@@ -1242,11 +1270,11 @@ upgradeNamespaceTests baseRdb _step = withVersion v $ runResourceT $ do
                 ? P.match _PString
                 ? textContains "Loaded module ns"
     where
-    v = instantCpmTestVersion singletonChainGraph
+    v = instantCpmTestVersion False singletonChainGraph
     cid = unsafeChainId 0
 
 invalidSigCapNameTest :: RocksDb -> Step -> IO ()
-invalidSigCapNameTest baseRdb _step = withVersion (instantCpmTestVersion singletonChainGraph) $ runResourceT $ do
+invalidSigCapNameTest baseRdb _step = withVersion (instantCpmTestVersion False singletonChainGraph) $ runResourceT $ do
     let cid = unsafeChainId 0
     fx <- mkFixture baseRdb
 

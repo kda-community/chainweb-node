@@ -42,7 +42,7 @@ import Pact.Core.Signer
 -- | Test suite
 
 v :: ChainwebVersion
-v = instantCpmTestVersion petersenChainGraph
+v = instantCpmTestVersion False petersenChainGraph
 
 chain0 :: ChainId
 chain0 = unsafeChainId 0

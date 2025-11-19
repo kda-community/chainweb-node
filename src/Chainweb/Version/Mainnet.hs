@@ -144,6 +144,7 @@ mainnet = withVersion mainnet $ ChainwebVersion
         Chainweb229Pact -> onAllChains (ForkAtBlockHeight $ BlockHeight 5_785_923) -- 2025-05-01 00:00:00+00:00
         Chainweb230Pact -> onAllChains (ForkAtBlockHeight $ BlockHeight 6_027_616) -- 2025-07-24 00:00:00+00:00
         Chainweb231Pact -> onAllChains (ForkAtBlockHeight $ BlockHeight 6_269_344) -- 2025-10-16 00:00:00+00:00
+        MigratePlatformShare -> onAllChains (ForkAtBlockHeight $ BlockHeight 6_335_858) -- 2025-11-07 04:00:00+00:00
         Chainweb232Pact -> onAllChains ForkNever
         HashedAdjacentRecord -> onAllChains ForkNever
     , _versionGraphs =

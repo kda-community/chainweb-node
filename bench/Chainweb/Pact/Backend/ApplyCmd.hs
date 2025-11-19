@@ -134,4 +134,4 @@ gh :: HasVersion => ChainId -> BlockHeader
 gh = genesisBlockHeader
 
 pact5Version :: ChainwebVersion
-pact5Version = instantCpmTestVersion singletonChainGraph
+pact5Version = instantCpmTestVersion False singletonChainGraph

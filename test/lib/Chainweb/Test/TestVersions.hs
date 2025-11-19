@@ -14,8 +14,7 @@ module Chainweb.Test.TestVersions
     -- , fastForkingCpmTestVersion
     -- , noBridgeCpmTestVersion
     -- , slowForkingCpmTestVersion
-    -- , quirkedGasInstantCpmTestVersion
-    , quirkedGasPact5InstantCpmTestVersion
+    , quirkedGasInstantCpmTestVersion
     , timedConsensusVersion
     , instantCpmTestVersion
     -- , pact5InstantCpmTestVersion
@@ -247,51 +246,16 @@ cpmTestVersion g = withVersion (cpmTestVersion g) $
     gs = Bottom (minBound, g)
     cids = graphChainIds $ snd $ ruleHead gs
 
--- -- | CPM version (see `cpmTestVersion`) with forks and upgrades slowly enabled.
--- slowForkingCpmTestVersion :: ChainGraph -> ChainwebVersion
--- slowForkingCpmTestVersion g = buildTestVersion $ \v -> v
---     & cpmTestVersion g
---     & versionName .~ ChainwebVersionName ("slowfork-CPM-" <> toText g)
---     & versionForks .~ slowForks
---     & versionVerifierPluginNames .~ onAllChains
---         (Bottom (minBound, Set.fromList $ map Pact.VerifierName ["allow", "hyperlane_v3_announcement", "hyperlane_v3_message"]))
---     & versionQuirks .~ noQuirks
-
--- -- | CPM version (see `cpmTestVersion`) with forks and upgrades instantly enabled,
--- -- and with a gas fee quirk.
--- quirkedGasInstantCpmTestVersion :: ChainGraph -> ChainwebVersion
--- quirkedGasInstantCpmTestVersion g =
---     cpmTestVersion gs
---     & versionName .~ ChainwebVersionName ("quirked-instant-CPM-" <> toText g)
---     & versionForks .~ tabulateHashMap (\case
---         _ -> ForkAtGenesis <$ cids)
---     & versionQuirks .~ VersionQuirks
---         { _quirkGasFees = onChain (unsafeChainId 0)
---             $ HM.singleton (BlockHeight 2, TxBlockIdx 0) (Pact.Gas 1)
---         }
---     & versionGenesis .~ VersionGenesis
---         { _genesisBlockPayload = onChains $
---             (unsafeChainId 0, _payloadWithOutputsPayloadHash IN0.payloadBlock) :
---                 [ (n, _payloadWithOutputsPayloadHash INN.payloadBlock)
---                 | n <- HS.toList (unsafeChainId 0 `HS.delete` graphChainIds g)
---                 ]
---         , _genesisBlockTarget = maxTarget <$ cids
---         , _genesisTime = BlockCreationTime epoch <$ cids
---         }
---     & versionUpgrades .~ (mempty <$ cids)
---     & versionVerifierPluginNames .~ (Bottom (minBound, mempty) <$ cids)
---     where
---     gs = Bottom (minBound, g)
---     cids = ChainMap $ HS.toMap $ graphChainIds $ snd $ ruleHead gs
-
 -- | CPM version (see `cpmTestVersion`) with forks and upgrades instantly enabled,
 -- and with a gas fee quirk.
-quirkedGasPact5InstantCpmTestVersion :: ChainGraph -> ChainwebVersion
-quirkedGasPact5InstantCpmTestVersion g =
+quirkedGasInstantCpmTestVersion :: ChainGraph -> ChainwebVersion
+quirkedGasInstantCpmTestVersion g =
     cpmTestVersion g
     & versionName .~ ChainwebVersionName ("quirked-pact5-instant-CPM-" <> toText g)
     & versionForks .~ tabulateHashMap (\case
-        _ -> ForkAtGenesis <$ cids)
+        MigratePlatformShare -> ForkNever <$ cids
+        _ -> ForkAtGenesis <$ cids
+        )
     & versionQuirks .~ VersionQuirks
         { _quirkGasFees = onChain (unsafeChainId 0)
             $ HM.singleton (BlockHeight 1, TxBlockIdx 0) (Pact.Gas 1)
@@ -310,11 +274,15 @@ quirkedGasPact5InstantCpmTestVersion g =
 
 -- | CPM version (see `cpmTestVersion`) with forks and upgrades instantly enabled
 -- at genesis.
-instantCpmTestVersion :: ChainGraph -> ChainwebVersion
-instantCpmTestVersion g = withVersion (instantCpmTestVersion g) $
+instantCpmTestVersion :: Bool -> ChainGraph -> ChainwebVersion
+instantCpmTestVersion migrate g = withVersion (instantCpmTestVersion migrate g) $
     cpmTestVersion g
-    & versionName .~ ChainwebVersionName ("instant-CPM-" <> toText g)
+    & versionName .~ ChainwebVersionName ("instant-CPM-" <> toText g <> if migrate then "-migrate" else "")
     & versionForks .~ tabulateHashMap (\case
+        MigratePlatformShare -> onAllChains $
+            if migrate
+                then ForkAtBlockHeight 1
+            else ForkNever
         _ -> onAllChains ForkAtGenesis
         )
     & versionQuirks .~ noQuirks
@@ -345,6 +313,7 @@ pact53TransitionCpmTestVersion g = withVersion (pact53TransitionCpmTestVersion g
         Chainweb230Pact -> onAllChains $ ForkAtBlockHeight (BlockHeight 5)
         HashedAdjacentRecord -> onAllChains ForkNever
         Chainweb231Pact -> onAllChains ForkNever
+        MigratePlatformShare -> onAllChains ForkNever
 
         _ -> onAllChains ForkAtGenesis
         )

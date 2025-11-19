@@ -136,6 +136,7 @@ testnet04 = withVersion testnet04 $ ChainwebVersion
         Chainweb231Pact -> onAllChains $ ForkAtBlockHeight $ BlockHeight 5_783_985 -- 2025-10-15 12:00:00+00:00
         Chainweb232Pact -> onAllChains ForkNever
         HashedAdjacentRecord -> onAllChains ForkNever
+        MigratePlatformShare -> onAllChains ForkNever
 
     , _versionGraphs =
         (to20ChainsTestnet, twentyChainGraph) `Above`

@@ -1,5 +1,11 @@
 name: Release - chainweb-node - binary release scripts
 
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
+
 ## Release automation for chainweb-node
 # Designed to run systems in chainweb/binary-release
 
@@ -73,7 +79,7 @@ jobs:
           # echo "VERSION_OLD=${{ steps.tag_version.outputs.old_tag }}" >> $GITHUB_OUTPUT
           echo "VERSION_NEW=${{ inputs.new_tag }}" >> $GITHUB_OUTPUT
           echo "VERSION_OLD=${{ inputs.old_tag }}" >> $GITHUB_OUTPUT
-          echo "IMAGE=ghcr.io/kadena-io/chainweb-node:sha-$SHORT_REVISION-frozen" >> $GITHUB_OUTPUT
+          echo "IMAGE=ghcr.io/kda-community/chainweb-node:sha-$SHORT_REVISION-frozen" >> $GITHUB_OUTPUT
 
       - uses: actions/checkout@v4
         with:
@@ -98,13 +104,16 @@ jobs:
           echo "UBUNTU_VERSION=$VERSION_OS" >> $GITHUB_OUTPUT
 
   chainweb-node-dockerhub:
-    uses: kadena-io/chainweb-node-docker/.github/workflows/dockerhub_release.yml@master
+    uses: kda-community/chainweb-node-docker/.github/workflows/dockerhub_release.yml@master
     needs: release_vars
     with:
       SHORT_SHA: ${{ needs.release_vars.outputs.SHORT_REVISION }}
       VERSION_NEW: ${{ needs.release_vars.outputs.VERSION_NEW }}
       GHC_VERSION: ${{ needs.release_vars.outputs.GHC_VERSION }}
-    secrets: inherit
+    secrets:
+      dockerhub_pat: ${{ secrets.DOCKERHUB_PAT }}
+      dockerhub_user: ${{ secrets.DOCKERHUB_USER }}
+      gh_deploykey_chainwebdocker: ${{ secrets.GH_DEPLOYKEY_CHAINWEBDOCKER }}
 
   release_repo:
     needs:
@@ -142,18 +151,18 @@ jobs:
         run: |
           docker pull $IMAGE
           docker run --rm $IMAGE --version
-          docker tag $IMAGE ghcr.io/kadena-io/chainweb-node/ubuntu:$VERSION_NEW
-          docker tag $IMAGE ghcr.io/kadena-io/chainweb-node/ubuntu:latest
-          docker tag $IMAGE ghcr.io/kadena-io/chainweb-node:latest
+          docker tag $IMAGE ghcr.io/kda-community/chainweb-node/ubuntu:$VERSION_NEW
+          docker tag $IMAGE ghcr.io/kda-community/chainweb-node/ubuntu:latest
+          docker tag $IMAGE ghcr.io/kda-community/chainweb-node:latest
 
           docker image ls
 
-          docker image push --all-tags ghcr.io/kadena-io/chainweb-node/ubuntu
-          docker image push --all-tags ghcr.io/kadena-io/chainweb-node
+          docker image push --all-tags ghcr.io/kda-community/chainweb-node/ubuntu
+          docker image push --all-tags ghcr.io/kda-community/chainweb-node
 
           digest1=$(docker inspect $IMAGE --format '{{ .RepoDigests }}')
-          digest2=$(docker inspect ghcr.io/kadena-io/chainweb-node/ubuntu:$VERSION_NEW --format '{{ .RepoDigests }}')
-          digest3=$(docker inspect ghcr.io/kadena-io/chainweb-node/ubuntu:latest --format '{{ .RepoDigests }}')
+          digest2=$(docker inspect ghcr.io/kda-community/chainweb-node/ubuntu:$VERSION_NEW --format '{{ .RepoDigests }}')
+          digest3=$(docker inspect ghcr.io/kda-community/chainweb-node/ubuntu:latest --format '{{ .RepoDigests }}')
           if [[ "$digest1" != "$digest2" || "$digest2" != "$digest3" ]]; then
             echo "GHCR_DIGEST=GHCR digests do not compare correctly" >> $GITHUB_ENV
             exit 1
@@ -169,7 +178,7 @@ jobs:
           echo $UBUNTU_TAR
           echo $UBUNTU_NODE
 
-          curl "s3.us-east-1.amazonaws.com/kadena-cabal-cache/chainweb-node/$UBUNTU_TAR" -o "./$UBUNTU_TAR"
+          curl "s3.us-east-1.amazonaws.com/community-kda-cabal-cache/chainweb-node/$UBUNTU_TAR" -o "./$UBUNTU_TAR"
 
           tar xvfz "$UBUNTU_TAR" chainweb
           mv chainweb/{LICENSE,README.md,chainweb-node,compact} .
@@ -193,9 +202,9 @@ jobs:
           pwd
           ls
           sed "/$VERSION_OLD\s/,\$d" CHANGELOG.md | sed "/$VERSION_NEW (20/d" | sed '/\sChangelog/d' | tee CHANGELOG.md
-          echo 'Official release: https://github.com/kadena-io/chainweb-node/releases/tag/${{ env.VERSION_NEW }}
+          echo 'Official release: https://github.com/kda-community/chainweb-node/releases/tag/${{ env.VERSION_NEW }}
 
-            For full details refer to the [Changelog](https://github.com/kadena-io/chainweb-node/blob/master/CHANGELOG.md)
+            For full details refer to the [Changelog](https://github.com/kda-community/chainweb-node/blob/master/CHANGELOG.md)
 
             ### Container Images:
 
@@ -205,10 +214,10 @@ jobs:
             docker pull kadena/chainweb-node:${{ env.VERSION_NEW }}
             ```
 
-            *   [Binary-only $UBUNTU_VERSION ](ghcr.io/kadena-io/chainweb-node/ubuntu:${{ env.VERSION_NEW }})
+            *   [Binary-only $UBUNTU_VERSION ](ghcr.io/kda-community/chainweb-node/ubuntu:${{ env.VERSION_NEW }})
             Image Digest: `${{ env.GHCR_DIGEST }}`
             ```sh
-            docker pull ghcr.io/kadena-io/chainweb-node/ubuntu:${{ env.VERSION_NEW }}
+            docker pull ghcr.io/kda-community/chainweb-node/ubuntu:${{ env.VERSION_NEW }}
             ```
 
             ### Ubuntu Binaries:
@@ -225,7 +234,7 @@ jobs:
                 ```sh
                 apt-get install ca-certificates libgmp10 libssl3 libsnappy1v5 zlib1g liblz4-1 libbz2-1.0 libgflags2.2 zstd libmpfr6 locales
                 ```
-     
+
           ' >> CHANGELOG.md
           cat CHANGELOG.md
 

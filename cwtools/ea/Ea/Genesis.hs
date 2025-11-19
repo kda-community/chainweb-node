@@ -206,7 +206,7 @@ devAllocations = "pact/genesis/devnet/allocations.yaml"
 
 instantCPM0 :: Genesis
 instantCPM0 = Genesis
-    { _version = instantCpmTestVersion petersenChainGraph
+    { _version = instantCpmTestVersion False petersenChainGraph
     , _tag = "InstantTimedCPM"
     , _txChainIds = onlyChainId 0
     , _coinbase = Just fast0Grants

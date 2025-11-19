@@ -260,7 +260,7 @@ transferCmd chain transferAmount = (defaultCmd chain)
     }
 
 pact4Version :: ChainwebVersion
-pact4Version = instantCpmTestVersion singletonChainGraph
+pact4Version = instantCpmTestVersion False singletonChainGraph
 
 pact5Version :: ChainwebVersion
-pact5Version = pact5InstantCpmTestVersion singletonChainGraph
+pact5Version = pact5InstantCpmTestVersion False singletonChainGraph

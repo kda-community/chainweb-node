@@ -503,7 +503,7 @@ quirkSpec rdb = withVersion quirkVer $ readFromAfterGenesis rdb $ \blockEnv bloc
                 , P.fun _crGas ? P.equals ? Gas 1
                 ]
     where
-    quirkVer = quirkedGasPact5InstantCpmTestVersion petersen
+    quirkVer = quirkedGasInstantCpmTestVersion petersen
 
 applyCmdVerifierSpec :: RocksDb -> IO ()
 applyCmdVerifierSpec rdb = withVersion v $ readFromAfterGenesis rdb $ \blockEnv blockHandle ->
@@ -902,7 +902,7 @@ gh = genesisBlockHeader
 -- vUpgrades = slowCpmTestVersion singletonChainGraph
 
 v :: ChainwebVersion
-v = instantCpmTestVersion petersenChainGraph
+v = instantCpmTestVersion False petersenChainGraph
 
 -- | this utility for reading balances from the pactdb also takes care of
 -- making a transaction for the read to live in

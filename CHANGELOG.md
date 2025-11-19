@@ -1,4 +1,26 @@
-## 2.23.2 (2025-10-22)
+## 3.0.1 (2025-11-08)
+This is a minor point release. Upgrading is recommended.
+
+To upgrade, pull the latest docker image, or download the binary and
+restart the node with the same configuration file as before.
+
+### Changes
+- Rewind to the community fork point on startup if past the fork point but not
+on the community fork.
+
+## 3.0 (2025-11-06)
+This is the first release of chainweb-node Community Edition. Upgrading is
+required to participate in this version of the Kadena network.
+
+To upgrade, pull the latest docker image, or download the binary and
+restart the node with the same configuration file as before.
+
+### Changes
+- Migrate the Platform Share and namespace keysets to a new community keyset
+- Add community-managed bootstrap nodes.
+- Use community-managed git repositories for dependencies.
+
+## 2.31.2 (2025-10-22)
 This is a minor point release. Upgrading is **strongly recommended**.
 
 To upgrade, pull the latest docker image, or download the binary and

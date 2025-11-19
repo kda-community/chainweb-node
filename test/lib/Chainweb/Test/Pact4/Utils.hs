@@ -650,7 +650,7 @@ hunitDummyLogger :: (String -> IO ()) -> GenericLogger
 hunitDummyLogger f = genericLogger Error (f . T.unpack)
 
 someTestVersion :: ChainwebVersion
-someTestVersion = instantCpmTestVersion petersenChainGraph
+someTestVersion = instantCpmTestVersion False petersenChainGraph
 
 someTestVersionHeader :: BlockHeader
 someTestVersionHeader = Version.withVersion someTestVersion $ someBlockHeader 10
@@ -702,7 +702,7 @@ sigmaCompact :: ()
   -> IO ()
 sigmaCompact srcDb targetDb targetBlockHeight = do
   Sigma.withDefaultLogger Warn $ \logger -> do
-    Sigma.compactPactState logger Sigma.defaultRetainment targetBlockHeight srcDb targetDb
+    Sigma.doCompactPactState logger Sigma.defaultRetainment targetBlockHeight srcDb targetDb
 
 getPWOByHeader :: BlockHeader -> TestBlockDb -> IO PayloadWithOutputs
 getPWOByHeader h (TestBlockDb _ pdb _) =

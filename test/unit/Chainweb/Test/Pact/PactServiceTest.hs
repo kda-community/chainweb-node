@@ -88,7 +88,7 @@ data Fixture = Fixture
     }
 
 v :: ChainwebVersion
-v = instantCpmTestVersion singletonChainGraph
+v = instantCpmTestVersion False singletonChainGraph
 
 mkFixtureWith :: PactServiceConfig -> RocksDb -> ResourceT IO Fixture
 mkFixtureWith pactServiceConfig baseRdb = withVersion v $ do

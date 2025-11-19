@@ -31,18 +31,12 @@ import Chainweb.HostAddress
 --
 mainnetBootstrapHosts :: [HostAddress]
 mainnetBootstrapHosts = map unsafeHostAddressFromText
-    [ "us-e1.chainweb.com:443"
-    , "us-e2.chainweb.com:443"
-    , "us-e3.chainweb.com:443"
-    , "us-w1.chainweb.com:443"
-    , "us-w2.chainweb.com:443"
-    , "us-w3.chainweb.com:443"
-    , "fr1.chainweb.com:443"
-    , "fr2.chainweb.com:443"
-    , "fr3.chainweb.com:443"
-    , "jp1.chainweb.com:443"
-    , "jp2.chainweb.com:443"
-    , "jp3.chainweb.com:443"
+    [ "fr-1.chainweb-community.org:443"
+    , "nl-1.chainweb-community.org:443"
+    , "pl-1.chainweb-community.org:443"
+    , "pl-2.chainweb-community.org:443"
+    , "ca-1.chainweb-community.org:443"
+    , "us-e1.bootstrap.kadinic.com:443"
     ]
 
 -- -------------------------------------------------------------------------- --

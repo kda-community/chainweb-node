@@ -111,6 +111,7 @@ import Chainweb.TreeDB
 import Chainweb.Utils hiding (Codec, check)
 import Chainweb.Utils.Serialization
 import Chainweb.Version
+import Chainweb.Version.Mainnet
 import Chainweb.Version.Utils
 import Chainweb.WebBlockHeaderDB
 import Control.Applicative
@@ -463,24 +464,33 @@ startCutDb config logger headerStore providers cutHashesStore = mask_ $ do
     processor queue cutVar cutPruningStateVar = runForever (logFunction logger) "CutDB" $
         processCuts config logger headerStore providers cutHashesStore queue cutVar cutPruningStateVar
 
-    readInitialCut :: IO Cut
+    readInitialCut :: HasVersion => IO Cut
     readInitialCut = do
-        case _cutDbParamsInitialCutFile config of
-            Nothing -> do
-                unsafeMkCut <$> do
-                    hm <- readHighestCutHeaders logg wbhdb cutHashesStore
-                    case _cutDbParamsInitialHeightLimit config of
-                        Nothing -> return hm
-                        Just h -> do
-                            limitedCutHeaders <- limitCutHeaders wbhdb h hm
-                            let limitedCut = unsafeMkCut limitedCutHeaders
-                            unless (_cutDbParamsReadOnly config) $
-                                casInsert cutHashesStore (cutToCutHashes Nothing limitedCut)
-                            return limitedCutHeaders
-            Just f -> do
-                rankedBlockHashes :: HM.HashMap ChainId RankedBlockHash <- decodeOrThrow =<< BS.readFile f
-                blockHeaders <- iforM rankedBlockHashes (lookupRankedWebBlockHeaderDb wbhdb)
-                return $ unsafeMkCut blockHeaders
+        unsafeMkCut <$> do
+            hm <- readHighestCutHeaders logg wbhdb cutHashesStore
+            initialHeightLimit <- case _cutDbParamsInitialHeightLimit config of
+                Nothing -> do
+                    if _versionCode implicitVersion == _versionCode mainnet
+                    then do
+                        communityForkBlock <- RankedBlockHash 6335871 <$> decodeStrictOrThrow' "\"2Jo9_JZDTYNx2V108DyV5DoNeE1TcMKQnkJPbQnx6u4\""
+                        chain2Db <- getWebBlockHeaderDb wbhdb (unsafeChainId 2)
+                        let chain2Block = hm ^?! ix (unsafeChainId 2)
+                        onCommunityFork <-
+                            ancestorOfEntry chain2Db (_rankedBlockHashHash communityForkBlock) chain2Block
+                        if onCommunityFork then return Nothing
+                        else return $ Just (6335858 - 1)
+                    else return Nothing
+
+                Just configuredHeightLimit -> return (Just configuredHeightLimit)
+
+            case initialHeightLimit of
+                Just h -> do
+                    limitedCutHeaders <- limitCutHeaders wbhdb h hm
+                    let limitedCut = unsafeMkCut limitedCutHeaders
+                    unless (_cutDbParamsReadOnly config) $
+                        casInsert cutHashesStore (cutToCutHashes Nothing limitedCut)
+                    return limitedCutHeaders
+                Nothing -> return hm
 
 -- | Sync all configured payload providers with consensus.
 --
@@ -543,10 +553,7 @@ synchronizeProviders logger wbh providers c = do
       where
         cid = _chainId hdr
 
-
-readHighestCutHeaders
-    :: HasVersion
-    => LogFunctionText -> WebBlockHeaderDb -> Casify RocksDbTable CutHashes -> IO (HM.HashMap ChainId BlockHeader)
+readHighestCutHeaders :: HasVersion => LogFunctionText -> WebBlockHeaderDb -> Casify RocksDbTable CutHashes -> IO (HM.HashMap ChainId BlockHeader)
 readHighestCutHeaders logg wbhdb cutHashesStore = withTableIterator (unCasify cutHashesStore) $ \it -> do
     iterLast it
     go it
@@ -555,14 +562,14 @@ readHighestCutHeaders logg wbhdb cutHashesStore = withTableIterator (unCasify cu
     -- or iterate in increasinly larger steps?
     go it = iterValue it >>= \case
         Nothing -> do
-            logg Info "No initial cut found in database or configuration, falling back to genesis cut"
+            logg Warn "No initial cut found in database or configuration, falling back to genesis cut"
             return $ view cutMap genesisCut
         Just ch -> try (lookupCutHashes wbhdb ch) >>= \case
-            Left (e@TreeDbKeyNotFound {} :: TreeDbException BlockHeaderDb) -> do
+            Left (e@(TreeDbKeyNotFound {}) :: TreeDbException BlockHeaderDb) -> do
                 logg Warn
                     $ "Unable to load cut at height " <>  sshow (_cutHashesHeight ch)
                     <> " from database."
-                    <> " Error: " <> T.pack (displayException e) <> "."
+                    <> " Error: " <> sshow e <> "."
                     <> " The database might be corrupted. Falling back to previous cut."
                 iterPrev it
                 go it

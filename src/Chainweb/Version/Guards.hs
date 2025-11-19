@@ -53,6 +53,7 @@ module Chainweb.Version.Guards
     , chainweb230Pact
     , chainweb231Pact
     , chainweb232Pact
+    , migratePlatformShare
     , pact5
     , pact44NewTrans
     , maxBlockGasLimit
@@ -108,6 +109,11 @@ before :: BlockHeight -> ForkHeight -> Bool
 before bh (ForkAtBlockHeight bh') = bh < bh'
 before _ ForkAtGenesis = False
 before _ ForkNever = True
+
+atNotGenesis :: BlockHeight -> ForkHeight -> Bool
+atNotGenesis bh (ForkAtBlockHeight bh') = bh == bh'
+atNotGenesis _ ForkAtGenesis = error "fork cannot be at genesis"
+atNotGenesis _ ForkNever = False
 
 -- -------------------------------------------------------------------------- --
 -- Header Validation Guards
@@ -296,6 +302,9 @@ pact4ParserVersion :: HasVersion => ChainId -> BlockHeight -> Pact4.PactParserVe
 pact4ParserVersion cid bh
     | chainweb213Pact cid bh = Pact4.PactParserChainweb213
     | otherwise = Pact4.PactParserGenesis
+
+migratePlatformShare :: HasVersion => ChainId -> BlockHeight -> Bool
+migratePlatformShare = checkFork atNotGenesis MigratePlatformShare
 
 minimumBlockHeaderHistory :: HasVersion => BlockHeight -> Maybe Word64
 minimumBlockHeaderHistory bh = snd $ ruleZipperHere $ snd

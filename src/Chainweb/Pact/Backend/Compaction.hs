@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -12,9 +13,9 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-
 
 module Chainweb.Pact.Backend.Compaction
   (
@@ -22,8 +23,8 @@ module Chainweb.Pact.Backend.Compaction
     main
 
   -- * Exported for testing
-  , compactPactState
-  , compactRocksDb
+  , doCompactPactState
+  , doCompactRocksDb
   , Retainment(..)
   , defaultRetainment
 
@@ -145,23 +146,24 @@ data Config = Config
   , toDir :: FilePath
   , concurrent :: ConcurrentChains
   , logDir :: FilePath
-  , noRocksDb :: Bool
-    -- ^ Don't produce a new RocksDB at all.
-  , noPactState :: Bool
-    -- ^ Don't produce a new Pact State at all.
-  , keepFullTransactionIndex :: Bool
-    -- ^ Whether or not to keep the entire TransactionIndex table. Some APIs rely on this table.
+  , compactRocksDb :: Bool
+    -- ^ Compact the RocksDB at all?
+  , compactPactState :: Bool
+    -- ^ Compact the Pact State at all?
+  , compactTransactionIndex :: Bool
+    -- ^ Compact the TransactionIndex table in the Pact state?
+    -- Some APIs (e.g. /poll) rely on this table, so the default is False.
   }
 
 data Retainment = Retainment
-  { keepFullTransactionIndex :: Bool
+  { compactTransactionIndex :: Bool
   , compactThese :: CompactThese
   }
 
 defaultRetainment :: Retainment
 defaultRetainment = Retainment
-  { keepFullTransactionIndex = False
-  , compactThese = CompactBoth
+  { compactTransactionIndex = False
+  , compactThese = CompactOnlyPactState
   }
 
 data CompactThese = CompactOnlyRocksDb | CompactOnlyPactState | CompactBoth | CompactNeither
@@ -178,16 +180,26 @@ getConfig = do
       (O.fullDesc <> O.progDesc "Pact DB Compaction Tool - create a compacted copy of the source database directory Pact DB into the target directory.")
 
     parser :: O.Parser Config
-    parser = Config
-      <$> (parseVersion <$> O.strOption (O.long "chainweb-version" <> O.value "mainnet01"))
-      <*> O.strOption (O.long "from" <> O.help "Directory containing SQLite Pact state and RocksDB block data to compact (expected to be in $DIR/0/{sqlite,rocksDb}")
-      <*> O.strOption (O.long "to" <> O.help "Directory where to place the compacted Pact state and block data. It will place them in $DIR/0/{sqlite,rocksDb}, respectively.")
-      <*> O.flag SingleChain ManyChainsAtOnce (O.long "parallel" <> O.help "Turn on multi-threaded compaction. The threads are per-chain.")
-      <*> O.strOption (O.long "log-dir" <> O.help "Directory where compaction logs will be placed.")
+    parser = do
+      chainwebVersion <- (parseVersion <$> O.strOption (O.long "chainweb-version" <> O.value "mainnet01"))
+      fromDir <- O.strOption (O.long "from" <> O.help "Directory containing SQLite Pact state and RocksDB block data to compact (expected to be in $DIR/0/{sqlite,rocksDb}")
+      toDir <- O.strOption (O.long "to" <> O.help "Directory where to place the compacted Pact state and block data. It will place them in $DIR/0/{sqlite,rocksDb}, respectively.")
+      concurrent <- O.flag SingleChain ManyChainsAtOnce (O.long "parallel" <> O.help "Turn on multi-threaded compaction. The threads are per-chain.")
+      logDir <- O.strOption (O.long "log-dir" <> O.help "Directory where compaction logs will be placed.")
       -- Hidden options
-      <*> O.switch (O.long "keep-full-rocksdb" <> O.hidden)
-      <*> O.switch (O.long "no-rocksdb" <> O.hidden)
-      <*> O.switch (O.long "no-pact" <> O.hidden)
+      compactRocksDb <- O.switch
+        (O.long "compact-rocksdb"
+        <> O.help "Compact rocksDB block data. Some interfaces require this data for historical blocks, like the /poll Pact endpoint or the /header Chainweb endpoint, so it is not compacted by default."
+        )
+      compactPactState <- not <$> O.switch
+        (O.long "no-compact-pact"
+        <> O.help "Do not compact Pact state. Pact state is not used by any public interface, so it is compacted by default, and the space savings are usually large on mainnet."
+        )
+      compactTransactionIndex <- O.switch
+        (O.long "compact-transaction-index"
+        <> O.help "Compact the TransactionIndex table in the Pact state. For historical blocks, the /poll Pact endpoint relies on this table, so it is not compacted by default."
+        )
+      return Config {..}
 
     parseVersion :: Text -> ChainwebVersion
     parseVersion =
@@ -199,9 +211,8 @@ main :: IO ()
 main = do
   compact =<< getConfig
 
-
-compactPactState :: (Logger logger) => logger -> Retainment -> BlockHeight -> SQLiteEnv -> SQLiteEnv -> IO ()
-compactPactState logger rt targetBlockHeight srcDb targetDb = do
+doCompactPactState :: (Logger logger) => logger -> Retainment -> BlockHeight -> SQLiteEnv -> SQLiteEnv -> IO ()
+doCompactPactState logger rt targetBlockHeight srcDb targetDb = do
   let log = logFunctionText logger
 
   -- These pragmas are tuned for fast insertion on systems with a wide range
@@ -261,8 +272,7 @@ compactPactState logger rt targetBlockHeight srcDb targetDb = do
 
   -- Copy over TransactionIndex.
   --
-  -- If the user specifies that they want to keep the entire table, then we do so, otherwise,
-  -- we compact this based on the RocksDB 'blockHeightKeepDepth'.
+  -- If the user specifies that they want to compact the table, then we do so based on the RocksDB 'blockHeightKeepDepth'.
   --
   -- /poll and SPV rely on having this table synchronised with RocksDB.
   -- We need to document APIs which need TransactionIndex.
@@ -271,7 +281,7 @@ compactPactState logger rt targetBlockHeight srcDb targetDb = do
   -- https://tableplus.com/blog/2018/07/sqlite-how-to-copy-table-to-another-database.html
   do
     (query, args) <-
-      if rt.keepFullTransactionIndex
+      if not rt.compactTransactionIndex
       then do
         log LL.Info "Copying over entire TransactionIndex table. This could take a while"
         let wholeTableQuery = "SELECT txhash, blockheight FROM TransactionIndex ORDER BY blockheight"
@@ -337,11 +347,11 @@ compact :: Config -> IO ()
 compact cfg = withVersion cfg.chainwebVersion $ do
   let cids = allChains
 
-  let _compactThese = case (cfg.noRocksDb, cfg.noPactState) of
-        (True, True) -> CompactNeither
-        (True, False) -> CompactOnlyPactState
-        (False, True) -> CompactOnlyRocksDb
-        (False, False) -> CompactBoth
+  let _compactThese = case (cfg.compactRocksDb, cfg.compactPactState) of
+        (False, False) -> CompactNeither
+        (False, True) -> CompactOnlyPactState
+        (True, False) -> CompactOnlyRocksDb
+        (True, True) -> CompactBoth
 
   -- Get the target blockheight.
   targetBlockHeight <- withDefaultLogger LL.Debug $ \logger -> do
@@ -377,23 +387,23 @@ compact cfg = withVersion cfg.chainwebVersion $ do
     pure targetBlockHeight
 
   -- Compact RocksDB.
-  unless cfg.noRocksDb $ do
+  when cfg.compactRocksDb $ do
     withRocksDbFileLogger cfg.logDir LL.Debug $ \logger -> do
       withReadOnlyRocksDb (rocksDir cfg.fromDir) modernDefaultOptions $ \srcRocksDb -> do
         withRocksDb (rocksDir cfg.toDir) (modernDefaultOptions { compression = NoCompression }) $ \targetRocksDb -> do
-          compactRocksDb (set setLoggerLevel (l2l LL.Info) logger) cids (targetBlockHeight - blockHeightKeepDepth) srcRocksDb targetRocksDb
+          doCompactRocksDb (set setLoggerLevel (l2l LL.Info) logger) cids (targetBlockHeight - blockHeightKeepDepth) srcRocksDb targetRocksDb
 
   -- Compact the pact state.
   let retainment = Retainment
-        { keepFullTransactionIndex = cfg.keepFullTransactionIndex
+        { compactTransactionIndex = cfg.compactTransactionIndex
         , compactThese = _compactThese
         }
-  unless cfg.noPactState $ do
+  when cfg.compactPactState $ do
     forChains_ cfg.concurrent cids $ \cid -> do
       withPerChainFileLogger cfg.logDir cid LL.Debug $ \logger -> runResourceT $ do
         srcDb <- withChainDb cid logger (pactDir cfg.fromDir)
         targetDb <- withChainDb cid logger (pactDir cfg.toDir)
-        liftIO $ compactPactState logger retainment targetBlockHeight srcDb targetDb
+        liftIO $ doCompactPactState logger retainment targetBlockHeight srcDb targetDb
 
 compactTable :: (Logger logger)
   => logger      -- ^ logger
@@ -701,7 +711,7 @@ rocksDir :: FilePath -> FilePath
 rocksDir db = db </> "0/rocksDb"
 
 -- | Copy over all CutHashes, all BlockHeaders, and only some Payloads.
-compactRocksDb :: (Logger logger)
+doCompactRocksDb :: (Logger logger)
   => HasVersion
   => logger
   -> [ChainId] -- ^ ChainIds
@@ -709,7 +719,7 @@ compactRocksDb :: (Logger logger)
   -> RocksDb -- ^ source db, should be opened read-only
   -> RocksDb -- ^ target db
   -> IO ()
-compactRocksDb logger cids minBlockHeight srcDb targetDb = do
+doCompactRocksDb logger cids minBlockHeight srcDb targetDb = do
   let log = logFunctionText logger
 
   -- Copy over entirety of CutHashes table
@@ -769,7 +779,7 @@ compactRocksDb logger cids minBlockHeight srcDb targetDb = do
 
         Just minBlockHeaderHistory -> do
           let runBack =
-                let x = int latestHeader
+                let x = int minBlockHeight
                     y = minBlockHeaderHistory
                 in if x >= y then x - y else 0
           iterSeek it $ RankedBlockHash (BlockHeight runBack) nullBlockHash

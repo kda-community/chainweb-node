@@ -100,8 +100,6 @@ module Chainweb.RestAPI.Utils
 , SupportedRespBodyContentType
 , SetRespBodyContentType
 
--- * Debugging Tools
-, Traced(..)
 ) where
 
 import Control.Exception (Exception, throw)
@@ -466,11 +464,6 @@ instance Semigroup SomeServer where
     SomeServer (Proxy :: Proxy a) a <> SomeServer (Proxy :: Proxy b) b
         = SomeServer (Proxy @(a :<|> b)) (a :<|> b)
 
-    -- SomeServer (Proxy :: Proxy a) (a :: Server a) <> SomeServer (Proxy :: Proxy b) (b :: Server b)
-    --     = SomeServer
-    --         (Proxy @(Traced "left" a :<|> Traced "right" b))
-    --         (a :<|> b)
-
 instance Monoid SomeServer where
     mappend = (<>)
     mempty = SomeServer (Proxy @EmptyAPI) emptyServer
@@ -550,30 +543,3 @@ deallocateSocket (_, sock) = N.close sock
 
 withSocket :: Port -> HostPreference -> ((Port, N.Socket) -> IO a) -> IO a
 withSocket port interface = bracket (allocateSocket port interface) deallocateSocket
-
--- -------------------------------------------------------------------------- --
--- Debugging
-
--- | Quick And Dirty runtime debugging of Servant routing
---
--- FIXME: it may be cleaner to use annotations in the style of Servant's
--- 'Summary' API feature.
---
-newtype Traced (s :: Symbol) api = Traced api
-
-enabledTraced :: Bool
-enabledTraced = False
-
-instance (KnownSymbol s, HasServer api ctx) => HasServer (Traced s api) ctx where
-    type ServerT (Traced s api) m = ServerT api m
-    hoistServerWithContext _ pctx f s = hoistServerWithContext (Proxy @api) pctx f s
-    route _ ctx dl
-        | enabledTraced = route (Proxy @api) ctx $ addParameterCheck
-            (const <$> dl)
-            (DelayedIO $ liftIO $ putStrLn (symbolVal @s Proxy))
-        | otherwise = route (Proxy @api) ctx dl
-
-instance HasClient m api => HasClient m (Traced s api) where
-    type Client m (Traced s api) = Client m api
-    clientWithRoute pm _ r = clientWithRoute pm (Proxy @api) r
-    hoistClientMonad pm _ f c = hoistClientMonad pm (Proxy @api) f c
