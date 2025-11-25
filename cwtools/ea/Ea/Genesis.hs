@@ -256,7 +256,7 @@ instantCPMN = instantCPM0
 
 pact5InstantCPM0 :: Genesis
 pact5InstantCPM0 = Genesis
-    { _version = pact5InstantCpmTestVersion petersenChainGraph
+    { _version = pact5InstantCpmTestVersion False petersenChainGraph
     , _tag = "Pact5InstantTimedCPM"
     , _txChainIds = onlyChainId 0
     , _coinbase = Just fast0Grants

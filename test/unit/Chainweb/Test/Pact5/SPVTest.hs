@@ -257,4 +257,4 @@ successfulTx :: P.Prop (CommandResult log err)
 successfulTx = P.fun _crResult ? P.match _PactResultOk P.succeed
 
 cid = unsafeChainId 0
-v = pact5InstantCpmTestVersion singletonChainGraph
+v = pact5InstantCpmTestVersion False singletonChainGraph

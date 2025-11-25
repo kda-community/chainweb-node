@@ -42,7 +42,7 @@ import Pact.Core.Signer
 -- | Test suite
 
 v :: ChainwebVersion
-v = pact5InstantCpmTestVersion petersenChainGraph
+v = pact5InstantCpmTestVersion False petersenChainGraph
 
 chain0 :: ChainId
 chain0 = unsafeChainId 0
@@ -66,7 +66,7 @@ tests baseRdb = testGroup "Pact5 SignedList Plugin Tests" $ map (signedListTestT
       "[] \"02fd7923740a775c95ce17e9bb7239ff9096689f70db9263a7efb9a9ad08e9fed7\""
       True
       Nothing
-      
+
   , SignedListTest "signedListValidatorTestNested"
       simpleExampleMsgProof2
       nestedCapArgs
@@ -79,7 +79,7 @@ tests baseRdb = testGroup "Pact5 SignedList Plugin Tests" $ map (signedListTestT
       "[]"
       False
       (Just "Malformed inputs for signature verification")
-  
+
   , SignedListTest "signedListValidatorTestMismatchedCap"
       simpleExampleMsgProof
       mismatchedCapArgs
@@ -92,7 +92,7 @@ tests baseRdb = testGroup "Pact5 SignedList Plugin Tests" $ map (signedListTestT
       "[] \"02fd7923740a775c95ce17e9bb7239ff9096689f70db9263a7efb9a9ad08e9fed7\""
       False
       (Just "Capability arguments do not match proof data")
-      
+
   ]
 
 plist :: [PactValue] -> PactValue

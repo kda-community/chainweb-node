@@ -970,7 +970,7 @@ vUpgrades :: ChainwebVersion
 vUpgrades = pact5SlowCpmTestVersion singletonChainGraph
 
 v :: ChainwebVersion
-v = pact5InstantCpmTestVersion petersenChainGraph
+v = pact5InstantCpmTestVersion False petersenChainGraph
 
 -- | this utility for reading balances from the pactdb also takes care of
 -- making a transaction for the read to live in

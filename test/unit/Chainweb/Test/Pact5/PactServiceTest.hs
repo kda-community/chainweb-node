@@ -586,7 +586,7 @@ chain0 :: ChainId
 chain0 = unsafeChainId 0
 
 v :: ChainwebVersion
-v = pact5InstantCpmTestVersion singletonChainGraph
+v = pact5InstantCpmTestVersion False singletonChainGraph
 
 advanceAllChainsWithTxs :: Fixture -> ChainMap [Pact5.Transaction] -> IO (ChainMap (Vector TestPact5CommandResult))
 advanceAllChainsWithTxs fixture txsPerChain =

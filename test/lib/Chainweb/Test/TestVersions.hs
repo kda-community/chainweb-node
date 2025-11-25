@@ -131,8 +131,9 @@ testVersions = _versionName <$> concat
     ,   [ instantCpmTestVersion (knownChainGraph g)
         | g :: KnownGraph <- [minBound..maxBound]
         ]
-    ,   [ pact5InstantCpmTestVersion (knownChainGraph g)
+    ,   [ pact5InstantCpmTestVersion migrate (knownChainGraph g)
         | g :: KnownGraph <- [minBound..maxBound]
+        , migrate :: Bool <- [minBound..maxBound]
         ]
     ,   [ pact5CheckpointerTestVersion (knownChainGraph g)
         | g :: KnownGraph <- [minBound..maxBound]
@@ -365,7 +366,7 @@ fastForks = tabulateHashMap $ \case
     Chainweb230Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 52
     Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 54
     Chainweb232Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 56
-    MigratePlatformShare -> AllChains $ ForkAtBlockHeight $ BlockHeight 58
+    MigratePlatformShare -> AllChains ForkNever
 
 -- | CPM version (see `cpmTestVersion`) with forks and upgrades slowly enabled.
 slowForkingCpmTestVersion :: ChainGraph -> ChainwebVersion
@@ -467,14 +468,17 @@ instantCpmTestVersion g = buildTestVersion $ \v -> v
             )
         )
 
-pact5InstantCpmTestVersion :: ChainGraph -> ChainwebVersion
-pact5InstantCpmTestVersion g = buildTestVersion $ \v -> v
+pact5InstantCpmTestVersion :: Bool -> ChainGraph -> ChainwebVersion
+pact5InstantCpmTestVersion migrate g = buildTestVersion $ \v -> v
     & cpmTestVersion g
-    & versionName .~ ChainwebVersionName ("instant-pact5-CPM-" <> toText g)
+    & versionName .~ ChainwebVersionName ("instant-pact5-CPM-" <> toText g <> if migrate then "-migrate" else "")
     & versionForks .~ tabulateHashMap (\case
         -- SPV Bridge is not in effect for Pact 5 yet.
         SPVBridge -> AllChains ForkNever
-        MigratePlatformShare -> AllChains $ ForkAtBlockHeight 1
+        MigratePlatformShare -> AllChains $
+            if migrate
+                then ForkAtBlockHeight 1
+            else ForkNever
 
         _ -> AllChains ForkAtGenesis
         )
@@ -503,7 +507,7 @@ pact53TransitionCpmTestVersion g = buildTestVersion $ \v -> v
         SPVBridge -> AllChains ForkNever
 
         Chainweb230Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 5)
-        MigratePlatformShare -> AllChains $ ForkAtBlockHeight (BlockHeight 1)
+        MigratePlatformShare -> AllChains ForkNever
 
         _ -> AllChains ForkAtGenesis
         )
@@ -567,7 +571,7 @@ instantCpmTransitionTestVersion g = buildTestVersion $ \v -> v
         -- SPV Bridge is not in effect for Pact 5 yet.
         SPVBridge -> AllChains ForkNever
 
-        MigratePlatformShare -> AllChains (ForkAtBlockHeight $ BlockHeight 21)
+        MigratePlatformShare -> AllChains ForkNever
 
         _ -> AllChains ForkAtGenesis
         )

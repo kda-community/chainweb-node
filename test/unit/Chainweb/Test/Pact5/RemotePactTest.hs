@@ -162,7 +162,7 @@ tests rdb = withResource' (evaluate httpManager >> evaluate cert) $ \_ ->
 
 pollingInvalidRequestKeyTest :: RocksDb -> Step -> IO ()
 pollingInvalidRequestKeyTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -172,7 +172,7 @@ pollingInvalidRequestKeyTest baseRdb _step = runResourceT $ do
 
 pollingConfirmationDepthTest :: RocksDb -> Step -> IO ()
 pollingConfirmationDepthTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -239,7 +239,7 @@ pollingConfirmationDepthTest baseRdb _step = runResourceT $ do
 
 crosschainTest :: RocksDb -> Step -> IO ()
 crosschainTest baseRdb step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     fx <- mkFixture v baseRdb
 
     let srcChain = unsafeChainId 0
@@ -340,7 +340,7 @@ crosschainTest baseRdb step = runResourceT $ do
 
 spvExpirationTest :: RocksDb -> Step -> IO ()
 spvExpirationTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     fx <- mkFixture v baseRdb
 
     let srcChain = unsafeChainId 0
@@ -578,8 +578,8 @@ sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
 
         ]
     where
-    v = pact5InstantCpmTestVersion petersenChainGraph
-    wrongV = pact5InstantCpmTestVersion twentyChainGraph
+    v = pact5InstantCpmTestVersion False petersenChainGraph
+    wrongV = pact5InstantCpmTestVersion False twentyChainGraph
 
     cid = unsafeChainId 0
     wrongChain = unsafeChainId 1
@@ -595,7 +595,7 @@ sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
 
 caplistTest :: RocksDb -> Step -> IO ()
 caplistTest baseRdb step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     fx <- mkFixture v baseRdb
 
     let cid = unsafeChainId 0
@@ -635,7 +635,7 @@ caplistTest baseRdb step = runResourceT $ do
 
 migratePlatformShareTest :: RocksDb -> Step -> IO ()
 migratePlatformShareTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion True petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
     cmd <- buildTextCmd v $ set cbRPC (mkExec' "(describe-keyset \"PS_C0\")") $ defaultCmd cid
@@ -761,7 +761,7 @@ allocation02KeyPair' =
 
 allocationTest :: RocksDb -> (String -> IO ()) -> IO ()
 allocationTest rdb step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v rdb
 
@@ -867,7 +867,7 @@ allocationTest rdb step = runResourceT $ do
 
 gasPurchaseFailureMessages :: RocksDb -> Step -> IO ()
 gasPurchaseFailureMessages rdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v rdb
 
@@ -1026,7 +1026,7 @@ transitionCrosschain rdb step = runResourceT $ do
 -- by the pact service.
 webAuthnSignatureTest :: RocksDb -> Step -> IO ()
 webAuthnSignatureTest rdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v rdb
     liftIO $ do
@@ -1041,7 +1041,7 @@ webAuthnSignatureTest rdb _step = runResourceT $ do
 
 localTests :: RocksDb -> TestTree
 localTests baseRdb = let
-    v = pact5InstantCpmTestVersion petersenChainGraph
+    v = pact5InstantCpmTestVersion False petersenChainGraph
     cid = unsafeChainId 0
     in testGroup "tests for local"
         [ testCase "ordinary txs" $ runResourceT $ do
@@ -1274,7 +1274,7 @@ localTests baseRdb = let
 
 pollingMetadataTest :: RocksDb -> Step -> IO ()
 pollingMetadataTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -1302,7 +1302,7 @@ pollingMetadataTest baseRdb _step = runResourceT $ do
 
 upgradeNamespaceTests :: RocksDb -> Step -> IO ()
 upgradeNamespaceTests baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -1345,7 +1345,7 @@ upgradeNamespaceTests baseRdb _step = runResourceT $ do
 
 invalidSigCapNameTest :: RocksDb -> Step -> IO ()
 invalidSigCapNameTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
