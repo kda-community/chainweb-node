@@ -141,14 +141,14 @@ jobs:
         MATRIX="$(jq -c '.' <<EOF
         {
 
-          "ghc": ["9.8.2"],
+          "ghc": ["9.8.2", "9.10.2"],
           "cabal": ["latest"],
           "os": ["ubuntu-22.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
               # These are the build values that will be used for release scripts
-              "ghc": "9.8.2",
+              "ghc": "9.10.2",
               "cabal": "latest",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
@@ -160,14 +160,14 @@ jobs:
         else
         MATRIX="$(jq -c '.' <<EOF
         {
-          "ghc": ["9.8.2"],
+          "ghc": ["9.8.2", "9.10.2"],
           "cabal": ["latest"],
           "os": ["ubuntu-22.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
-              "ghc": "9.8.2",
-              "cabal": "3.12",
+              "ghc": "9.10.2",
+              "cabal": "3.14",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
             }
@@ -347,7 +347,6 @@ jobs:
         cabal build -j2 --ghc-options=-j2 \
           chainweb:bench:bench \
           exe:b64 \
-          exe:calculate-release \
           exe:compact \
           exe:db-checksum \
           exe:ea \
@@ -386,7 +385,6 @@ jobs:
         mkdir -p artifacts/chainweb
         cp $(cabal list-bin b64) artifacts/chainweb
         cp $(cabal list-bin bench) artifacts/chainweb
-        cp $(cabal list-bin calculate-release) artifacts/chainweb
         cp $(cabal list-bin chainweb-node) artifacts/chainweb
         cp $(cabal list-bin chainweb-storage-tests) artifacts/chainweb
         cp $(cabal list-bin chainweb-tests) artifacts/chainweb
@@ -570,95 +568,6 @@ jobs:
         # aws s3api put-object-acl --bucket $BENCH_BUCKET --key=$BENCH_FOLDER/$BENCH_FILE --acl public-read
 
   # ########################################################################## #
-  # Validate Devnet Database and Replay Pact History
-
-  # validate-devnet-database:
-    # name: Validate Devnet Database Snapshot and Replay Pact History
-    # needs: [config, sync-chain-db, build]
-    # strategy:
-      # fail-fast: false
-      # matrix: ${{ fromJson(needs.config.outputs.matrix) }}
-    # runs-on: ${{ matrix.os }}
-    # env:
-      # ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
-    # steps:
-    # - uses: actions/checkout@v4
-    # - name: Download ${{ needs.config.outputs.chainweb-network-version }} chain database artifact
-    #   uses: actions/download-artifact@v4
-    #   with:
-    #     name: chain-db-${{ needs.config.outputs.chainweb-network-version }}
-    #     path: db
-    # - name: Download build artifacts
-    #   uses: actions/download-artifact@v4
-    #   with:
-    #     name: ${{ env.ARTIFACTS_NAME }}
-    #     path: .
-    # - name: Install chainweb from artifacts
-    #   uses: ./.github/actions/install-chainweb-from-artifacts
-    #   with:
-    #     os: ${{ matrix.os }}
-    #     ghc: ${{ matrix.ghc }}
-    #     use-freeze-file: ${{ matrix.use-freeze-file }}
-    # - name: Write chainweb-node configuration
-    #   run: |
-    #     cat >> config.yaml <<EOF
-    #       databaseDirectory: "db"
-    #       chainweb:
-    #         onlySyncPact: true
-    #         logGas: true
-    #         chainwebVersion: ${{ needs.config.outputs.chainweb-network-version }}
-    #         validateHashesOnReplay: true
-    #         p2p:
-    #           peer:
-    #             interface: localhost
-    #             hostaddress:
-    #               port: 4445
-    #           private: true
-    #           ignoreBootstrapNodes: true
-    #         transactionIndex:
-    #           enabled: false
-    #         mempoolP2p:
-    #           enabled: false
-    #         cuts:
-    #           pruneChainDatabase: headers-checked
-    #       logging:
-    #         telemetryBackend:
-    #           enabled: false
-    #           configuration:
-    #             color: 'true'
-    #         backend:
-    #           color: 'true'
-    #         filter:
-    #           rules:
-    #           - value: mempool
-    #             key: component
-    #             level: warn
-    #           - value: connection-manager
-    #             key: component
-    #             level: warn
-    #           - value: sync
-    #             key: sub-component
-    #             level: warn
-    #           - value: MempoolAccess
-    #             key: sub-component
-    #             level: warn
-    #           - value: PactService
-    #             key: logger
-    #             level: warn
-    #           - value: Checkpointer
-    #             key: logger
-    #             level: warn
-    #           default: info
-    #     EOF
-    # - name: Validate database and replay pact transactions
-    #   timeout-minutes: 6
-    #   run: |
-    #     chainweb-node +RTS -T -H1G -A64M -RTS \
-    #       --config-file=config.yaml \
-    #       --log-level=info \
-    #       --disable-pow
-
-  # ########################################################################## #
   # Run Unit Tests
 
   unit-tests:
@@ -747,12 +656,9 @@ jobs:
         # when adding more than one build, use a different package name or
         # different tags
         include:
-        - ghc: "9.8.2"
+        - ghc: "9.10.2"
           os: "ubuntu-22.04"
           use-freeze-file: "true"
-        # - ghc: "9.10.1"
-        #   os: "ubuntu-22.04"
-        #   use-freeze-file: "false"
     env:
       OS: ${{ matrix.os }}
       ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
@@ -802,7 +708,16 @@ jobs:
         EOF
         ENV LANG=en_US.UTF-8
         WORKDIR /chainweb
-        COPY chainweb/* .
+        COPY chainweb/chainweb-node .
+        COPY chainweb/b64 .
+        COPY chainweb/compact .
+        COPY chainweb/README.md .
+        COPY chainweb/CHANGELOG.md .
+        COPY chainweb/LICENSE .
+        COPY chainweb/chainweb.cabal .
+        COPY chainweb/cabal.project .
+        COPY chainweb/cabal.project.local .
+        COPY chainweb/cabal.project.freeze .
         STOPSIGNAL SIGTERM
         ENTRYPOINT [ "/chainweb/chainweb-node" ]
         DEOF

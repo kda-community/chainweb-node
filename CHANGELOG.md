@@ -1,3 +1,21 @@
+## 3.1 (2025-11-25)
+
+This is a major version update. This release replaces all previous versions.
+
+Any prior version will stop working on **2026-01-07T00:00:00Z**. Node administrators must
+upgrade to this version before that date.
+
+To upgrade, pull the latest docker image, or download the binary and
+restart the node with the same configuration file as before.
+
+Subsequent releases will not stop working at any fixed date; instead, forking
+changes will be voted on by miners.
+
+### Changes
+- Incorporate upstream changes from the final release of kadena-io/chainweb-node:
+  - Remove service date ([#2273](https://github.com/kadena-io/chainweb-node/commit/1e3f63239f0830133ca6eac029179bd4b62f3281))
+  - Forks done right ([#2272](https://github.com/kadena-io/chainweb-node/commit/4aedec3bb04acd328655b17f29d41d6b077f317b))
+
 ## 3.0.1 (2025-11-08)
 This is a minor point release. Upgrading is recommended.
 

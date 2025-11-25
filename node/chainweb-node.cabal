@@ -1,7 +1,7 @@
 cabal-version: 3.8
 
 name:         chainweb-node
-version:      3.0.1
+version:      3.1
 synopsis:     A Proof-of-Work Parallel-Chain Architecture for Massive Throughput
 description:  A Proof-of-Work Parallel-Chain Architecture for Massive Throughput.
 homepage:     https://github.com/kadena-io/chainweb
@@ -17,7 +17,6 @@ build-type:   Custom
 tested-with:
     GHC == 9.10
     GHC == 9.8
-    GHC == 9.6
 
 extra-source-files:
     CHANGELOG.md
@@ -56,7 +55,6 @@ common debugging-flags
 common warning-flags
     ghc-options:
         -Wall
-        -Werror
         -Wcompat
         -Wpartial-fields
         -Wincomplete-record-updates
@@ -65,13 +63,9 @@ common warning-flags
         -funclutter-valid-hole-fits
         -fmax-relevant-binds=0
 
-        -- This needed because -Werror and missing-home-modules causes
-        -- problems with ghci.
-        -Wno-missing-home-modules
-
 custom-setup
     setup-depends:
-        , Cabal >= 3.8
+        , Cabal >= 3.14
         , base >= 4.12 && < 5
         , bytestring >= 0.10.12
         , directory >= 1.3
