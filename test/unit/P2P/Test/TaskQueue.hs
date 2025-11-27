@@ -55,8 +55,8 @@ testRunner limit q = forM_ [0..] $ session_ limit q (\_ _ -> yield)
 test1 :: Int -> IO Bool
 test1 n = do
     tasks <- forM [0..n] $ \i ->
-        newTask (TaskId $ sshow i) (Priority i) $ \_ -> return @_ @Int
-    q <- newEmptyPQueue
+        newTask (TaskId $ sshow i) (Priority (0 - i)) $ \_ -> return @_ @Int
+    q <- newEmptyPQueue _taskPriority _taskId Nothing
     withAsync (testRunner 3 q) $ \_ -> do
         traverse_ (pQueueInsert q) tasks
         results <- traverse awaitTask tasks
@@ -66,11 +66,11 @@ test2a :: (Positive Int) -> IO Bool
 test2a (Positive n_) = do
     tasks <- forM [10..n+10] $ \i ->
         newTask (TaskId $ sshow i) (Priority (n - i)) $ \_ -> return @_ @Int
-    q <- newEmptyPQueue
+    q <- newEmptyPQueue _taskPriority _taskId Nothing
     withAsync (testRunner 3 q) $ \_ -> do
         traverse_ (pQueueInsert q) tasks
         results <- traverse awaitTask tasks
-        return $ results /= [10..n+10]
+        return $ results /= [n+10, n+9..10]
   where
     n = n_ + 10
 
@@ -78,7 +78,7 @@ test2b :: (Positive Int) -> IO Bool
 test2b (Positive n_) = do
     tasks <- forM [0..n] $ \i ->
         newTask (TaskId $ sshow i) (Priority (n - i)) $ \_ -> return @_ @Int
-    q <- newEmptyPQueue
+    q <- newEmptyPQueue _taskPriority _taskId Nothing
     withAsync (testRunner 3 q) $ \_ -> do
         traverse_ (pQueueInsert q) tasks
         results <- traverse awaitTask tasks
@@ -90,21 +90,21 @@ test3 :: Int -> IO Bool
 test3 n = do
     tasks <- forM [0..n] $ \i ->
         newTask (TaskId $ sshow i) (Priority i) $ \_ -> return @_ @Int
-    q <- newEmptyPQueue
+    q <- newEmptyPQueue _taskPriority _taskId Nothing
     traverse_ (pQueueInsert q) tasks
     withAsync (testRunner 3 q) $ \_ -> do
         results <- traverse awaitTask tasks
-        return $ results == [0..n]
+        return $ results == [n, n-1..0]
 
 test4 :: Int -> IO Bool
 test4 n = do
     tasks <- forM [0..n] $ \i ->
         newTask (TaskId $ sshow i) (Priority (n - i)) $ \_ -> return @_ @Int
-    q <- newEmptyPQueue
+    q <- newEmptyPQueue _taskPriority _taskId Nothing
     traverse_ (pQueueInsert q) tasks
     withAsync (testRunner 3 q) $ \_ -> do
         results <- traverse awaitTask tasks
-        return $ results == reverse [0..n]
+        return $ results == [0..n]
 
 test5 :: Positive Int -> Positive Int -> Positive Int -> IO Bool
 test5 (Positive n) (Positive m) (Positive a)
@@ -117,11 +117,11 @@ test5 (Positive n) (Positive m) (Positive a)
             newTask (TaskId $ sshow i) (Priority i) $ \_ e -> if
                 | e `mod` m == 0 -> return e
                 | otherwise -> throwM $ TestRunnerException e
-        q <- newEmptyPQueue
+        q <- newEmptyPQueue _taskPriority _taskId Nothing
         traverse_ (pQueueInsert q) tasks
         withAsync (testRunner (int a) q) $ \_ -> do
             results <- traverse awaitTask tasks
-            return $ results == [0,m..(n*m)]
+            return $ results == [n*m, (n-1)*m..0]
 
 properties :: [(String, Property)]
 properties =
