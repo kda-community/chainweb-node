@@ -169,6 +169,7 @@ mainnet = ChainwebVersion
         (succ $ mainnet ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 180_000) `Above`
         Bottom (minBound, Nothing)
     , _versionSpvProofRootValidWindow =
+        (succ $ mainnet ^?! versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Nothing) `Above`
         (succ $ mainnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 20_000) `Above`
         Bottom (minBound, Nothing)
     , _versionBootstraps = domainAddr2PeerInfo mainnetBootstrapHosts
