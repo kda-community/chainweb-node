@@ -69,7 +69,7 @@ module Chainweb.Version
     , versionGraphs
     , versionHeaderBaseSizeBytes
     , versionMaxBlockGasLimit
-    , versionMinimumBlockHeaderHistory
+    , versionSpvProofRootValidWindow
     , versionName
     , versionWindow
     , versionGenesis
@@ -494,7 +494,7 @@ data ChainwebVersion
         -- use 'headerSizeBytes'.
     , _versionMaxBlockGasLimit :: Rule BlockHeight (Maybe Natural)
         -- ^ The maximum gas limit for an entire block.
-    , _versionMinimumBlockHeaderHistory :: Rule BlockHeight (Maybe Word64)
+    , _versionSpvProofRootValidWindow :: Rule BlockHeight (Maybe Word64)
         -- ^ The minimum number of block headers a chainweb node should
         -- retain in its history at all times.
     , _versionBootstraps :: [PeerInfo]

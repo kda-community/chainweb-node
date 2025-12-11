@@ -148,7 +148,7 @@ testnet04 = ChainwebVersion
     , _versionMaxBlockGasLimit =
         (succ $ testnet04 ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 180_000) `Above`
         Bottom (minBound, Nothing)
-    , _versionMinimumBlockHeaderHistory =
+    , _versionSpvProofRootValidWindow =
         (succ $ testnet04 ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 20_000) `Above`
         Bottom (minBound, Nothing)
     , _versionBootstraps = domainAddr2PeerInfo testnet04BootstrapHosts

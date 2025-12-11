@@ -312,7 +312,7 @@ maxBlockGasLimit v bh = snd $ ruleZipperHere $ snd
 
 minimumBlockHeaderHistory :: ChainwebVersion -> BlockHeight -> Maybe Word64
 minimumBlockHeaderHistory v bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> bh >= h) (_versionMinimumBlockHeaderHistory v)
+    $ ruleSeek (\h _ -> bh >= h) (_versionSpvProofRootValidWindow v)
 
 -- | Different versions of Chainweb allow different PPKSchemes.
 --

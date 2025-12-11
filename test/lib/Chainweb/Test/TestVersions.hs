@@ -159,7 +159,7 @@ testVersionTemplate v = v
     & versionHeaderBaseSizeBytes .~ 318 - 110
     & versionWindow .~ WindowWidth 120
     & versionMaxBlockGasLimit .~ Bottom (minBound, Just 2_000_000)
-    & versionMinimumBlockHeaderHistory .~ Bottom (minBound, Just 20)
+    & versionSpvProofRootValidWindow .~ Bottom (minBound, Just 20)
     & versionBootstraps .~ [testBootstrapPeerInfos]
     & versionVerifierPluginNames .~ AllChains (Bottom (minBound, mempty))
     & versionForkNumber .~ 0
