@@ -228,7 +228,7 @@ data Fork
     | Chainweb229Pact
     | Chainweb230Pact
     | Chainweb231Pact
-    | Chainweb232Pact
+    | Chainweb31
     | MigratePlatformShare
     -- always add new forks at the end, not in the middle of the constructors.
     deriving stock (Bounded, Generic, Eq, Enum, Ord, Show)
@@ -271,7 +271,7 @@ instance HasTextRepresentation Fork where
     toText Chainweb229Pact = "chainweb229Pact"
     toText Chainweb230Pact = "chainweb230Pact"
     toText Chainweb231Pact = "chainweb231Pact"
-    toText Chainweb232Pact = "chainweb232Pact"
+    toText Chainweb31 = "Chainweb31"
     toText MigratePlatformShare = "migratePlatformShare"
 
     fromText "slowEpoch" = return SlowEpoch
@@ -310,7 +310,7 @@ instance HasTextRepresentation Fork where
     fromText "chainweb229Pact" = return Chainweb229Pact
     fromText "chainweb230Pact" = return Chainweb230Pact
     fromText "chainweb231Pact" = return Chainweb231Pact
-    fromText "chainweb232Pact" = return Chainweb232Pact
+    fromText "Chainweb31" = return Chainweb31
     fromText "migratePlatformShare" = return MigratePlatformShare
     fromText t = throwM . TextFormatException $ "Unknown Chainweb fork: " <> t
 
