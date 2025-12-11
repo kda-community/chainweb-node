@@ -78,6 +78,7 @@ module Chainweb.BlockHeader.Validation
 , prop_block_genesis_target
 , prop_block_target
 , prop_block_forkVotesReset
+, prop_block_forkKnown
 
 -- * Inductive BlockHeader Properties
 , prop_block_epoch
@@ -321,6 +322,7 @@ instance Show ValidationFailure where
             InvalidAdjacentVersion -> "An adjancent parent has a chainweb version that does not match the version of the validated header"
             IncorrectForkNumber -> "The block has an incorrect fork number"
             InvalidForkVotes -> "The block has an invalid fork vote count"
+            UnknownForkNumber -> "The block has an unknown fork number; the node may be outdated"
 
 -- | An enumeration of possible validation failures for a block header.
 --
@@ -388,6 +390,9 @@ data ValidationFailureType
         -- fork number of the parent. Note, that the fork number is determined
         -- deterministically from the parent block. It increases monotonically
         -- at most once per fork epoch.
+    | UnknownForkNumber
+        -- ^ The block's fork number is higher than the maximum fork number in
+        -- the ChainwebVersion. The node version is likely outdated.
     | InvalidForkVotes
         -- ^ The block has an invalid fork vote count. At the beginning of an
         -- fork epoch the fork vote count must be zero. Otherwise, the fork vote
@@ -406,7 +411,7 @@ instance Exception ValidationFailure
 --
 -- No node on the chainweb-web network should propgate blocks with these
 -- failures. If a block is received that causes a definite validation failures
--- is receveived from a chainweb-node, that chainweb-node should be
+-- is received from a chainweb-node, that chainweb-node should be
 -- blacklisted/removed in the peer database.
 --
 definiteValidationFailures :: [ValidationFailureType]
@@ -424,6 +429,7 @@ definiteValidationFailures =
     , IncorrectGenesisTarget
     , IncorrectPayloadHash
     , IncorrectForkNumber
+    , UnknownForkNumber
     , InvalidForkVotes
     ]
 
@@ -655,6 +661,7 @@ validateIntrinsic t b = concat
     , [ BlockInTheFuture | not (prop_block_current t b)]
     , [ AdjacentChainMismatch | not (prop_block_adjacent_chainIds b) ]
     , [ InvalidForkVotes | not (prop_block_forkVotesReset b) ]
+    , [ UnknownForkNumber | not (prop_block_forkKnown b) ]
     ]
 
 -- | Validate properties of a block with respect to a given parent.
@@ -800,7 +807,7 @@ prop_block_forkVote (ChainStep (ParentHeader p) b)
     h = view blockHeight b
     cid = _chainId b
 
--- | Validate that for number is incrementd correctly at fork epoch start.
+-- | Validate that fork number is incremented correctly at fork epoch start.
 --
 prop_block_forkNumber :: ChainStep -> Bool
 prop_block_forkNumber (ChainStep (ParentHeader p) b)
@@ -811,6 +818,18 @@ prop_block_forkNumber (ChainStep (ParentHeader p) b)
     fnum = view blockForkNumber b
     pfnum = view blockForkNumber p
     parentVotes = view blockForkVotes p
+    v = _chainwebVersion b
+    h = view blockHeight b
+    cid = _chainId b
+
+-- | Validate that fork number does not exceed the version fork number.
+prop_block_forkKnown :: BlockHeader -> Bool
+prop_block_forkKnown b
+    | skipFeatureFlagValidationGuard v cid h = True
+    | fnum > _versionForkNumber v = False
+    | otherwise = True
+  where
+    fnum = view blockForkNumber b
     v = _chainwebVersion b
     h = view blockHeight b
     cid = _chainId b

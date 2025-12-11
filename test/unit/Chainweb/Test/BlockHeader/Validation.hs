@@ -47,7 +47,6 @@ import Data.DoubleWord
 import Data.Foldable
 import Data.HashMap.Strict qualified as HM
 import Data.List (sort)
-import Data.List qualified as L
 import Data.Ratio
 import Data.Text qualified as T
 import Numeric.AffineSpace
@@ -152,7 +151,7 @@ prop_da_validate = validate_cases "difficulty adjustment validation" daValidatio
 prop_legacy_da_validate :: TestTree
 prop_legacy_da_validate = validate_cases "legacy difficulty adjustment validation" legacyDaValidation
 
-validate_cases :: String -> [(TestHeader, [ValidationFailureType])] -> TestTree
+validate_cases :: HasCallStack => String -> [(TestHeader, [ValidationFailureType])] -> TestTree
 validate_cases msg testCases = testCase msg $ do
     now <- getCurrentTimeIntegral
     traverse_ (f now) $ zip [0 :: Int ..] testCases
@@ -207,7 +206,7 @@ validateTestHeader h = case try val of
     now = add second $ _bct $ view blockCreationTime $ _testHeaderHdr h
     val = validateBlockHeaderM now (testHeaderChainLookup h) (_testHeaderHdr h)
     verify :: [ValidationFailureType] -> Property
-    verify es = L.delete IncorrectPow es === []
+    verify es = es === [IncorrectPow]
 
 -- -------------------------------------------------------------------------- --
 -- Invalid Headers
@@ -249,7 +248,7 @@ validationFailures =
       , [IncorrectHash, IncorrectPow, ChainMismatch, AdjacentChainMismatch]
       )
     , ( hdr & testHeaderHdr . blockChainwebVersion .~ _versionCode RecapDevelopment
-      , [IncorrectHash, IncorrectPow, VersionMismatch, InvalidForkVotes, IncorrectForkNumber, CreatedBeforeParent, AdjacentChainMismatch, InvalidAdjacentVersion, InvalidForkVotes]
+      , [IncorrectHash, IncorrectPow, UnknownForkNumber, VersionMismatch, InvalidForkVotes, IncorrectForkNumber, CreatedBeforeParent, AdjacentChainMismatch, InvalidAdjacentVersion, InvalidForkVotes]
       )
     , ( hdr & testHeaderHdr . blockWeight .~ 10
       , [IncorrectHash, IncorrectPow, IncorrectWeight]
@@ -335,7 +334,7 @@ forkValidation =
 
     -- after skipFeatureFlagValidationGuard is deactivated
     , ( hdr & h . blockForkNumber %~ (+1)
-      , [IncorrectHash, IncorrectPow, IncorrectForkNumber]
+      , [IncorrectHash, IncorrectPow, IncorrectForkNumber, UnknownForkNumber]
       )
     , ( hdr & h . blockForkVotes %~ addVote
       , [IncorrectHash, IncorrectPow]
@@ -370,12 +369,12 @@ forkValidation =
     , ( hdr
         & p . blockForkNumber .~ 10
         & h . blockForkNumber .~ 10
-      , [IncorrectHash, IncorrectPow]
+      , [IncorrectHash, IncorrectPow, UnknownForkNumber]
       )
     , ( hdr
         & p . blockForkNumber .~ 10
         & h . blockForkNumber .~ 10 - 1
-      , [IncorrectHash, IncorrectPow, IncorrectForkNumber]
+      , [IncorrectHash, IncorrectPow, IncorrectForkNumber, UnknownForkNumber]
       )
 
     -- fork vote count, fork epoch end
@@ -461,7 +460,7 @@ forkValidation =
         & p . blockForkVotes .~ int forkEpochLength * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
-      , [IncorrectHash, IncorrectPow]
+      , [IncorrectHash, IncorrectPow, UnknownForkNumber]
       )
     -- Test 25
     , ( hdr2
@@ -474,13 +473,13 @@ forkValidation =
         & p . blockForkVotes .~ (voteLength * 2 `quot` 3 - 1) * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
-      , [IncorrectHash, IncorrectPow, IncorrectForkNumber]
+      , [IncorrectHash, IncorrectPow, IncorrectForkNumber, UnknownForkNumber]
       )
     , ( hdr2
         & p . blockForkVotes .~ (voteLength * 2 `quot` 3 + 1) * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
-      , [IncorrectHash, IncorrectPow]
+      , [IncorrectHash, IncorrectPow, UnknownForkNumber]
       )
     , ( hdr2
         & p . blockForkVotes .~ (voteLength * 2 `quot` 3 + 1) * voteStep
@@ -561,7 +560,7 @@ daValidation =
 
     a = testHeaderAdjs . each . parentHeader
 
-    expected = [IncorrectHash, IncorrectPow, AdjacentChainMismatch]
+    expected = [IncorrectHash, IncorrectPow, AdjacentChainMismatch, UnknownForkNumber]
 
     -- From mainnet
     hdr = set (h . blockChainwebVersion) (_versionCode RecapDevelopment)

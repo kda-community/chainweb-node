@@ -379,7 +379,8 @@ arbitraryBlockHeaderVersionHeightChain v h cid
     | otherwise = discard
   where
     entries t
-        = liftA2 (:+:) arbitrary -- feature flags
+        -- TODO: pick between 0 and the version fork number
+        = liftA2 (:+:) (pure $ ForkState 0) -- feature flags
         $ liftA2 (:+:) (pure $ BlockCreationTime t) -- time
         $ liftA2 (:+:) arbitrary -- parent hash
         $ liftA2 (:+:) arbitrary -- target
