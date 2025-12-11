@@ -227,5 +227,5 @@ decideVotes v = round (v % voteStep) * 3 >= (forkEpochLength - voteCountLength) 
 --   * Use a quantized average consensus algorithm to compute the average vote.
 --   * Use 1000 quantization levels.
 --   * In each step use integer division with biased rounding.
---   * At the end roude to nearest integer using bankers rounding.
+--   * At the end round to nearest integer using bankers rounding.
 --
