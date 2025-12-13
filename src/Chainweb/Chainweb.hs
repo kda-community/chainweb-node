@@ -516,7 +516,7 @@ withChainwebInternal conf logger peer serviceSock rocksDb pactDbDir backupDir re
                 logFunctionJson logger Info PactReplayInProgress
                 -- note that we don't use the "initial cut" from cutdb because its height depends on initialBlockHeightLimit.
                 highestCut <-
-                    unsafeMkCut v <$> readHighestCutHeaders v (logFunctionText logger) webchain (cutHashesTable rocksDb)
+                    unsafeMkCut v <$> readHighestCutHeaders mCutDb
                 lowerBoundCut <-
                     tryLimitCut webchain (fromMaybe 0 $ _cutInitialBlockHeightLimit $ _configCuts conf) highestCut
                 upperBoundCut <- forM (_cutFastForwardBlockHeightLimit $ _configCuts conf) $ \upperBound ->

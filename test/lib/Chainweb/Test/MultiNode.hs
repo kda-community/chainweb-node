@@ -437,7 +437,7 @@ pactImportTest logLevel v n rocksDb pactDir step = do
 
       latestBlockHeight <- do
         wbhdb <- initWebBlockHeaderDb rdb v
-        latestCutHeaders <- readHighestCutHeaders v (\_ _ -> pure ()) wbhdb (cutHashesTable rdb)
+        latestCutHeaders <- readHighestCutHeaders' v (\_ _ -> pure ()) wbhdb (cutHashesTable rdb)
         pure $ maximum $ fmap (view blockHeight) latestCutHeaders
 
       let targetChunkSize :: BlockHeight
