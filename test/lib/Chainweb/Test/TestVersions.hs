@@ -17,6 +17,7 @@ module Chainweb.Test.TestVersions
     , timedConsensusVersion
     , instantCpmTestVersion
     , pact5InstantCpmTestVersion
+    , pact5InstantCpmTestVersionExpiryDisabled
     , pact5CheckpointerTestVersion
     , pact5SlowCpmTestVersion
     , instantCpmTransitionTestVersion
@@ -134,6 +135,9 @@ testVersions = _versionName <$> concat
     ,   [ pact5InstantCpmTestVersion migrate (knownChainGraph g)
         | g :: KnownGraph <- [minBound..maxBound]
         , migrate :: Bool <- [minBound..maxBound]
+        ]
+    ,   [ pact5InstantCpmTestVersionExpiryDisabled (knownChainGraph g)
+        | g :: KnownGraph <- [minBound..maxBound]
         ]
     ,   [ pact5CheckpointerTestVersion (knownChainGraph g)
         | g :: KnownGraph <- [minBound..maxBound]
@@ -496,6 +500,36 @@ pact5InstantCpmTestVersion migrate g = buildTestVersion $ \v -> v
             ( minBound
             , Set.fromList $ map VerifierName ["allow", "hyperlane_v3_announcement", "hyperlane_v3_message","signed_list"]
             )
+        )
+
+pact5InstantCpmTestVersionExpiryDisabled :: ChainGraph -> ChainwebVersion
+pact5InstantCpmTestVersionExpiryDisabled g = buildTestVersion $ \v -> v
+    & cpmTestVersion g
+    & versionName .~ ChainwebVersionName ("instant-pact5-CPM-" <> toText g <> "-expiry-disabled")
+    & versionForks .~ tabulateHashMap (\case
+        -- SPV Bridge is not in effect for Pact 5 yet.
+        SPVBridge -> AllChains ForkNever
+        MigratePlatformShare -> AllChains ForkNever
+        _ -> AllChains ForkAtGenesis
+        )
+    & versionQuirks .~ noQuirks
+    & versionGenesis .~ VersionGenesis
+        { _genesisBlockPayload = onChains $
+            (unsafeChainId 0, PIN0.payloadBlock) :
+            [(n, PINN.payloadBlock) | n <- HS.toList (unsafeChainId 0 `HS.delete` graphChainIds g)]
+        , _genesisBlockTarget = AllChains maxTarget
+        , _genesisTime = AllChains $ BlockCreationTime epoch
+        }
+    & versionUpgrades .~ AllChains mempty
+    & versionVerifierPluginNames .~ AllChains
+        (Bottom
+            ( minBound
+            , Set.fromList $ map VerifierName ["allow", "hyperlane_v3_announcement", "hyperlane_v3_message","signed_list"]
+            )
+        )
+    & versionSpvProofRootValidWindow .~
+        ( (BlockHeight 5, Nothing) `Above`
+            Bottom (minBound, Just 20)
         )
 
 pact53TransitionCpmTestVersion :: ChainGraph -> ChainwebVersion

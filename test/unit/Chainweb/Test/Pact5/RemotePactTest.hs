@@ -142,7 +142,19 @@ tests :: RocksDb -> TestTree
 tests rdb = withResource' (evaluate httpManager >> evaluate cert) $ \_ ->
     testGroup "Pact5 RemotePactTest"
         [ testCaseSteps "crosschainTest" (crosschainTest rdb)
-        , testCaseSteps "spvExpirationTest" (spvExpirationTest rdb)
+        , testCase "spvExpirationTest" $ spvExpirationTest
+            (pact5InstantCpmTestVersion False petersenChainGraph)
+            rdb
+            (P.fun _crResult
+                ? P.match _PactResultErr
+                ? P.fun _peMsg
+                ? P.equals "Continuation error: spv verification failed: target header is not in the chain or is out of bounds")
+        , testCase "spvExpirationDisabledTest" $ spvExpirationTest
+            (pact5InstantCpmTestVersionExpiryDisabled petersenChainGraph)
+            rdb
+            (P.fun _crResult
+                ? P.match _PactResultOk
+                ? P.succeed)
         , sendInvalidTxsTest rdb
         , testCaseSteps "caplistTest" (caplistTest rdb)
         , testCaseSteps "pollingInvalidRequestKeyTest" (pollingInvalidRequestKeyTest rdb)
@@ -338,9 +350,9 @@ crosschainTest baseRdb step = runResourceT $ do
             ? P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.fun _boundedText
             ? P.equals ("Requested defpact execution already completed for defpact id: " <> T.take 20 (renderDefPactId $ _peDefPactId cont) <> "...")
 
-spvExpirationTest :: RocksDb -> Step -> IO ()
-spvExpirationTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion False petersenChainGraph
+
+spvExpirationTest :: ChainwebVersion -> RocksDb -> P.Prop TestPact5CommandResult -> IO ()
+spvExpirationTest v baseRdb prop = runResourceT $ do
     fx <- mkFixture v baseRdb
 
     let srcChain = unsafeChainId 0
@@ -371,7 +383,11 @@ spvExpirationTest baseRdb _step = runResourceT $ do
         -- more than sufficient for the target chain to be aware of the source xchain transfer.
         let waitBlocks :: Integral a => a
             waitBlocks = 10
-        let expirationWindow = fromMaybe (error "missing minimumBlockHeaderHistory") (minimumBlockHeaderHistory v maxBound)
+        -- the choice of minBound here is a bit arbitrary. but in the "expiry
+        -- disabled" case, we definitely don't want to use maxBound.
+        let expirationWindow = fromMaybe
+                (error "missing minimumBlockHeaderHistory")
+                (minimumBlockHeaderHistory v minBound)
         when (int expirationWindow < waitBlocks + diameter (chainGraphAt v maxBound)) $ assertFailure "test version has a minimumBlockHeaderHistory that is too short to test"
 
         replicateM_ waitBlocks $ advanceAllChains_ fx
@@ -401,10 +417,7 @@ spvExpirationTest baseRdb _step = runResourceT $ do
         advanceAllChains_ fx
         poll fx v targetChain [recvReqKey]
             >>= P.match (_head . _Just)
-            ? P.checkAll
-                [ P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.equals "Continuation error: spv verification failed: target header is not in the chain or is out of bounds"
-                ]
-
+            ? prop
 
 -- this test suite really wants you not to put any transactions into the final block.
 sendInvalidTxsTest :: RocksDb -> TestTree
@@ -943,7 +956,7 @@ transitionOccurs rdb _step = runResourceT $ do
         checkPactVersion fx v cid >>= P.equals Pact5
 
 -- | Test that xchains work across the Pact4->Pact4 transition boundary.
---   This is mostly the same as 'spvTest', except it waits for the transition.
+--   This is mostly the same as 'crosschainTest', except it waits for the transition.
 transitionCrosschain :: RocksDb -> Step -> IO ()
 transitionCrosschain rdb step = runResourceT $ do
     let v = instantCpmTransitionTestVersion petersenChainGraph
