@@ -838,6 +838,7 @@ instance Arbitrary CoordinationConfig where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary NodeMiningConfig where
     arbitrary = NodeMiningConfig

@@ -1197,7 +1197,10 @@ instance IsBlockHeader BlockHeader where
 -- but might be worth it!
 --
 newBlockHeader
-    :: HM.HashMap ChainId ParentHeader
+    :: ForkNumber
+        -- ^ Target fork number. Forks will be voted "yes" until this fork
+        -- number is reached.
+    -> HM.HashMap ChainId ParentHeader
         -- ^ Adjacent parent hashes. The hash and the PoW target of these are
         -- needed for construction the new header.
     -> BlockPayloadHash
@@ -1210,9 +1213,9 @@ newBlockHeader
     -> ParentHeader
         -- ^ parent block header
     -> BlockHeader
-newBlockHeader adj pay nonce t p@(ParentHeader b) =
+newBlockHeader targetFork adj pay nonce t p@(ParentHeader b) =
     fromLog @ChainwebMerkleHashAlgorithm $ newMerkleLog
-        $ newForkState adj p (_versionForkNumber v)
+        $ newForkState adj p targetFork
         :+: t
         :+: _blockHash b
         :+: target

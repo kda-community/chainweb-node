@@ -234,6 +234,7 @@ doNewBlock ctxIO mempool parent nonce t = do
             . _bct . view blockCreationTime
             $ _parentHeader parent
         bh = newBlockHeader
+            (_versionForkNumber (_chainwebVersion parent))
             mempty
             (_payloadWithOutputsPayloadHash payload)
             nonce
