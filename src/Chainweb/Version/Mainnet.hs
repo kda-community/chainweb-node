@@ -234,4 +234,12 @@ mainnet = ChainwebVersion
             ]
         }
     , _versionForkNumber = 0
+    -- | A epoch is 120 * 120 block heights, which, on mainnet, is expected to be 5
+    -- days.
+    --
+    -- Each fork epoch is divided into:
+    --
+    -- * 120 * 119 blocks for voting and
+    -- * 120 blocks for counting the votes
+    , _versionForkVoteCastingLength = 120 * 119
     }

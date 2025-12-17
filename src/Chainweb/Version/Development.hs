@@ -65,4 +65,5 @@ devnet = ChainwebVersion
         (minBound, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"])
     , _versionQuirks = noQuirks
     , _versionForkNumber = 0
+    , _versionForkVoteCastingLength = 120 * 119 -- 5 days
     }

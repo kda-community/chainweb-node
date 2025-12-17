@@ -48,6 +48,7 @@ import System.IO.Unsafe
 import Chainweb.BlockCreationTime
 import Chainweb.BlockHeight
 import Chainweb.Difficulty
+import Chainweb.ForkState
 import Chainweb.Graph
 import Chainweb.HostAddress
 import Chainweb.Pact.Utils
@@ -119,9 +120,10 @@ testVersions = _versionName <$> concat
     ,   [ noBridgeCpmTestVersion (knownChainGraph g)
         | g :: KnownGraph <- [minBound..maxBound]
         ]
-    ,   [ timedConsensusVersion (knownChainGraph g1) (knownChainGraph g2)
+    ,   [ timedConsensusVersion forkNum (knownChainGraph g1) (knownChainGraph g2)
         | g1 :: KnownGraph <- [minBound..maxBound]
         , g2 :: KnownGraph <- [minBound..maxBound]
+        , forkNum :: ForkNumber <- [0..2]
         ]
     ,   [ quirkedGasInstantCpmTestVersion (knownChainGraph g)
         | g :: KnownGraph <- [minBound..maxBound]
@@ -167,13 +169,14 @@ testVersionTemplate v = v
     & versionBootstraps .~ [testBootstrapPeerInfos]
     & versionVerifierPluginNames .~ AllChains (Bottom (minBound, mempty))
     & versionForkNumber .~ 0
+    & versionForkVoteCastingLength .~ 20 -- very short. fork epoch is 140 blocks
 
 -- | A test version without Pact or PoW, with only one chain graph.
 barebonesTestVersion :: ChainGraph -> ChainwebVersion
 barebonesTestVersion g = buildTestVersion $ \v ->
     testVersionTemplate v
         & versionWindow .~ WindowWidth 120
-        & versionBlockDelay .~ BlockDelay 1_000_000
+        & versionBlockDelay .~ BlockDelay 500_000
         & versionName .~ ChainwebVersionName ("test-" <> toText g)
         & versionGraphs .~ Bottom (minBound, g)
         & versionCheats .~ VersionCheats
@@ -195,10 +198,11 @@ barebonesTestVersion g = buildTestVersion $ \v ->
         & versionUpgrades .~ AllChains HM.empty
 
 -- | A test version without Pact or PoW, with a chain graph upgrade at block height 8.
-timedConsensusVersion :: ChainGraph -> ChainGraph -> ChainwebVersion
-timedConsensusVersion g1 g2 = buildTestVersion $ \v -> v
+timedConsensusVersion :: ForkNumber -> ChainGraph -> ChainGraph -> ChainwebVersion
+timedConsensusVersion forkNum g1 g2 = buildTestVersion $ \v -> v
     & testVersionTemplate
-    & versionName .~ ChainwebVersionName ("timedConsensus-" <> toText g1 <> "-" <> toText g2)
+    & versionName .~ ChainwebVersionName
+        ("timedConsensus-fork" <> sshow forkNum <> "-" <> toText g1 <> "-" <> toText g2)
     & versionBlockDelay .~ BlockDelay 1_000_000
     & versionWindow .~ WindowWidth 120
     & versionForks .~ tabulateHashMap (\case
@@ -225,6 +229,7 @@ timedConsensusVersion g1 g2 = buildTestVersion $ \v -> v
         , _genesisBlockTarget = AllChains maxTarget
         , _genesisTime = AllChains $ BlockCreationTime epoch
         }
+    & versionForkNumber .~ forkNum
 
 -- | A test version without Pact or PoW.
 pact5CheckpointerTestVersion :: ChainGraph -> ChainwebVersion

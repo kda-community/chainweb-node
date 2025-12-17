@@ -190,10 +190,10 @@ instance Arbitrary ChainwebVersion where
     arbitrary = elements
         [ barebonesTestVersion singletonChainGraph
         , barebonesTestVersion petersenChainGraph
-        , timedConsensusVersion singletonChainGraph singletonChainGraph
-        , timedConsensusVersion petersenChainGraph petersenChainGraph
-        , timedConsensusVersion singletonChainGraph pairChainGraph
-        , timedConsensusVersion petersenChainGraph twentyChainGraph
+        , timedConsensusVersion 0 singletonChainGraph singletonChainGraph
+        , timedConsensusVersion 0 petersenChainGraph petersenChainGraph
+        , timedConsensusVersion 0 singletonChainGraph pairChainGraph
+        , timedConsensusVersion 0 petersenChainGraph twentyChainGraph
         , RecapDevelopment
         , Testnet04
         , Mainnet01
@@ -329,7 +329,8 @@ instance Arbitrary EpochStartTime where
 
 instance Arbitrary ForkState where
     arbitrary = do
-        votes <- chooseBoundedIntegral (0, int forkEpochLength * voteStep)
+        v <- arbitrary
+        votes <- chooseBoundedIntegral (0, int (forkEpochLength v) * voteStep)
         number <- chooseBoundedIntegral (0, 100000000)
         return $ ForkState 0
             & set forkVotes votes

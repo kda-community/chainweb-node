@@ -36,7 +36,7 @@
 -- similulate a full-scale chain in a miniaturized settings.
 --
 module Chainweb.Test.MultiNode
-  ( test
+  ( efficiencyTest
   , replayTest
   , compactAndResumeTest
   , pactImportTest
@@ -630,9 +630,10 @@ replayTest loglevel v n rdb pactDbDir step = do
         tastylog "done."
 
 -- -------------------------------------------------------------------------- --
--- Test
+-- Test that block production is efficient. The block delay in this test is
+-- random with a mean of 1 second; we expect to produce *around* a block a second.
 
-test
+efficiencyTest
     :: LogLevel
     -> ChainwebVersion
     -> Natural
@@ -642,7 +643,7 @@ test
     -> FilePath
     -> (String -> IO ())
     -> IO ()
-test loglevel v n seconds rdb pactDbDir step = do
+efficiencyTest loglevel v n seconds rdb pactDbDir step = do
     -- Count log messages and only print the first 60 messages
     let tastylog = step . T.unpack
     let logFun = tastylog

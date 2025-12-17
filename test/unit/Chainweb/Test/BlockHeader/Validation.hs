@@ -68,7 +68,7 @@ tests = testGroup "Chainweb.Test.Blockheader.Validation"
     , prop_da_validate
     , prop_legacy_da_validate
     , prop_forkVotesReset (barebonesTestVersion petersenChainGraph) 0
-    , prop_forkVotesReset (barebonesTestVersion petersenChainGraph) (int forkEpochLength)
+    , prop_forkVotesReset (barebonesTestVersion petersenChainGraph) (int (forkEpochLength (barebonesTestVersion petersenChainGraph)))
     , testProperty "validate arbitrary test header" prop_validateArbitrary
     , testProperty "validate arbitrary test header for mainnet" $ prop_validateArbitrary Mainnet01
     , testProperty "validate arbitrary test header for testnet04" $ prop_validateArbitrary Testnet04
@@ -173,12 +173,14 @@ validate_cases msg testCases = testCase msg $ do
                     <> ", epochStart: " <> sshow (view blockEpochStart $ _testHeaderHdr h)
                     <> ", forkNumber: " <> sshow (view blockForkNumber $ _testHeaderHdr h)
                     <> ", forkVotes: " <> sshow (view blockForkVotes $ _testHeaderHdr h)
-                    <> ", isForkEpochStart: " <> sshow (isForkEpochStart (_testHeaderHdr h))
-                    <> ", isForkCountBlock: " <> sshow (isForkCountBlock (_testHeaderHdr h))
+                    <> ", isForkEpochStart: " <> sshow (isForkEpochStart v (view blockHeight $ _testHeaderHdr h))
+                    <> ", isForkCountBlock: " <> sshow (isForkCountBlock v (view blockHeight $ _testHeaderHdr h))
                     <> ", parent header: " <> T.unpack (encodeToText $ ObjectEncoded $ view parentHeader $ _testHeaderParent h)
                     <> ", parent forkNumber: " <> sshow (view blockForkNumber $ view parentHeader $ _testHeaderParent h)
                     <> ", parent forkVotes: " <> sshow (view blockForkVotes $ view parentHeader $ _testHeaderParent h)
                 | otherwise -> return ()
+      where
+      v = view chainwebVersion h
 
 -- -------------------------------------------------------------------------- --
 -- Tests for Rule Guards:
@@ -452,13 +454,13 @@ forkValidation =
 
     -- test correct fork number increment at fork epoch start
     , ( hdr2
-        & p . blockForkVotes .~ int forkEpochLength * voteStep
+        & p . blockForkVotes .~ int (forkEpochLength (_chainwebVersion hdr2)) * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2
       , [IncorrectForkNumber]
       )
     , ( hdr2
-        & p . blockForkVotes .~ int forkEpochLength * voteStep
+        & p . blockForkVotes .~ int (forkEpochLength (_chainwebVersion hdr2)) * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
       , [IncorrectHash, IncorrectPow]
@@ -498,7 +500,7 @@ forkValidation =
 
     -- The number of block heights within an fork epoch where voting happens.
     -- The remaining blocks are used to count votes.
-    voteLength = int $ forkEpochLength - voteCountLength
+    voteLength = int $ forkEpochLength (_chainwebVersion hdr2) - voteCountingLength
 
     hdr0 = mainnet01Headers !! 21
 

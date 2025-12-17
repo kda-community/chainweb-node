@@ -627,7 +627,7 @@ prop_blockCountAtChainHeight g0 g1 = T.counterexample (show v)
     h i = min 8 (i + 1) * int (order g0) + max 0 (i - 7) * int (order g1)
 
     -- (8, g1) :| [(0, g0)]
-    v = timedConsensusVersion g0 g1
+    v = timedConsensusVersion 0 g0 g1
 
 properties_misc :: [(String, T.Property)]
 properties_misc =

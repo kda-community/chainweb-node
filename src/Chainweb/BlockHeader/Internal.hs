@@ -137,7 +137,6 @@ module Chainweb.BlockHeader.Internal
 , isForkCountBlock
 , isForkVoteBlock
 , newForkState
-, isLastForkEpochBlock
 , genesisForkState
 
 -- * CAS Constraint
@@ -1105,24 +1104,21 @@ blockForkVotes = blockForkState . forkVotes
 
 -- | Returns whether a block is the first block in a fork epoch.
 --
-isForkEpochStart :: BlockHeader -> Bool
-isForkEpochStart hdr =
-    rem (int $ view blockHeight hdr) forkEpochLength == 0
-
-isLastForkEpochBlock :: BlockHeader -> Bool
-isLastForkEpochBlock hdr =
-    rem (1 + int (view blockHeight hdr)) forkEpochLength == 0
+isForkEpochStart :: ChainwebVersion -> BlockHeight -> Bool
+isForkEpochStart v h =
+    rem (int h) (forkEpochLength v) == 0
 
 -- | Returns whether a block is at a height at which voting occurs.
 --
-isForkVoteBlock :: BlockHeader -> Bool
-isForkVoteBlock hdr =
-    rem (int $ view blockHeight hdr) forkEpochLength < (forkEpochLength - voteCountLength)
+isForkVoteBlock :: ChainwebVersion -> BlockHeight -> Bool
+isForkVoteBlock v h =
+    rem (int h) (forkEpochLength v)
+        < _versionForkVoteCastingLength v
 
 -- | Returns whether a block is at a height at which vote couting occurs.
 --
-isForkCountBlock :: BlockHeader -> Bool
-isForkCountBlock hdr = not (isForkVoteBlock hdr)
+isForkCountBlock :: ChainwebVersion -> BlockHeight -> Bool
+isForkCountBlock v h = not (isForkVoteBlock v h)
 
 -- | New Fork State computation
 --
@@ -1141,18 +1137,19 @@ newForkState
         -- number of the parent header is less than this value.
     -> ForkState
 newForkState as p targetFork
-    | isLastForkEpochBlock (view parentHeader p) = cur
+    | isForkEpochStart v (succ $ view (parentHeader . blockHeight) p) = cur
         -- reset votes and vote
         & forkVotes .~ (if vote then addVote resetVotes else resetVotes)
         -- based on current vote count decide whether to increase fork number
-        & forkNumber %~ (if decideVotes curVotes then succ else id)
-    | isForkVoteBlock (view parentHeader p) = cur
+        & forkNumber %~ (if decideVotes v curVotes then succ else id)
+    | isForkVoteBlock v (succ $ view (parentHeader . blockHeight) p) = cur
         -- vote
         & forkVotes %~ (if vote then addVote else id)
     | otherwise = cur
         -- do one vote counting step
         & forkVotes .~ countVotes allParentVotes
   where
+    v = _chainwebVersion p
     vote = curNumber < targetFork
     cur = view (parentHeader . blockForkState) p
     curNumber = view (parentHeader . blockForkNumber) p
@@ -1320,4 +1317,3 @@ _rankedBlockPayloadHash h = RankedBlockPayloadHash
 rankedBlockPayloadHash :: Getter BlockHeader RankedBlockPayloadHash
 rankedBlockPayloadHash = to _rankedBlockPayloadHash
 {-# INLINE rankedBlockPayloadHash #-}
-

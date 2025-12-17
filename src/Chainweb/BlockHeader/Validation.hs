@@ -750,7 +750,8 @@ prop_block_adjacent_chainIds b
 prop_block_forkVotesReset :: BlockHeader -> Bool
 prop_block_forkVotesReset b
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b = votes == resetVotes || votes == addVote resetVotes
+    | isForkEpochStart v h =
+        votes == resetVotes || votes == addVote resetVotes
     | otherwise = True
   where
     votes = view blockForkVotes b
@@ -790,8 +791,10 @@ prop_block_chainId (ChainStep (ParentHeader p) b)
 prop_block_forkVote :: ChainStep -> Bool
 prop_block_forkVote (ChainStep (ParentHeader p) b)
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b = votes == resetVotes || votes == addVote resetVotes
-    | isForkVoteBlock b = votes == parentVotes || votes == addVote parentVotes
+    | isForkEpochStart v h =
+        votes == resetVotes || votes == addVote resetVotes
+    | isForkVoteBlock v h =
+        votes == parentVotes || votes == addVote parentVotes
     | otherwise = True
   where
     votes = view blockForkVotes b
@@ -805,7 +808,7 @@ prop_block_forkVote (ChainStep (ParentHeader p) b)
 prop_block_forkNumber :: ChainStep -> Bool
 prop_block_forkNumber (ChainStep (ParentHeader p) b)
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b && decideVotes parentVotes = fnum == pfnum + 1
+    | isForkEpochStart v h && decideVotes v parentVotes = fnum == pfnum + 1
     | otherwise = fnum == pfnum
   where
     fnum = view blockForkNumber b
@@ -821,9 +824,12 @@ prop_block_forkNumber (ChainStep (ParentHeader p) b)
 prop_block_forkVoteCount :: WebStep -> Bool
 prop_block_forkVoteCount (WebStep as (ChainStep p b))
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b = votes == resetVotes || votes == addVote resetVotes
-    | isForkVoteBlock b = votes == parentVotes || votes == addVote parentVotes
-    | otherwise = votes == countVotes allParentVotes
+    | isForkEpochStart v h =
+        votes == resetVotes || votes == addVote resetVotes
+    | isForkVoteBlock v h =
+        votes == parentVotes || votes == addVote parentVotes
+    | otherwise =
+        votes == countVotes allParentVotes
   where
     votes = view blockForkVotes b
     parentVotes = view blockForkVotes (_parentHeader p)

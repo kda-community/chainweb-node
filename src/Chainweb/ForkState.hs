@@ -31,13 +31,10 @@ module Chainweb.ForkState
 , forkVotes
 
 -- * Vote Count Logic
-, forkEpochLength
 , voteStep
 , addVote
 , resetVotes
 , countVotes
-, decideVotes
-, voteCountLength
 ) where
 
 import Data.Word
@@ -50,10 +47,8 @@ import Control.Lens (Lens', lens)
 import Data.Aeson (ToJSON, FromJSON)
 import Data.Bits
 import Data.Hashable (Hashable)
-import Data.Ratio
 import GHC.Generics (Generic)
 import Numeric.Additive (AdditiveSemigroup, AdditiveAbelianSemigroup, AdditiveMonoid)
-import Numeric.Natural
 
 -- | Starting with Chainweb 2.33, forks are identified by a monotonically
 -- increasing fork number. Each block is created according to a specific fork
@@ -160,22 +155,6 @@ forkVotes = lens _forkVotes $ \(ForkState w) v -> ForkState
 -- -------------------------------------------------------------------------- --
 -- -- Vote Count Logic
 
--- | A epoch is 120 * 120 block heights, which, on mainne, is expected to be 5
--- days.
---
--- Each fork epoch is divided into:
---
--- * 120 * 119 blocks for voting and
--- * 120 blocks for counting the votes
---
-forkEpochLength :: Natural
-forkEpochLength = 120 * 120 -- 5 days
-
--- | The last 120 blocks in a fork epoch are used to count the votes.
---
-voteCountLength :: Natural
-voteCountLength = 120
-
 -- | The vote count is quantized into 1000 levels.
 --
 voteStep :: ForkVotes
@@ -195,9 +174,6 @@ resetVotes = ForkVotes 0
 countVotes :: Traversable t => t ForkVotes -> ForkVotes
 countVotes votes = sum votes `quot` ForkVotes (int $ length votes)
 
-decideVotes :: ForkVotes -> Bool
-decideVotes v = round (v % voteStep) * 3 >= (forkEpochLength - voteCountLength) * 2
-
 
 -- -------------------------------------------------------------------------- --
 -- Details
@@ -207,7 +183,7 @@ decideVotes v = round (v % voteStep) * 3 >= (forkEpochLength - voteCountLength) 
 -- validateForkNumber :: Parent BlockHeader -> BlockHeader -> Bool
 -- validateForkNumber (Parent parent) hdr
 --     | isForkEpoch hdr =
---         if view getForkNumberVotes parent >= ((forkEpochLength * 2) `div` 3)
+--         if view getForkNumberVotes parent >= ((forkEpochLength v * 2) `div` 3)
 --           then
 --             view getForkNumber hdr == view getForkNumber parent + 1
 --             && view getForkNumberVotes hdr <= 1
