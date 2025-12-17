@@ -51,7 +51,7 @@ import Control.Lens (set, view, (^?!), ix)
 import Control.Monad
 import Chronos qualified
 
-import Patience.Map qualified as P
+import Patience.Map qualified as Patience
 import Data.ByteString.Base16 qualified as Base16
 import Chainweb.Pact.Backend.PactState.EmbeddedSnapshot (Snapshot(..))
 import Data.Aeson (ToJSON, object, (.=))
@@ -482,26 +482,26 @@ pactImportTest logLevel v n rocksDb pactDir step = do
             tgtStateAt <- do
               let db = pactCopyConns ^?! ix cid
               getPactStateAtDiffable db snapshotBlockHeight
-            let stateDiff = Map.filter (not . P.isSame) (P.diff srcStateAt tgtStateAt)
+            let stateDiff = Map.filter (not . Patience.isSame) (Patience.diff srcStateAt tgtStateAt)
             when (not (null stateDiff)) $ do
               forM_ (Map.toList stateDiff) $ \(tbl, delta) -> do
                 case delta of
-                  P.Same _ -> do
+                  Patience.Same _ -> do
                     pure ()
-                  P.Old _ -> do
+                  Patience.Old _ -> do
                     log Error $ "Table " <> tbl <> " appeared in the source pact db, but does not appear in the target."
-                  P.New _ -> do
+                  Patience.New _ -> do
                     log Error $ "Table " <> tbl <> " appeared in the target pact db, but not appear in the source."
-                  P.Delta x1 x2 -> do
+                  Patience.Delta x1 x2 -> do
                     log Error $ "Difference exists between source and target on table " <> tbl <> "."
-                    forM_ (Map.filter (not . P.isSame) (P.diff x1 x2)) $ \case
-                      P.Same _ -> do
+                    forM_ (Map.filter (not . Patience.isSame) (Patience.diff x1 x2)) $ \case
+                      Patience.Same _ -> do
                         pure ()
-                      P.Old x -> do
+                      Patience.Old x -> do
                         log Error $ "In table " <> tbl <> ", rowkey " <> T.decodeUtf8 x <> " exists on source but not target."
-                      P.New x -> do
+                      Patience.New x -> do
                         log Error $ "In table " <> tbl <> ", rowkey " <> T.decodeUtf8 x <> " exists on target but not source."
-                      P.Delta x _y -> do
+                      Patience.Delta x _y -> do
                         log Error $ "In table " <> tbl <> ", there was a difference in rowdata at rowkey " <> T.decodeUtf8 x <> "."
               assertFailure "Diff failed"
 
