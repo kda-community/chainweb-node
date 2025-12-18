@@ -113,15 +113,16 @@ atNotGenesis _ ForkNever = False
 -- -------------------------------------------------------------------------- --
 -- Header Validation Guards
 --
--- The guards in this section encode when changes to validation rules for data
+-- The guards in this section encode when changes to validation rules for blocks
 -- on the chain become effective.
 --
--- Only the following types are allowed as parameters for guards
+-- Guards can only take as parameters data that was available when a block was
+-- not yet produced. For example, the block creation time, block hash, and nonce
+-- of that block are not available, because they were not available before the
+-- block was produced.
 --
--- * BlockHeader,
--- * ParentHeader,
--- * BlockCreationTime, and
--- * ParentCreationTime
+-- In practice, the relevant input data is the `ChainwebVersion`, `ChainId`, and
+-- `BlockHeight` of the block under consideration.
 --
 -- The result is a simple 'Bool'.
 --
