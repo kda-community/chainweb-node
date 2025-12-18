@@ -45,6 +45,14 @@ suite = independentSequentialTestGroup "MultiNodeNetworkTests"
             withTempRocksDb "fork-vote-succeed-twice-unanimous-rocks" $ \rdb ->
             withSystemTempDirectory "fork-vote-succeed-twice-pact" $ \pactDbDir ->
             Chainweb.Test.MultiNode.forkVoteTestSucceedTwiceUnanimous loglevel rdb pactDbDir step
+        , testCaseSteps "Fork Vote - Succeed 4/5ths Majority" $ \step ->
+            withTempRocksDb "fork-vote-succeed-four-fifths-majority-rocks" $ \rdb ->
+            withSystemTempDirectory "fork-vote-succeed-four-fifths-majority-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.forkVoteTestSucceedFourFifths loglevel rdb pactDbDir step
+        , testCaseSteps "Fork Vote - Fail 4/5ths Majority" $ \step ->
+            withTempRocksDb "fork-vote-fail-four-fifths-majority-rocks" $ \rdb ->
+            withSystemTempDirectory "fork-vote-fail-four-fifths-majority-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.forkVoteTestFailFourFifths loglevel rdb pactDbDir step
         ]
     , independentSequentialTestGroup "sequential tests"
         [ testCaseSteps "ConsensusNetwork - TimedConsensus - 10 nodes - 30 seconds" $ \step ->

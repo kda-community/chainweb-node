@@ -41,6 +41,8 @@ module Chainweb.Test.MultiNode
   , forkVoteTestSucceedUnanimous
   , forkVoteTestSucceedTwiceUnanimous
   , forkVoteTestFailUnanimous
+  , forkVoteTestSucceedFourFifths
+  , forkVoteTestFailFourFifths
   , replayTest
   , compactAndResumeTest
   , pactImportTest
@@ -761,6 +763,44 @@ forkVoteTestSucceedTwiceUnanimous loglevel rdb pactDbDir _step = do
             P.alignExact
                 (HM.fromList
                     [(NodeId (int nid), P.equals P.? ForkNumber 2)
+                    | nid <- [0..nodeCount-1]]
+                    )
+
+forkVoteTestSucceedFourFifths
+    :: LogLevel -> RocksDb -> FilePath -> (String -> IO ()) -> IO ()
+forkVoteTestSucceedFourFifths loglevel rdb pactDbDir _step = do
+    let nodeCount = 5
+    let versionForkNum = ForkNumber 1
+    -- for nodes to have different votes, there needs to be more than once chain.
+    let v = timedConsensusVersion versionForkNum petersenChainGraph petersenChainGraph
+    let noVoteConf = multiConfig nodeCount
+            & mapped . configMining . miningCoordination . coordinationTargetForkOverride
+                .~ True
+    let voteConf = multiConfig nodeCount
+    forkVoteTest loglevel rdb pactDbDir _step
+        v (replicate 4 voteConf <> replicate 1 noVoteConf) (int $ forkEpochLength v + 1) >>=
+            P.alignExact
+                (HM.fromList $
+                    [(NodeId (int nid), P.equals P.? ForkNumber 1)
+                    | nid <- [0..nodeCount-1]
+                    ])
+
+forkVoteTestFailFourFifths
+    :: LogLevel -> RocksDb -> FilePath -> (String -> IO ()) -> IO ()
+forkVoteTestFailFourFifths loglevel rdb pactDbDir _step = do
+    let nodeCount = 5
+    let versionForkNum = ForkNumber 1
+    -- for nodes to have different votes, there needs to be more than once chain.
+    let v = timedConsensusVersion versionForkNum petersenChainGraph petersenChainGraph
+    let noVoteConf = multiConfig nodeCount
+            & mapped . configMining . miningCoordination . coordinationTargetForkOverride
+                .~ True
+    let voteConf = multiConfig nodeCount
+    forkVoteTest loglevel rdb pactDbDir _step
+        v (replicate 1 voteConf <> replicate 4 noVoteConf) (int $ forkEpochLength v + 1) >>=
+            P.alignExact
+                (HM.fromList $
+                    [(NodeId (int nid), P.equals P.? ForkNumber 0)
                     | nid <- [0..nodeCount-1]]
                     )
 
