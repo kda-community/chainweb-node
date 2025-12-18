@@ -357,7 +357,9 @@ applyPactCmd env miner txIdxInBlock tx = StateT $ \(blockHandle, blockGasRemaini
   let alteredTx = (view payloadObj <$> tx) & Pact5.cmdPayload . Pact5.pMeta . pmGasLimit %~ maybe id min (blockGasRemaining ^? traversed)
   resultOrGasError <- liftIO $ runReaderT
     (unsafeApplyPactCmd blockHandle
-      (initialGasOf (tx ^. Pact5.cmdPayload))
+      (initialGasOf (_chainwebVersion env) (Chainweb.Version._chainId env)
+        (env ^. psParentHeader . parentHeader . blockHeight)
+        (tx ^. Pact5.cmdPayload))
       alteredTx)
     env
   case resultOrGasError of

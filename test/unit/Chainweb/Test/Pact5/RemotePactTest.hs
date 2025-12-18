@@ -346,6 +346,7 @@ crosschainTest baseRdb step = runResourceT $ do
                         , P.fun _peName ? P.equals "X_RESUME"
                         , P.succeed
                         ]
+                    , P.fun _crGas ? P.equals (Gas 234)
                     ]
                 , P.match _Just ? P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.fun _boundedText
                     ? P.equals ("Requested defpact execution already completed for defpact id: " <> T.take 20 (renderDefPactId $ _peDefPactId cont) <> "...")

@@ -918,7 +918,7 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
                         lift (Pact5.liftPactServiceM (Pact5.assertPreflightMetadata (view Pact5.payloadObj <$> pact5Cmd) txCtx sigVerify)) >>= \case
                             Left err -> earlyReturn $ review _MetadataValidationFailure err
                             Right () -> return ()
-                        let initialGas = Pact5.initialGasOf $ Pact5._cmdPayload pact5Cmd
+                        let initialGas = Pact5.initialGasOf v cid (Pact5.ctxCurrentBlockHeight txCtx) $ Pact5._cmdPayload pact5Cmd
                         applyCmdResult <- lift $ Pact5.pactTransaction Nothing (\dbEnv ->
                             Pact5.applyCmd
                                 _psLogger _psGasLogger dbEnv
