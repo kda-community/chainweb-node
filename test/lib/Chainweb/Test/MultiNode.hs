@@ -38,6 +38,9 @@
 --
 module Chainweb.Test.MultiNode
   ( efficiencyTest
+  , forkVoteTestSingleIncrementUnanimous
+  , forkVoteTestNoIncrementUnanimous
+  , forkVoteTestDoubleIncrementUnanimous
   , replayTest
   , compactAndResumeTest
   , pactImportTest
@@ -84,6 +87,8 @@ import System.Timeout
 
 import Test.Tasty.HUnit
 
+import PropertyMatchers qualified as P
+
 -- internal modules
 
 import Chainweb.BlockHash
@@ -93,6 +98,7 @@ import Chainweb.Chainweb
 import Chainweb.Chainweb.Configuration
 import Chainweb.Chainweb.CutResources
 import Chainweb.Chainweb.PeerResources
+import Chainweb.ForkState
 import Chainweb.Pact.Backend.Compaction qualified as Sigma
 import Chainweb.Pact.Backend.Utils (withSqliteDb)
 import Chainweb.Cut
@@ -108,6 +114,7 @@ import Chainweb.Pact.Backend.PactState.GrandHash.Import qualified as GrandHash.I
 import Chainweb.Pact.Backend.PactState.GrandHash.Utils qualified as GrandHash.Utils
 import Chainweb.Test.P2P.Peer.BootstrapConfig
 import Chainweb.Test.Pact4.Utils (sigmaCompact)
+import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils
 import Chainweb.Time (Seconds(..))
 import Chainweb.Utils
@@ -695,6 +702,83 @@ efficiencyTest loglevel v n seconds rdb pactDbDir step = do
     u = upperStats v seconds
 
     bc x = blockCountAtCutHeight v x - order (chainGraphAtCutHeight v x)
+
+harvestForkNumber :: MVar (HM.HashMap NodeId ForkNumber) -> NodeId -> StartedChainweb logger -> IO ()
+harvestForkNumber _ _ (Replayed _ _) =
+    error "harvestForkNumber: doesn't work when replaying, replays don't do consensus"
+harvestForkNumber stateVar nid (StartedChainweb cw) = do
+    runChainweb cw (\_ -> return ()) `finally` do
+        let cutDb = view (chainwebCutResources . cutsCutDb) cw
+        latestCutHeaders <- readHighestCutHeaders cutDb
+        let highestForkNumber =
+                maximum $ view blockForkNumber <$> HM.elems latestCutHeaders
+        modifyMVar_ stateVar $
+            return . HM.insert nid highestForkNumber
+
+forkVoteTestSingleIncrementUnanimous
+    :: LogLevel -> RocksDb -> FilePath -> (String -> IO ()) -> IO ()
+forkVoteTestSingleIncrementUnanimous loglevel rdb pactDbDir _step = do
+    let nodeCount = 2
+    let versionForkNum = ForkNumber 1
+    let v = timedConsensusVersion versionForkNum singletonChainGraph singletonChainGraph
+    let baseConf = multiConfig v nodeCount
+    forkVoteTest loglevel rdb pactDbDir _step
+        baseConf nodeCount (Seconds 160) $
+            P.alignExact
+                (HM.fromList
+                    [(NodeId (int nid), P.equals P.? ForkNumber 1)
+                    | nid <- [0..nodeCount-1]]
+                    )
+
+forkVoteTestNoIncrementUnanimous
+    :: LogLevel -> RocksDb -> FilePath -> (String -> IO ()) -> IO ()
+forkVoteTestNoIncrementUnanimous loglevel rdb pactDbDir _step = do
+    let nodeCount = 2
+    let versionForkNum = ForkNumber 1
+    let v = timedConsensusVersion versionForkNum singletonChainGraph singletonChainGraph
+    let baseConf = multiConfig v nodeCount
+            & set (configMining . miningCoordination . coordinationTargetForkOverride) True
+    forkVoteTest loglevel rdb pactDbDir _step
+        baseConf nodeCount (Seconds 160) $
+            P.alignExact
+                (HM.fromList
+                    [(NodeId (int nid), P.equals P.? ForkNumber 0)
+                    | nid <- [0..nodeCount-1]]
+                    )
+
+forkVoteTestDoubleIncrementUnanimous
+    :: LogLevel -> RocksDb -> FilePath -> (String -> IO ()) -> IO ()
+forkVoteTestDoubleIncrementUnanimous loglevel rdb pactDbDir _step = do
+    let nodeCount = 2
+    let versionForkNum = ForkNumber 2
+    let v = timedConsensusVersion versionForkNum singletonChainGraph singletonChainGraph
+    let baseConf = multiConfig nodeCount
+    forkVoteTest loglevel rdb pactDbDir _step
+        baseConf nodeCount (Seconds 300) $
+            P.alignExact
+                (HM.fromList
+                    [(NodeId (int nid), P.equals P.? ForkNumber 2)
+                    | nid <- [0..nodeCount-1]]
+                    )
+
+
+forkVoteTest
+    :: LogLevel -> RocksDb -> FilePath -> (String -> IO ())
+    -> ChainwebConfiguration -> Natural -> Seconds -> P.Prop (HM.HashMap NodeId ForkNumber)
+    -> IO ()
+forkVoteTest loglevel rdb pactDbDir _step baseConf nodeCount time finalForkNumsProp = do
+    -- Count log messages and only print the first 60 messages
+    let tastylog = putStrLn . T.unpack
+    let maxLogMsgs = 60
+    var <- newMVar (0 :: Int)
+    let countedLog msg = modifyMVar_ var $ \c -> force (succ c) <$
+            when (c < maxLogMsgs) (tastylog msg)
+
+    forkNumVar <- newMVar mempty
+    runNodesForSeconds loglevel countedLog baseConf nodeCount time rdb pactDbDir
+        (harvestForkNumber forkNumVar)
+    readMVar forkNumVar
+        >>= finalForkNumsProp
 
 -- -------------------------------------------------------------------------- --
 -- Results

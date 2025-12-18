@@ -35,6 +35,18 @@ suite = independentSequentialTestGroup "MultiNodeNetworkTests"
         withTempRocksDb "multinode-tests-timedconsensus-petersen-twenty-rocks" $ \rdb ->
         withSystemTempDirectory "multinode-tests-timedconsensus-petersen-twenty-pact" $ \pactDbDir ->
         Chainweb.Test.MultiNode.efficiencyTest loglevel (timedConsensusVersion 0 petersenChainGraph twentyChainGraph) 10 30 rdb pactDbDir step
+    , testCaseSteps "ConsensusNetwork - TimedConsensus (fork 1) - 10 nodes - 30 seconds" $ \step ->
+        withTempRocksDb "multinode-tests-timedconsensus-petersen-twenty-rocks" $ \rdb ->
+        withSystemTempDirectory "multinode-tests-timedconsensus-petersen-twenty-pact" $ \pactDbDir ->
+        Chainweb.Test.MultiNode.forkVoteTestSingleIncrementUnanimous loglevel rdb pactDbDir step
+    , testCaseSteps "ConsensusNetwork - TimedConsensus (fork 1, no votes) - 10 nodes - 30 seconds" $ \step ->
+        withTempRocksDb "multinode-tests-timedconsensus-petersen-twenty-rocks" $ \rdb ->
+        withSystemTempDirectory "multinode-tests-timedconsensus-petersen-twenty-pact" $ \pactDbDir ->
+        Chainweb.Test.MultiNode.forkVoteTestNoIncrementUnanimous loglevel rdb pactDbDir step
+    , testCaseSteps "ConsensusNetwork - TimedConsensus (fork 2) - 10 nodes - 30 seconds" $ \step ->
+        withTempRocksDb "multinode-tests-timedconsensus-petersen-twenty-rocks" $ \rdb ->
+        withSystemTempDirectory "multinode-tests-timedconsensus-petersen-twenty-pact" $ \pactDbDir ->
+        Chainweb.Test.MultiNode.forkVoteTestDoubleIncrementUnanimous loglevel rdb pactDbDir step
     , testCaseSteps "ConsensusNetwork - FastTimedCPM singleChainGraph - 10 nodes - 30 seconds" $ \step ->
         withTempRocksDb "multinode-tests-fasttimedcpm-single-rocks" $ \rdb ->
         withSystemTempDirectory "multinode-tests-fasttimedcpm-single-pact" $ \pactDbDir ->
