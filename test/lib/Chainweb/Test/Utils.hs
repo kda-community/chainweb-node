@@ -1175,8 +1175,8 @@ bootstrapConfig conf = conf
         & set peerConfigHost host
 
 setBootstrapPeerInfo :: PeerInfo -> ChainwebConfiguration -> ChainwebConfiguration
-setBootstrapPeerInfo =
-    over (configP2p . p2pConfigKnownPeers) . (:)
+setBootstrapPeerInfo bootPeerInfo =
+    configP2p . p2pConfigKnownPeers .~ [bootPeerInfo]
 
 host :: Hostname
 -- host = unsafeHostnameFromText "::1"
