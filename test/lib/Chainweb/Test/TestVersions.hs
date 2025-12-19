@@ -326,10 +326,8 @@ slowForks = tabulateHashMap \case
     Chainweb223Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 120)
     Chainweb224Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 125)
     Chainweb225Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 130)
-    Chainweb226Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 135)
     Pact5Fork -> AllChains ForkNever
     Chainweb228Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 145)
-    Chainweb229Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 150)
     Chainweb230Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 155)
     Chainweb231Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 160)
     Chainweb31 -> AllChains $ ForkAtBlockHeight (BlockHeight 165)
@@ -368,10 +366,8 @@ fastForks = tabulateHashMap $ \case
     Chainweb223Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 38
     Chainweb224Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 40
     Chainweb225Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 42
-    Chainweb226Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 44
     Pact5Fork -> AllChains $ ForkAtBlockHeight $ BlockHeight 46
     Chainweb228Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 48
-    Chainweb229Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 50
     Chainweb230Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 52
     Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 54
     Chainweb31 -> AllChains $ ForkAtBlockHeight $ BlockHeight 56

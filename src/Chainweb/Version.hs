@@ -227,10 +227,8 @@ data Fork
     | Chainweb223Pact
     | Chainweb224Pact
     | Chainweb225Pact
-    | Chainweb226Pact
     | Pact5Fork
     | Chainweb228Pact
-    | Chainweb229Pact
     | Chainweb230Pact
     | Chainweb231Pact
     | Chainweb31
@@ -270,10 +268,8 @@ instance HasTextRepresentation Fork where
     toText Chainweb223Pact = "chainweb223Pact"
     toText Chainweb224Pact = "chainweb224Pact"
     toText Chainweb225Pact = "chainweb225Pact"
-    toText Chainweb226Pact = "chainweb226Pact"
     toText Pact5Fork = "pact5"
     toText Chainweb228Pact = "chainweb228Pact"
-    toText Chainweb229Pact = "chainweb229Pact"
     toText Chainweb230Pact = "chainweb230Pact"
     toText Chainweb231Pact = "chainweb231Pact"
     toText Chainweb31 = "Chainweb31"
@@ -309,10 +305,8 @@ instance HasTextRepresentation Fork where
     fromText "chainweb223Pact" = return Chainweb223Pact
     fromText "chainweb224Pact" = return Chainweb224Pact
     fromText "chainweb225Pact" = return Chainweb225Pact
-    fromText "chainweb226Pact" = return Chainweb226Pact
     fromText "pact5" = return Pact5Fork
     fromText "chainweb228Pact" = return Chainweb228Pact
-    fromText "chainweb229Pact" = return Chainweb229Pact
     fromText "chainweb230Pact" = return Chainweb230Pact
     fromText "chainweb231Pact" = return Chainweb231Pact
     fromText "Chainweb31" = return Chainweb31
