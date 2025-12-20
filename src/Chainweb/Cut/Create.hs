@@ -87,6 +87,7 @@ import Chainweb.ChainValue
 import Chainweb.Cut
 import Chainweb.Cut.CutHashes
 import Chainweb.Difficulty
+import Chainweb.ForkState(ForkNumber(..))
 import Chainweb.Payload
 import Chainweb.Time
 import Chainweb.Utils
@@ -289,23 +290,25 @@ decodeWorkHeader ver h = WorkHeader
 newWorkHeader
     :: ChainValueCasLookup hdb BlockHeader
     => hdb
+    -> ForkNumber
     -> CutExtension
     -> BlockPayloadHash
     -> IO WorkHeader
-newWorkHeader hdb e h = do
+newWorkHeader hdb targetFork e h = do
     creationTime <- BlockCreationTime <$> getCurrentTimeIntegral
-    newWorkHeaderPure (chainLookupM hdb) creationTime e h
+    newWorkHeaderPure (chainLookupM hdb) targetFork creationTime e h
 
 -- | A pure version of 'newWorkHeader' that is useful in testing.
 --
 newWorkHeaderPure
     :: Applicative m
     => (ChainValue BlockHash -> m BlockHeader)
+    -> ForkNumber
     -> BlockCreationTime
     -> CutExtension
     -> BlockPayloadHash
     -> m WorkHeader
-newWorkHeaderPure hdb creationTime extension phash = do
+newWorkHeaderPure hdb targetFork creationTime extension phash = do
     -- Collect block headers for adjacent parents, some of which may be
     -- available in the cut.
     createWithParents <$> getAdjacentParentHeaders hdb extension
@@ -315,7 +318,7 @@ newWorkHeaderPure hdb creationTime extension phash = do
     -- core Mining logic.
     --
     createWithParents parents =
-        let nh = newBlockHeader parents phash (Nonce 0) creationTime
+        let nh = newBlockHeader targetFork parents phash (Nonce 0) creationTime
                 $! _cutExtensionParent extension
                     -- FIXME: check that parents also include hashes on new chains!
         in WorkHeader

@@ -46,6 +46,7 @@ module Chainweb.CutDB
 -- * Cut Hashes Table
 , cutHashesTable
 , readHighestCutHeaders
+, readHighestCutHeaders'
 
 -- * CutDb
 , CutDb
@@ -188,7 +189,7 @@ makeLenses ''CutDbParams
 defaultCutDbParams :: ChainwebVersion -> Int -> CutDbParams
 defaultCutDbParams v ft = CutDbParams
     { _cutDbParamsInitialCutFile = Nothing
-    , _cutDbParamsBufferSize = (order g ^ (2 :: Int)) * diameter g
+    , _cutDbParamsBufferSize = (order g ^ (2 :: Int)) * max 2 (diameter g)
     , _cutDbParamsLogLevel = Warn
     , _cutDbParamsTelemetryLevel = Warn
     , _cutDbParamsFetchTimeout = ft
@@ -464,7 +465,7 @@ startCutDb config logfun headerStore payloadStore cutHashesStore = mask_ $ do
     readInitialCut :: IO Cut
     readInitialCut = do
         unsafeMkCut v <$> do
-            hm <- readHighestCutHeaders v logg wbhdb cutHashesStore
+            hm <- readHighestCutHeaders' v logg wbhdb cutHashesStore
             initialHeightLimit <- case _cutDbParamsInitialHeightLimit config of
                 Nothing -> do
                     if _versionCode v == _versionCode mainnet
@@ -489,8 +490,8 @@ startCutDb config logfun headerStore payloadStore cutHashesStore = mask_ $ do
                     return limitedCutHeaders
                 Nothing -> return hm
 
-readHighestCutHeaders :: ChainwebVersion -> LogFunctionText -> WebBlockHeaderDb -> Casify RocksDbTable CutHashes -> IO (HM.HashMap ChainId BlockHeader)
-readHighestCutHeaders v logg wbhdb cutHashesStore = withTableIterator (unCasify cutHashesStore) $ \it -> do
+readHighestCutHeaders' :: ChainwebVersion -> LogFunctionText -> WebBlockHeaderDb -> Casify RocksDbTable CutHashes -> IO (HM.HashMap ChainId BlockHeader)
+readHighestCutHeaders' v logg wbhdb cutHashesStore = withTableIterator (unCasify cutHashesStore) $ \it -> do
     iterLast it
     go it
   where
@@ -512,16 +513,21 @@ readHighestCutHeaders v logg wbhdb cutHashesStore = withTableIterator (unCasify 
             Left e -> throwM e
             Right hm -> return hm
 
+readHighestCutHeaders :: CutDb cas -> IO (HM.HashMap ChainId BlockHeader)
+readHighestCutHeaders cutDb =
+    readHighestCutHeaders' (_chainwebVersion cutDb) (_cutDbLogFunction cutDb) wbhdb (_cutDbCutStore cutDb)
+    where
+    wbhdb = _webBlockHeaderStoreCas $ _cutDbHeaderStore cutDb
+
 fastForwardCutDb :: CutDb cas -> IO ()
 fastForwardCutDb cutDb = do
     highestCutHeaders <-
-        readHighestCutHeaders v (_cutDbLogFunction cutDb) wbhdb (_cutDbCutStore cutDb)
+        readHighestCutHeaders cutDb
     limitedCutHeaders <-
         limitCutHeaders wbhdb (fromMaybe maxBound (_cutDbFastForwardHeightLimit cutDb)) highestCutHeaders
     let limitedCut = unsafeMkCut (_chainwebVersion cutDb) limitedCutHeaders
     atomically $ writeTVar (_cutDbCut cutDb) limitedCut
   where
-    v = _chainwebVersion cutDb
     wbhdb = _webBlockHeaderStoreCas $ _cutDbHeaderStore cutDb
 
 -- | Stop the cut validation pipeline.

@@ -27,6 +27,10 @@ module Chainweb.Miner.Config
 , pCoordinationConfig
 , coordinationEnabled
 , coordinationMiners
+, coordinationUpdateStreamLimit
+, coordinationUpdateStreamTimeout
+, coordinationPayloadRefreshDelay
+, coordinationTargetForkOverride
 , NodeMiningConfig(..)
 , defaultNodeMining
 , nodeMiningEnabled
@@ -160,6 +164,8 @@ data CoordinationConfig = CoordinationConfig
         -- ^ the duration that an update stream is kept open in seconds
     , _coordinationPayloadRefreshDelay :: !(TimeSpan Micros)
         -- ^ the duration between payload refreshes in microseconds
+    , _coordinationTargetForkOverride :: !Bool
+        -- ^ whether to hold back voting on the next fork number increment
     } deriving stock (Eq, Show, Generic)
 
 coordinationEnabled :: Lens' CoordinationConfig Bool
@@ -183,6 +189,10 @@ coordinationPayloadRefreshDelay :: Lens' CoordinationConfig (TimeSpan Micros)
 coordinationPayloadRefreshDelay =
     lens _coordinationPayloadRefreshDelay (\m c -> m { _coordinationPayloadRefreshDelay = c })
 
+coordinationTargetForkOverride :: Lens' CoordinationConfig Bool
+coordinationTargetForkOverride =
+    lens _coordinationTargetForkOverride (\m c -> m { _coordinationTargetForkOverride = c })
+
 instance ToJSON CoordinationConfig where
     toJSON o = object
         [ "enabled" .= _coordinationEnabled o
@@ -191,6 +201,7 @@ instance ToJSON CoordinationConfig where
         , "updateStreamLimit" .= _coordinationUpdateStreamLimit o
         , "updateStreamTimeout" .= _coordinationUpdateStreamTimeout o
         , "payloadRefreshDelay" .= _coordinationPayloadRefreshDelay o
+        , "targetForkOverride" .= _coordinationTargetForkOverride o
         ]
 
 instance FromJSON (CoordinationConfig -> CoordinationConfig) where
@@ -201,6 +212,7 @@ instance FromJSON (CoordinationConfig -> CoordinationConfig) where
         <*< coordinationUpdateStreamLimit ..: "updateStreamLimit" % o
         <*< coordinationUpdateStreamTimeout ..: "updateStreamTimeout" % o
         <*< coordinationPayloadRefreshDelay ..: "payloadRefreshDelay" % o
+        <*< coordinationTargetForkOverride ..: "targetForkOverride" % o
 
 defaultCoordination :: CoordinationConfig
 defaultCoordination = CoordinationConfig
@@ -210,6 +222,7 @@ defaultCoordination = CoordinationConfig
     , _coordinationUpdateStreamLimit = 2000
     , _coordinationUpdateStreamTimeout = 240
     , _coordinationPayloadRefreshDelay = TimeSpan (Micros 15_000_000)
+    , _coordinationTargetForkOverride = False
     }
 
 pCoordinationConfig :: MParser CoordinationConfig
@@ -230,6 +243,9 @@ pCoordinationConfig = id
     <*< coordinationPayloadRefreshDelay .:: jsonOption
         % long "mining-payload-refresh-delay"
         <> help "frequency that the mining payload is refreshed"
+    <*< coordinationTargetForkOverride .:: flag' True
+        % long "mining-target-fork-override"
+        <> help "do not vote for the next fork number increment"
 
 pMiner :: String -> Parser Miner
 pMiner prefix = pkToMiner <$> pPk

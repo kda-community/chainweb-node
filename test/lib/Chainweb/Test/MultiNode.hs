@@ -5,6 +5,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -36,7 +37,7 @@
 -- similulate a full-scale chain in a miniaturized settings.
 --
 module Chainweb.Test.MultiNode
-  ( test
+  ( efficiencyTest
   , replayTest
   , compactAndResumeTest
   , pactImportTest
@@ -51,11 +52,12 @@ import Control.Lens (set, view, (^?!), ix)
 import Control.Monad
 import Chronos qualified
 
-import Patience.Map qualified as P
+import Patience.Map qualified as Patience
 import Data.ByteString.Base16 qualified as Base16
 import Chainweb.Pact.Backend.PactState.EmbeddedSnapshot (Snapshot(..))
 import Data.Aeson (ToJSON, object, (.=))
 import Data.Foldable
+import Data.Hashable
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import Data.IORef
@@ -121,6 +123,15 @@ import P2P.Peer
 import Database.SQLite3.Direct (Database)
 import Data.Map (Map)
 import Data.Map.Strict qualified as Map
+
+-- | Integer node identifier; node 0 is the bootstrap.
+newtype NodeId = NodeId Int
+    deriving newtype (Eq, Hashable, NFData, Show)
+bootstrapNodeId :: NodeId
+bootstrapNodeId = NodeId 0
+instance HasTextRepresentation NodeId where
+    fromText = fmap NodeId . fromText
+    toText (NodeId i) = toText i
 
 -- -------------------------------------------------------------------------- --
 -- * Configuration
@@ -218,7 +229,7 @@ multiBootstrapConfig conf = conf
 harvestConsensusState
     :: GenericLogger
     -> MVar ConsensusState
-    -> Int
+    -> NodeId
     -> StartedChainweb logger
     -> IO ()
 harvestConsensusState _ _ _ (Replayed _ _) =
@@ -240,16 +251,16 @@ multiNode
     -> ChainwebConfiguration
     -> RocksDb
     -> FilePath
-    -> Int
+    -> NodeId
         -- ^ Unique node id. Node id 0 is used for the bootstrap node
-    -> (forall logger. Int -> StartedChainweb logger -> IO ())
+    -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
 multiNode loglevel write bootstrapPeerInfoVar conf rdb pactDbDir nid inner = do
     withSystemTempDirectory "multiNode-backup-dir" $ \backupTmpDir ->
             withChainweb conf logger namespacedNodeRocksDb (pactDbDir </> show nid) backupTmpDir False $ \cw -> do
                 case cw of
                     StartedChainweb cw' ->
-                        when (nid == 0) $ putMVar bootstrapPeerInfoVar
+                        when (nid == bootstrapNodeId) $ putMVar bootstrapPeerInfoVar
                             $ view (chainwebPeer . peerResPeer . peerInfo) cw'
                     Replayed _ _ -> return ()
                 inner nid cw
@@ -270,7 +281,7 @@ runNodes
         -- ^ number of nodes
     -> RocksDb
     -> FilePath
-    -> (forall logger. Int -> StartedChainweb logger -> IO ())
+    -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
 runNodes loglevel write baseConf n rdb pactDbDir inner = do
     -- NOTE: pact is enabled until we have a good way to disable it globally in
@@ -294,7 +305,7 @@ runNodes loglevel write baseConf n rdb pactDbDir inner = do
             | otherwise ->
                 setBootstrapPeerInfo <$> readMVar bootstrapPortVar <*> pure baseConf
 
-        multiNode loglevel write bootstrapPortVar conf rdb pactDbDir i inner
+        multiNode loglevel write bootstrapPortVar conf rdb pactDbDir (NodeId i) inner
 
 runNodesForSeconds
     :: LogLevel
@@ -308,7 +319,7 @@ runNodesForSeconds
         -- ^ test duration in seconds
     -> RocksDb
     -> FilePath
-    -> (forall logger. Int -> StartedChainweb logger -> IO ())
+    -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
 runNodesForSeconds loglevel write baseConf n (Seconds seconds) rdb pactDbDir inner = do
     void $ timeout (int seconds * 1_000_000)
@@ -344,7 +355,7 @@ compactLiveNodeTest logLevel v n rocksDb srcPactDir targetPactDir step = do
   -- on the current cut. This is fine because we ultimately just want
   -- to make sure that we are making progress (i.e, new blocks).
   stateVar <- newMVar (emptyConsensusState v)
-  let ct :: Int -> StartedChainweb logger -> IO ()
+  let ct :: NodeId -> StartedChainweb logger -> IO ()
       ct = harvestConsensusState logger stateVar
   do
     runNodesForSeconds logLevel logFun (multiConfig v n) n 10 rocksDb srcPactDir ct
@@ -416,7 +427,7 @@ pactImportTest logLevel v n rocksDb pactDir step = do
   -- on the current cut. This is fine because we ultimately just want
   -- to make sure that we are making progress (i.e, new blocks).
   stateVar <- newMVar (emptyConsensusState v)
-  let ct :: Int -> StartedChainweb logger -> IO ()
+  let ct :: NodeId -> StartedChainweb logger -> IO ()
       ct = harvestConsensusState logger stateVar
   runNodesForSeconds logLevel logFun (multiConfig v n) n 10 rocksDb pactDir ct
   consensusState <- swapMVar stateVar (emptyConsensusState v)
@@ -437,7 +448,7 @@ pactImportTest logLevel v n rocksDb pactDir step = do
 
       latestBlockHeight <- do
         wbhdb <- initWebBlockHeaderDb rdb v
-        latestCutHeaders <- readHighestCutHeaders v (\_ _ -> pure ()) wbhdb (cutHashesTable rdb)
+        latestCutHeaders <- readHighestCutHeaders' v (\_ _ -> pure ()) wbhdb (cutHashesTable rdb)
         pure $ maximum $ fmap (view blockHeight) latestCutHeaders
 
       let targetChunkSize :: BlockHeight
@@ -482,26 +493,26 @@ pactImportTest logLevel v n rocksDb pactDir step = do
             tgtStateAt <- do
               let db = pactCopyConns ^?! ix cid
               getPactStateAtDiffable db snapshotBlockHeight
-            let stateDiff = Map.filter (not . P.isSame) (P.diff srcStateAt tgtStateAt)
+            let stateDiff = Map.filter (not . Patience.isSame) (Patience.diff srcStateAt tgtStateAt)
             when (not (null stateDiff)) $ do
               forM_ (Map.toList stateDiff) $ \(tbl, delta) -> do
                 case delta of
-                  P.Same _ -> do
+                  Patience.Same _ -> do
                     pure ()
-                  P.Old _ -> do
+                  Patience.Old _ -> do
                     log Error $ "Table " <> tbl <> " appeared in the source pact db, but does not appear in the target."
-                  P.New _ -> do
+                  Patience.New _ -> do
                     log Error $ "Table " <> tbl <> " appeared in the target pact db, but not appear in the source."
-                  P.Delta x1 x2 -> do
+                  Patience.Delta x1 x2 -> do
                     log Error $ "Difference exists between source and target on table " <> tbl <> "."
-                    forM_ (Map.filter (not . P.isSame) (P.diff x1 x2)) $ \case
-                      P.Same _ -> do
+                    forM_ (Map.filter (not . Patience.isSame) (Patience.diff x1 x2)) $ \case
+                      Patience.Same _ -> do
                         pure ()
-                      P.Old x -> do
+                      Patience.Old x -> do
                         log Error $ "In table " <> tbl <> ", rowkey " <> T.decodeUtf8 x <> " exists on source but not target."
-                      P.New x -> do
+                      Patience.New x -> do
                         log Error $ "In table " <> tbl <> ", rowkey " <> T.decodeUtf8 x <> " exists on target but not source."
-                      P.Delta x _y -> do
+                      Patience.Delta x _y -> do
                         log Error $ "In table " <> tbl <> ", there was a difference in rowdata at rowkey " <> T.decodeUtf8 x <> "."
               assertFailure "Diff failed"
 
@@ -532,7 +543,7 @@ compactAndResumeTest logLevel v n srcRocksDb targetRocksDb srcPactDir targetPact
     -- on the current cut. This is fine because we ultimately just want
     -- to make sure that we are making progress (i.e, new blocks).
     stateVar <- newMVar (emptyConsensusState v)
-    let ct :: Int -> StartedChainweb logger -> IO ()
+    let ct :: NodeId -> StartedChainweb logger -> IO ()
         ct = harvestConsensusState logger stateVar
     runNodesForSeconds logLevel logFun (multiConfig v n) n 10 srcRocksDb srcPactDir ct
     Just stats1 <- consensusStateSummary <$> swapMVar stateVar (emptyConsensusState v)
@@ -630,9 +641,10 @@ replayTest loglevel v n rdb pactDbDir step = do
         tastylog "done."
 
 -- -------------------------------------------------------------------------- --
--- Test
+-- Test that block production is efficient. The block delay in this test is
+-- random with a mean of 1 second; we expect to produce *around* a block a second.
 
-test
+efficiencyTest
     :: LogLevel
     -> ChainwebVersion
     -> Natural
@@ -642,7 +654,7 @@ test
     -> FilePath
     -> (String -> IO ())
     -> IO ()
-test loglevel v n seconds rdb pactDbDir step = do
+efficiencyTest loglevel v n seconds rdb pactDbDir step = do
     -- Count log messages and only print the first 60 messages
     let tastylog = step . T.unpack
     let logFun = tastylog
@@ -692,7 +704,7 @@ data ConsensusState = ConsensusState
         -- ^ for short tests this is fine. For larger test runs we should
         -- use HyperLogLog+
 
-    , _stateCutMap :: !(HM.HashMap Int Cut)
+    , _stateCutMap :: !(HM.HashMap NodeId Cut)
         -- ^ Node Id map
     , _stateChainwebVersion :: !ChainwebVersion
     }
@@ -705,7 +717,7 @@ emptyConsensusState :: ChainwebVersion -> ConsensusState
 emptyConsensusState v = ConsensusState mempty mempty v
 
 sampleConsensusState
-    :: Int
+    :: NodeId
         -- ^ node Id
     -> WebBlockHeaderDb
     -> CutDb tbl

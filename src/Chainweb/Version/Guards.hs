@@ -49,7 +49,7 @@ module Chainweb.Version.Guards
     , chainweb229Pact
     , chainweb230Pact
     , chainweb231Pact
-    , chainweb232Pact
+    , chainweb31
     , migratePlatformShare
     , pact5
     , pact44NewTrans
@@ -290,8 +290,8 @@ chainweb230Pact = checkFork atOrAfter Chainweb230Pact
 chainweb231Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb231Pact = checkFork atOrAfter Chainweb231Pact
 
-chainweb232Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
-chainweb232Pact = checkFork atOrAfter Chainweb232Pact
+chainweb31 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb31 = checkFork atOrAfter Chainweb31
 
 migratePlatformShare :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 migratePlatformShare = checkFork atNotGenesis MigratePlatformShare
@@ -312,7 +312,7 @@ maxBlockGasLimit v bh = snd $ ruleZipperHere $ snd
 
 minimumBlockHeaderHistory :: ChainwebVersion -> BlockHeight -> Maybe Word64
 minimumBlockHeaderHistory v bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> bh >= h) (_versionMinimumBlockHeaderHistory v)
+    $ ruleSeek (\h _ -> bh >= h) (_versionSpvProofRootValidWindow v)
 
 -- | Different versions of Chainweb allow different PPKSchemes.
 --

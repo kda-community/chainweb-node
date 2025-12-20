@@ -156,8 +156,8 @@ mainnet = ChainwebVersion
         Chainweb229Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 5_785_923) -- 2025-05-01 00:00:00+00:00
         Chainweb230Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 6_027_616) -- 2025-07-24 00:00:00+00:00
         Chainweb231Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 6_269_344) -- 2025-10-16 00:00:00+00:00
-        Chainweb232Pact -> AllChains ForkNever
         MigratePlatformShare -> AllChains (ForkAtBlockHeight $ BlockHeight 6_335_858) -- 2025-11-07 04:00:00+00:00
+        Chainweb31 -> AllChains (ForkAtBlockHeight $ BlockHeight 6_510_742) -- 2026-01-08 00:00:00+00:00
 
     , _versionGraphs =
         (to20ChainsMainnet, twentyChainGraph) `Above`
@@ -168,7 +168,8 @@ mainnet = ChainwebVersion
     , _versionMaxBlockGasLimit =
         (succ $ mainnet ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 180_000) `Above`
         Bottom (minBound, Nothing)
-    , _versionMinimumBlockHeaderHistory =
+    , _versionSpvProofRootValidWindow =
+        (succ $ mainnet ^?! versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Nothing) `Above`
         (succ $ mainnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 20_000) `Above`
         Bottom (minBound, Nothing)
     , _versionBootstraps = domainAddr2PeerInfo mainnetBootstrapHosts
@@ -233,4 +234,12 @@ mainnet = ChainwebVersion
             ]
         }
     , _versionForkNumber = 0
+    -- | A epoch is 120 * 120 block heights, which, on mainnet, is expected to be 5
+    -- days.
+    --
+    -- Each fork epoch is divided into:
+    --
+    -- * 120 * 119 blocks for voting and
+    -- * 120 blocks for counting the votes
+    , _versionForkVoteCastingLength = 120 * 119
     }

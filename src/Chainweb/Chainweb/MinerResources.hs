@@ -118,6 +118,10 @@ withMiningCoordination logger conf cdb inner
                 , _coordConf = coordConf
                 , _coordUpdateStreamCount = l
                 , _coordPrimedWork = m
+                , _coordTargetFork =
+                    if _coordinationTargetForkOverride coordConf
+                    then pred $ max 1 (_versionForkNumber v)
+                    else _versionForkNumber v
                 })
   where
     coordConf = _miningCoordination conf

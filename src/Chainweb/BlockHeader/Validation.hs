@@ -300,11 +300,11 @@ instance Show ValidationFailure where
       where
         description t = case t of
             MissingParent -> "Parent isn't in the database"
-            MissingAdjacentParent -> "AdjacentParent isn't in the database"
+            MissingAdjacentParent -> "Adjacent parent isn't in the database"
             CreatedBeforeParent -> "Block claims to have been created before its parent"
             VersionMismatch -> "Block uses a version of chainweb different from its parent"
             AdjacentChainMismatch -> "Block uses the wrong set of adjacent chain ids"
-            ChainMismatch -> "Block uses a chaind-id different from its parent"
+            ChainMismatch -> "Block uses a chain id different from its parent"
             AdjacentParentChainMismatch -> "An adjacent parent hash references a block on the wrong chain"
             IncorrectHash -> "The hash of the block header does not match the one given"
             IncorrectPow -> "The POW hash does not match the POW target of the block"
@@ -312,14 +312,14 @@ instance Show ValidationFailure where
             IncorrectHeight -> "The given height is not one more than the parent height"
             IncorrectWeight -> "The given weight is not the sum of the difficulty target and the parent's weight"
             IncorrectTarget -> "The given target for the block is incorrect for its history"
-            IncorrectGenesisParent -> "The block is a genesis block, but doesn't have its parent set to its own hash"
+            IncorrectGenesisParent -> "The block is a genesis block, but doesn't have its parent set to the genesis parent hash"
             IncorrectGenesisTarget -> "The block is a genesis block, but doesn't have the correct difficulty target"
             BlockInTheFuture -> "The creation time of the block is in the future"
             IncorrectPayloadHash -> "The payload hash does not match the payload hash that results from payload validation"
             MissingPayload -> "The payload of the block is missing"
             InvalidFeatureFlags -> "The block has an invalid feature flag value"
             InvalidBraiding -> "The block is not braided correctly into the chainweb"
-            InvalidAdjacentVersion -> "An adjancent parent has a chainweb version that does not match the version of the validated header"
+            InvalidAdjacentVersion -> "An adjacent parent has a chainweb version that does not match the version of the validated header"
             IncorrectForkNumber -> "The block has an incorrect fork number"
             InvalidForkVotes -> "The block has an invalid fork vote count"
             UnknownForkNumber -> "The block has an unknown fork number; the node may be outdated"
@@ -757,7 +757,8 @@ prop_block_adjacent_chainIds b
 prop_block_forkVotesReset :: BlockHeader -> Bool
 prop_block_forkVotesReset b
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b = votes == resetVotes || votes == addVote resetVotes
+    | isForkEpochStart v h =
+        votes == resetVotes || votes == addVote resetVotes
     | otherwise = True
   where
     votes = view blockForkVotes b
@@ -797,8 +798,10 @@ prop_block_chainId (ChainStep (ParentHeader p) b)
 prop_block_forkVote :: ChainStep -> Bool
 prop_block_forkVote (ChainStep (ParentHeader p) b)
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b = votes == resetVotes || votes == addVote resetVotes
-    | isForkVoteBlock b = votes == parentVotes || votes == addVote parentVotes
+    | isForkEpochStart v h =
+        votes == resetVotes || votes == addVote resetVotes
+    | isForkVoteBlock v h =
+        votes == parentVotes || votes == addVote parentVotes
     | otherwise = True
   where
     votes = view blockForkVotes b
@@ -812,7 +815,7 @@ prop_block_forkVote (ChainStep (ParentHeader p) b)
 prop_block_forkNumber :: ChainStep -> Bool
 prop_block_forkNumber (ChainStep (ParentHeader p) b)
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b && decideVotes parentVotes = fnum == pfnum + 1
+    | isForkEpochStart v h && decideVotes v parentVotes = fnum == pfnum + 1
     | otherwise = fnum == pfnum
   where
     fnum = view blockForkNumber b
@@ -840,9 +843,12 @@ prop_block_forkKnown b
 prop_block_forkVoteCount :: WebStep -> Bool
 prop_block_forkVoteCount (WebStep as (ChainStep p b))
     | skipFeatureFlagValidationGuard v cid h = True
-    | isForkEpochStart b = votes == resetVotes || votes == addVote resetVotes
-    | isForkVoteBlock b = votes == parentVotes || votes == addVote parentVotes
-    | otherwise = votes == countVotes allParentVotes
+    | isForkEpochStart v h =
+        votes == resetVotes || votes == addVote resetVotes
+    | isForkVoteBlock v h =
+        votes == parentVotes || votes == addVote parentVotes
+    | otherwise =
+        votes == countVotes allParentVotes
   where
     votes = view blockForkVotes b
     parentVotes = view blockForkVotes (_parentHeader p)

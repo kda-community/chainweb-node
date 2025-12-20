@@ -242,6 +242,7 @@ data InsertError
   | InsertErrorTimedOut
   | InsertErrorPactParseError Text
   | InsertErrorWrongChain Text Text
+  | InsertErrorDefPactComplete Text
   deriving (Generic, Eq, NFData)
 
 instance Show InsertError where
@@ -262,6 +263,8 @@ instance Show InsertError where
       InsertErrorTimedOut -> "Transaction validation timed out"
       InsertErrorPactParseError msg -> "Pact parse error: " <> T.unpack msg
       InsertErrorWrongChain expected actual -> "Wrong chain, expected: " <> T.unpack expected <> ", actual: " <> T.unpack actual
+      InsertErrorDefPactComplete i ->
+        "This transaction is attempting to complete an already-completed defpact ID: " <> T.unpack i
 
 instance Exception InsertError
 

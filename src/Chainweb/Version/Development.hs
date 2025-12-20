@@ -51,7 +51,7 @@ devnet = ChainwebVersion
     -- still the *default* block gas limit is set, see
     -- defaultChainwebConfiguration._configBlockGasLimit
     , _versionMaxBlockGasLimit = Bottom (minBound, Nothing)
-    , _versionMinimumBlockHeaderHistory = Bottom (minBound, Nothing)
+    , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
     , _versionCheats = VersionCheats
         { _disablePow = True
         , _fakeFirstEpochStart = True
@@ -65,4 +65,5 @@ devnet = ChainwebVersion
         (minBound, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"])
     , _versionQuirks = noQuirks
     , _versionForkNumber = 0
+    , _versionForkVoteCastingLength = 120 * 119 -- 5 days
     }

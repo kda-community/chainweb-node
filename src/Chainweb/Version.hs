@@ -69,19 +69,23 @@ module Chainweb.Version
     , versionGraphs
     , versionHeaderBaseSizeBytes
     , versionMaxBlockGasLimit
-    , versionMinimumBlockHeaderHistory
+    , versionSpvProofRootValidWindow
     , versionName
     , versionWindow
     , versionGenesis
     , versionVerifierPluginNames
     , versionQuirks
     , versionForkNumber
+    , versionForkVoteCastingLength
     , genesisBlockPayload
     , genesisBlockPayloadHash
     , genesisBlockTarget
     , genesisTime
     , genesisBlockHeight
     , genesisHeightAndGraph
+    , voteCountingLength
+    , decideVotes
+    , forkEpochLength
 
     , PactUpgrade(..)
     , PactVersion(..)
@@ -161,6 +165,7 @@ import Data.HashMap.Strict qualified as HM
 import Data.HashSet qualified as HS
 import Data.Set(Set)
 import Data.Proxy
+import Data.Ratio
 import Data.Text qualified as T
 import Data.Word
 import GHC.Generics(Generic)
@@ -178,7 +183,7 @@ import Chainweb.MerkleUniverse
 import Chainweb.Payload
 import Chainweb.Pact4.Transaction qualified as Pact4
 import Chainweb.Pact5.Transaction qualified as Pact5
-import Chainweb.ForkState (ForkNumber)
+import Chainweb.ForkState
 import Chainweb.Utils
 import Chainweb.Utils.Rule
 import Chainweb.Utils.Serialization
@@ -228,7 +233,7 @@ data Fork
     | Chainweb229Pact
     | Chainweb230Pact
     | Chainweb231Pact
-    | Chainweb232Pact
+    | Chainweb31
     | MigratePlatformShare
     -- always add new forks at the end, not in the middle of the constructors.
     deriving stock (Bounded, Generic, Eq, Enum, Ord, Show)
@@ -271,7 +276,7 @@ instance HasTextRepresentation Fork where
     toText Chainweb229Pact = "chainweb229Pact"
     toText Chainweb230Pact = "chainweb230Pact"
     toText Chainweb231Pact = "chainweb231Pact"
-    toText Chainweb232Pact = "chainweb232Pact"
+    toText Chainweb31 = "Chainweb31"
     toText MigratePlatformShare = "migratePlatformShare"
 
     fromText "slowEpoch" = return SlowEpoch
@@ -310,7 +315,7 @@ instance HasTextRepresentation Fork where
     fromText "chainweb229Pact" = return Chainweb229Pact
     fromText "chainweb230Pact" = return Chainweb230Pact
     fromText "chainweb231Pact" = return Chainweb231Pact
-    fromText "chainweb232Pact" = return Chainweb232Pact
+    fromText "Chainweb31" = return Chainweb31
     fromText "migratePlatformShare" = return MigratePlatformShare
     fromText t = throwM . TextFormatException $ "Unknown Chainweb fork: " <> t
 
@@ -494,7 +499,7 @@ data ChainwebVersion
         -- use 'headerSizeBytes'.
     , _versionMaxBlockGasLimit :: Rule BlockHeight (Maybe Natural)
         -- ^ The maximum gas limit for an entire block.
-    , _versionMinimumBlockHeaderHistory :: Rule BlockHeight (Maybe Word64)
+    , _versionSpvProofRootValidWindow :: Rule BlockHeight (Maybe Word64)
         -- ^ The minimum number of block headers a chainweb node should
         -- retain in its history at all times.
     , _versionBootstraps :: [PeerInfo]
@@ -525,6 +530,10 @@ data ChainwebVersion
         -- that are produced by the new chainweb-node version will then raise
         -- the on-chain fork number in the block headers until the maximum
         -- supported number is reached.
+    , _versionForkVoteCastingLength :: Natural
+        -- ^ The length of the vote-making period in the fork epoch. 2/3rds of
+        -- these blocks must be votes in favor of increasing the fork number for
+        -- that increase to take effect.
     }
     deriving stock (Generic)
     deriving anyclass NFData
@@ -550,6 +559,8 @@ instance Ord ChainwebVersion where
         , _versionCheats v `compare` _versionCheats v'
         , _versionVerifierPluginNames v `compare` _versionVerifierPluginNames v'
         , _versionForkNumber v `compare` _versionForkNumber v'
+        , _versionForkVoteCastingLength v `compare` _versionForkVoteCastingLength v'
+        , _versionSpvProofRootValidWindow v `compare` _versionSpvProofRootValidWindow v'
         ]
 
 instance Eq ChainwebVersion where
@@ -558,6 +569,20 @@ instance Eq ChainwebVersion where
         , _versionUpgrades v == _versionUpgrades v'
         , _versionGenesis v == _versionGenesis v'
         ]
+
+-- | The last 120 blocks in a fork epoch are used to count the votes.
+--
+voteCountingLength :: Natural
+voteCountingLength = 120
+
+-- | The length of the fork epoch, both vote casting and counting.
+forkEpochLength :: ChainwebVersion -> Natural
+forkEpochLength v = _versionForkVoteCastingLength v + voteCountingLength
+
+-- | 2/3rds majority of the votes?
+decideVotes :: ChainwebVersion -> ForkVotes -> Bool
+decideVotes v votes =
+    round (votes % voteStep) * 3 >= _versionForkVoteCastingLength v * 2
 
 data VersionDefaults = VersionDefaults
     { _disablePeerValidation :: Bool

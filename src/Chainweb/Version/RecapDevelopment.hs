@@ -80,7 +80,7 @@ recapDevnet = ChainwebVersion
         Chainweb229Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 660
         Chainweb230Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 680
         Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 690
-        Chainweb232Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
+        Chainweb31 -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
         MigratePlatformShare -> AllChains $ ForkAtBlockHeight $ BlockHeight 710
 
     , _versionUpgrades = foldr (chainZip HM.union) (AllChains mempty)
@@ -115,7 +115,7 @@ recapDevnet = ChainwebVersion
         }
 
     , _versionMaxBlockGasLimit = Bottom (minBound, Just 180_000)
-    , _versionMinimumBlockHeaderHistory = Bottom (minBound, Nothing)
+    , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
     , _versionCheats = VersionCheats
         { _disablePow = False
         , _fakeFirstEpochStart = True
@@ -130,4 +130,5 @@ recapDevnet = ChainwebVersion
         Bottom (minBound, mempty)
     , _versionQuirks = noQuirks
     , _versionForkNumber = 0
+    , _versionForkVoteCastingLength = 120 * 119 -- 5 days
     }
