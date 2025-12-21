@@ -9,12 +9,12 @@
 -- Maintainer: Edmund Noble <edmund@kadena.io>
 -- Stability: experimental
 --
--- Functions which dictate changes in block validation at different BlockHeights, based on
--- chainweb versions.
+-- Functions which dictate changes in block validation behavior at different
+-- BlockHeights, based on chainweb versions.
 --
--- Changes either activate at a certain block height and for all subsequent blocks,
--- activate for all subsequent blocks after a certain block height,
--- or activate for all previous blocks before a certain block height.
+-- Changes either activate at a certain block height and for all subsequent
+-- blocks, activate for all subsequent blocks after a certain block height, or
+-- activate for all previous blocks before a certain block height.
 --
 
 module Chainweb.Version.Guards
@@ -44,9 +44,7 @@ module Chainweb.Version.Guards
     , chainweb223Pact
     , chainweb224Pact
     , chainweb225Pact
-    , chainweb226Pact
     , chainweb228Pact
-    , chainweb229Pact
     , chainweb230Pact
     , chainweb231Pact
     , chainweb31
@@ -82,6 +80,9 @@ import Pact.Core.Serialise qualified as Pact5
 import Pact.Types.KeySet (PublicKeyText, ed25519HexFormat, webAuthnFormat)
 import Pact.Types.Scheme (PPKScheme(ED25519, WebAuthn))
 
+-- Gets the height which the fork is associated with.
+-- This may not be the first height at which the associated guard is `True`
+-- necessarily; check the guard to see how it uses the fork's height.
 getForkHeight :: Fork -> ChainwebVersion -> ChainId -> ForkHeight
 getForkHeight fork v cid = v ^?! versionForks . at fork . _Just . atChain cid
 
@@ -105,6 +106,8 @@ before bh (ForkAtBlockHeight bh') = bh < bh'
 before _ ForkAtGenesis = False
 before _ ForkNever = True
 
+-- Intended for forks that intend to run upgrades at exactly one height, and so
+-- can't be "pre-activated" for genesis.
 atNotGenesis :: BlockHeight -> ForkHeight -> Bool
 atNotGenesis bh (ForkAtBlockHeight bh') = bh == bh'
 atNotGenesis _ ForkAtGenesis = error "fork cannot be at genesis"
@@ -113,15 +116,16 @@ atNotGenesis _ ForkNever = False
 -- -------------------------------------------------------------------------- --
 -- Header Validation Guards
 --
--- The guards in this section encode when changes to validation rules for data
+-- The guards in this section encode when changes to validation rules for blocks
 -- on the chain become effective.
 --
--- Only the following types are allowed as parameters for guards
+-- Guards can only take as parameters data that was available when a block was
+-- not yet produced. For example, the block creation time, block hash, and nonce
+-- of that block are not available, because they were not available before the
+-- block was produced.
 --
--- * BlockHeader,
--- * ParentHeader,
--- * BlockCreationTime, and
--- * ParentCreationTime
+-- In practice, the relevant input data is the `ChainwebVersion`, `ChainId`, and
+-- `BlockHeight` of the block under consideration.
 --
 -- The result is a simple 'Bool'.
 --
@@ -217,9 +221,11 @@ enablePactEvents = checkFork atOrAfter PactEvents
 enableSPVBridge :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 enableSPVBridge = checkFork atOrAfter SPVBridge
 
+-- | Should Pact check that keysets have a legal format?
 enforceKeysetFormats :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 enforceKeysetFormats = checkFork atOrAfter EnforceKeysetFormats
 
+-- | Should Pact check that the `hash` included with a `Command` is correct?
 doCheckTxHash :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 doCheckTxHash = checkFork atOrAfter CheckTxHash
 
@@ -227,69 +233,87 @@ doCheckTxHash = checkFork atOrAfter CheckTxHash
 pact44NewTrans :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 pact44NewTrans = checkFork atOrAfter Pact44NewTrans
 
+-- | Pact 4.0 features
 pact4Coin3 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 pact4Coin3 = checkFork after Pact4Coin3
 
+-- | Pact 4.2 features
 pact42 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 pact42 = checkFork atOrAfter Pact42
 
-pact5 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
-pact5 = checkFork atOrAfter Pact5Fork
-
+-- | Pact charges gas for the size of transitive module dependencies
 chainweb213Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb213Pact = checkFork atOrAfter Chainweb213Pact
 
+-- | Pact 4.3 features
 chainweb214Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb214Pact = checkFork after Chainweb214Pact
 
+-- | Pact 4.3.1 features
 chainweb215Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb215Pact = checkFork after Chainweb215Pact
 
+-- | Pact 4.4 features, including new expression parser
 chainweb216Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb216Pact = checkFork after Chainweb216Pact
 
+-- | Pact 4.5 features, and considering all table names lowercase
 chainweb217Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb217Pact = checkFork after Chainweb217Pact
 
+-- | Pact 4.6 features
 chainweb218Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb218Pact = checkFork atOrAfter Chainweb218Pact
 
+-- | Pact 4.7 features + new SPV errors without callstacks
 chainweb219Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb219Pact = checkFork atOrAfter Chainweb219Pact
 
+-- | Pact 4.8 features
 chainweb220Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb220Pact = checkFork atOrAfter Chainweb220Pact
 
+-- Pact 4.9 features + new spv base64 errors that don't depend on legacy library
+-- versions
 chainweb221Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb221Pact = checkFork atOrAfter Chainweb221Pact
 
+-- | Pact 4.10 features, webauthn keys and signatures
 chainweb222Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb222Pact = checkFork atOrAfter Chainweb222Pact
 
+-- | Pact 4.11 features, verifier plugins
 chainweb223Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb223Pact = checkFork atOrAfter Chainweb223Pact
 
+-- | Pact 4.12 features, optimized buy/redeem gas transactions reduce gas cost
+-- for all transactions
 chainweb224Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb224Pact = checkFork atOrAfter Chainweb224Pact
 
+-- | Update Hyperlane verifier plugin to provide a "merkle tree ISM"
 chainweb225Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb225Pact = checkFork atOrAfter Chainweb225Pact
 
-chainweb226Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
-chainweb226Pact = checkFork atOrAfter Chainweb226Pact
+-- | Pact 5, an entirely new Pact compiler and interpreter, and comes with some
+-- big changes to PactService
+pact5 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+pact5 = checkFork atOrAfter Pact5Fork
 
+-- | Pact 5.1, including a new more succinct serializer for modules
 chainweb228Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb228Pact = checkFork atOrAfter Chainweb228Pact
 
-chainweb229Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
-chainweb229Pact = checkFork atOrAfter Chainweb229Pact
-
+-- | Pact 5.2 and 5.3, including a re-entrancy check for module references
+-- Also, a fix for duplicates in `keys`
 chainweb230Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb230Pact = checkFork atOrAfter Chainweb230Pact
 
+-- | Pact 5.4, SPV proof root expiry
 chainweb231Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb231Pact = checkFork atOrAfter Chainweb231Pact
 
+-- | Fork numbering and voting, continuation proof size gassed
 chainweb31 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb31 = checkFork atOrAfter Chainweb31
 

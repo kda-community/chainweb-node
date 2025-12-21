@@ -74,10 +74,8 @@ recapDevnet = ChainwebVersion
         Chainweb223Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 600
         Chainweb224Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 610
         Chainweb225Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 620
-        Chainweb226Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 630
         Pact5Fork -> AllChains $ ForkAtBlockHeight $ BlockHeight 640
         Chainweb228Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 650
-        Chainweb229Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 660
         Chainweb230Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 680
         Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 690
         Chainweb31 -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
