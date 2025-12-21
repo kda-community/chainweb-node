@@ -31,20 +31,45 @@ loglevel = Warn
 -- note that because these tests run in parallel they must all use distinct rocksdb and sqlite dirs.
 suite :: TestTree
 suite = independentSequentialTestGroup "MultiNodeNetworkTests"
-    [ testCaseSteps "ConsensusNetwork - TimedConsensus - 10 nodes - 30 seconds" $ \step ->
-        withTempRocksDb "multinode-tests-timedconsensus-petersen-twenty-rocks" $ \rdb ->
-        withSystemTempDirectory "multinode-tests-timedconsensus-petersen-twenty-pact" $ \pactDbDir ->
-        Chainweb.Test.MultiNode.efficiencyTest loglevel (timedConsensusVersion 0 petersenChainGraph twentyChainGraph) 10 30 rdb pactDbDir step
-    , testCaseSteps "ConsensusNetwork - FastTimedCPM singleChainGraph - 10 nodes - 30 seconds" $ \step ->
-        withTempRocksDb "multinode-tests-fasttimedcpm-single-rocks" $ \rdb ->
-        withSystemTempDirectory "multinode-tests-fasttimedcpm-single-pact" $ \pactDbDir ->
-        Chainweb.Test.MultiNode.efficiencyTest loglevel (fastForkingCpmTestVersion singletonChainGraph) 10 30 rdb pactDbDir step
-    , testCaseSteps "Replay - FastTimedCPM - 6 nodes" $ \step ->
-        withTempRocksDb "replay-test-fasttimedcpm-pair-rocks" $ \rdb ->
-        withSystemTempDirectory "replay-test-fasttimedcpm-pair-pact" $ \pactDbDir ->
-        Chainweb.Test.MultiNode.replayTest loglevel (fastForkingCpmTestVersion pairChainGraph) 6 rdb pactDbDir step
-    , testCaseSteps "Replay - TransitionTimedCPM - 6 nodes" $ \step ->
-        withTempRocksDb "replay-test-transitiontimedcpm-pair-rocks" $ \rdb ->
-        withSystemTempDirectory "replay-test-transitiontimedcpm-pair-pact" $ \pactDbDir ->
-        Chainweb.Test.MultiNode.replayTest loglevel (instantCpmTransitionTestVersion pairChainGraph) 1 rdb pactDbDir step
+    [ testGroup "parallel fork voting tests"
+        -- use very few nodes, so we can have higher concurrency; which is good, because they're long
+        [ testCaseSteps "Fork Vote - Succeed Unanimous" $ \step ->
+            withTempRocksDb "fork-vote-succeed-unanimous-rocks" $ \rdb ->
+            withSystemTempDirectory "fork-vote-succeed-unanimous-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.forkVoteTestSucceedUnanimous loglevel rdb pactDbDir step
+        , testCaseSteps "Fork Vote - Fail Unanimous" $ \step ->
+            withTempRocksDb "fork-vote-fail-unanimous-rocks" $ \rdb ->
+            withSystemTempDirectory "fork-vote-fail-unanimous-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.forkVoteTestFailUnanimous loglevel rdb pactDbDir step
+        , testCaseSteps "Fork Vote - Succeed Twice Unanimous" $ \step ->
+            withTempRocksDb "fork-vote-succeed-twice-unanimous-rocks" $ \rdb ->
+            withSystemTempDirectory "fork-vote-succeed-twice-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.forkVoteTestSucceedTwiceUnanimous loglevel rdb pactDbDir step
+        , testCaseSteps "Fork Vote - Succeed 4/5ths Majority" $ \step ->
+            withTempRocksDb "fork-vote-succeed-four-fifths-majority-rocks" $ \rdb ->
+            withSystemTempDirectory "fork-vote-succeed-four-fifths-majority-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.forkVoteTestSucceedFourFifths loglevel rdb pactDbDir step
+        , testCaseSteps "Fork Vote - Fail 4/5ths Majority" $ \step ->
+            withTempRocksDb "fork-vote-fail-four-fifths-majority-rocks" $ \rdb ->
+            withSystemTempDirectory "fork-vote-fail-four-fifths-majority-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.forkVoteTestFailFourFifths loglevel rdb pactDbDir step
+        ]
+    , independentSequentialTestGroup "sequential tests"
+        [ testCaseSteps "ConsensusNetwork - TimedConsensus - 10 nodes - 30 seconds" $ \step ->
+            withTempRocksDb "multinode-tests-timedconsensus-petersen-twenty-rocks" $ \rdb ->
+            withSystemTempDirectory "multinode-tests-timedconsensus-petersen-twenty-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.efficiencyTest loglevel (timedConsensusVersion 0 petersenChainGraph twentyChainGraph) 10 30 rdb pactDbDir step
+        , testCaseSteps "ConsensusNetwork - FastTimedCPM singleChainGraph - 10 nodes - 30 seconds" $ \step ->
+            withTempRocksDb "multinode-tests-fasttimedcpm-single-rocks" $ \rdb ->
+            withSystemTempDirectory "multinode-tests-fasttimedcpm-single-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.efficiencyTest loglevel (fastForkingCpmTestVersion singletonChainGraph) 10 30 rdb pactDbDir step
+        , testCaseSteps "Replay - FastTimedCPM - 6 nodes" $ \step ->
+            withTempRocksDb "replay-test-fasttimedcpm-pair-rocks" $ \rdb ->
+            withSystemTempDirectory "replay-test-fasttimedcpm-pair-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.replayTest loglevel (fastForkingCpmTestVersion pairChainGraph) 6 rdb pactDbDir step
+        , testCaseSteps "Replay - TransitionTimedCPM - 6 nodes" $ \step ->
+            withTempRocksDb "replay-test-transitiontimedcpm-pair-rocks" $ \rdb ->
+            withSystemTempDirectory "replay-test-transitiontimedcpm-pair-pact" $ \pactDbDir ->
+            Chainweb.Test.MultiNode.replayTest loglevel (instantCpmTransitionTestVersion pairChainGraph) 1 rdb pactDbDir step
+        ]
     ]
