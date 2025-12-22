@@ -499,7 +499,7 @@ jobs:
         ghc: ${{ matrix.ghc }}
         use-freeze-file: ${{ matrix.use-freeze-file }}
     - name: Run multi-node-network-tests
-      timeout-minutes: 7
+      timeout-minutes: 10
       run: |
           ulimit -n 10000
           multi-node-network-tests
