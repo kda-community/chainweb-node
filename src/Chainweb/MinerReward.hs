@@ -25,16 +25,16 @@
 --
 module Chainweb.MinerReward
 (
--- * STU
-  Stu(..)
-, divideStu
+-- * Pico
+  Pico(..)
+, dividePico
 
 -- * KDA
 , Kda
 , pattern Kda
 , _kda
-, stuToKda
-, kdaToStu
+, picoToKda
+, kdaToPico
 
 -- * Miner Reward
 , MinerReward(..)
@@ -81,39 +81,39 @@ import GHC.Stack
 import Numeric.Natural
 
 -- -------------------------------------------------------------------------- --
--- STU
+-- Pico
 
--- | Smallest Unit of KDA: 1 KDA == 1e12 STU.
+-- | Smallest Unit of KDA: 1 KDA == 1e12 Pico.
 --
 -- Values are non-negative and substraction can result in an arithmetic
 -- underflow.
 --
-newtype Stu = Stu { _stu :: Natural }
+newtype Pico = Pico { _pico :: Natural }
     deriving stock (Show, Eq, Ord, Generic)
     deriving newtype (Enum, Num, Real, Integral, NFData)
 
-instance HasTextRepresentation Stu where
-    toText = toText . _stu
-    fromText = fmap Stu . fromText
+instance HasTextRepresentation Pico where
+    toText = toText . _pico
+    fromText = fmap Pico . fromText
     {-# INLINEABLE toText #-}
     {-# INLINEABLE fromText #-}
 
-instance ToJSON Stu where
+instance ToJSON Pico where
     toJSON = toJSON . toText
     toEncoding = toEncoding . toText
     {-# INLINEABLE toJSON #-}
     {-# INLINEABLE toEncoding #-}
 
-instance FromJSON Stu where
-    parseJSON = parseJsonFromText "Stu"
+instance FromJSON Pico where
+    parseJSON = parseJsonFromText "Pico"
     {-# INLINABLE parseJSON #-}
 
--- | Divide a Stu by a Natural number.
+-- | Divide a Pico by a Natural number.
 --
 -- The result is rounded using bankers rounding.
 --
-divideStu :: Stu -> Natural -> Stu
-divideStu s n = round $ s % fromIntegral n
+dividePico :: Pico -> Natural -> Pico
+dividePico s n = round $ s % fromIntegral n
 
 -- -------------------------------------------------------------------------- --
 -- KDA
@@ -138,39 +138,39 @@ pattern Kda { _kda } <- Kda_ _kda where
         | otherwise = Kda_ $ normalizeDecimal k
 {-# COMPLETE Kda #-}
 
-stuToKda :: HasCallStack => Stu -> Kda
-stuToKda (Stu k) = Kda $ normalizeDecimal $ Decimal 12 (fromIntegral k)
+picoToKda :: HasCallStack => Pico -> Kda
+picoToKda (Pico k) = Kda $ normalizeDecimal $ Decimal 12 (fromIntegral k)
 
-kdaToStu :: Kda -> Stu
-kdaToStu (Kda { _kda = s }) = Stu $ round (s * 1e12)
+kdaToPico :: Kda -> Pico
+kdaToPico (Kda { _kda = s }) = Pico $ round (s * 1e12)
 
 -- -------------------------------------------------------------------------- --
 -- Miner Reward
 
---  | Miner Reward in Stu
+--  | Miner Reward in Pico
 --
 --  The maximum miner reward is 23045230000000, which is smaller than 2^51-1.
 --  Miner rewards can thus be represented losslessly as JSON numbers.
 --
-newtype MinerReward = MinerReward { _minerReward :: Stu }
+newtype MinerReward = MinerReward { _minerReward :: Pico }
     deriving (Show, Eq, Ord, Generic)
     deriving (ToJSON, FromJSON) via JsonTextRepresentation "MinerReward" MinerReward
 
 instance HasTextRepresentation MinerReward where
-    toText (MinerReward (Stu n)) = toText n
-    fromText t = MinerReward . Stu <$> fromText t
+    toText (MinerReward (Pico n)) = toText n
+    fromText t = MinerReward . Pico <$> fromText t
     {-# INLINE toText #-}
     {-# INLINE fromText #-}
 
 
 minerRewardKda :: MinerReward -> Kda
-minerRewardKda (MinerReward d) = stuToKda d
+minerRewardKda (MinerReward d) = picoToKda d
 
 -- | Calculate miner reward for a block at the given height.
 --
 -- NOTE:
--- This used to compute the value as @roundTo 8 $ (_kda $ stuToKda m) / n@.
--- The new caclulcation based on Stu is equivalent for 10 and 20 chains,
+-- This used to compute the value as @roundTo 8 $ (_kda $ picoToKda m) / n@.
+-- The new caclulcation based on Pico is equivalent for 10 and 20 chains,
 -- except for the pre-last entry in the miner rewards table, namely
 -- @(125538056,0.023999333). However, since this value hasen't yet been used
 -- in any network, we can still change the algorithm.
@@ -180,8 +180,8 @@ blockMinerReward
     -> BlockHeight
     -> MinerReward
 blockMinerReward v h = case M.lookupGE h minerRewards of
-    Nothing -> MinerReward $ Stu 0
-    Just (_, s) -> MinerReward $ divideStu s n
+    Nothing -> MinerReward $ Pico 0
+    Just (_, s) -> MinerReward $ dividePico s n
   where
     !n = int . order $ chainGraphAt v h
 
@@ -192,7 +192,7 @@ blockMinerReward v h = case M.lookupGE h minerRewards of
 -- encoded in as Word64 value.
 --
 encodeMinerReward :: MinerReward -> Put
-encodeMinerReward (MinerReward (Stu n)) = putWord64le (int n)
+encodeMinerReward (MinerReward (Pico n)) = putWord64le (int n)
 {-# INLINE encodeMinerReward #-}
 
 decodeMinerReward :: Get MinerReward
@@ -206,7 +206,7 @@ decodeMinerReward = MinerReward . int <$>  getWord64le
 -- -------------------------------------------------------------------------- --
 -- Miner Rewards Table
 
-type MinerRewardsTable = M.Map BlockHeight Stu
+type MinerRewardsTable = M.Map BlockHeight Pico
 
 -- | Rewards table mapping 3-month periods to their rewards according to the
 -- calculated exponential decay over about a 120 year period (125538057 block
@@ -243,8 +243,8 @@ mkMinerRewards =
                 then rewards
                 else error $ "hash of miner rewards table does not match expected hash"
   where
-    formatRow :: (Word64, CsvDecimal) -> (BlockHeight, Stu)
-    formatRow (a, b) = (BlockHeight $ int a, kdaToStu (Kda $ _csvDecimal b))
+    formatRow :: (Word64, CsvDecimal) -> (BlockHeight, Pico)
+    formatRow (a, b) = (BlockHeight $ int a, kdaToPico (Kda $ _csvDecimal b))
 
 -- -------------------------------------------------------------------------- --
 -- Miner Rewards File
@@ -277,4 +277,3 @@ expectedMinerRewardsHash = read "8e4fb006c5045b3baab638d16d62c952e4981a4ba473ec6
 
 expectedRawMinerRewardsHash :: Digest SHA512
 expectedRawMinerRewardsHash = read "903d10b06666c0d619c8a28c74c3bb0af47209002f005b12bbda7b7df1131b2072ce758c1a8148facb1506022215ea201629f38863feb285c7e66f5965498fe0"
-
