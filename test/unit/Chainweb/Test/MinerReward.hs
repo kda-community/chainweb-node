@@ -34,8 +34,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-instance Arbitrary Stu where
-    arbitrary = Stu <$> arbitrary
+instance Arbitrary Pico where
+    arbitrary = Pico <$> arbitrary
 
 instance Arbitrary Kda where
     arbitrary = fmap Kda $ Decimal <$> choose (0,12) <*> arbitrary
@@ -50,8 +50,8 @@ instance Arbitrary PositiveKda where
 
 tests :: TestTree
 tests = testGroup "MinerReward"
-    [ testProperty "kdaToStuToKda" prop_kdaToStuToKda
-    , testProperty "stuToKdaToStu" prop_stuToKdaToStu
+    [ testProperty "kdaToPicoToKda" prop_kdaToPicoToKda
+    , testProperty "picoToKdaToPico" prop_picoToKdaToPico
     , testCase "finalReward" test_finalMinerReward
     , testCase "minerRewardsMax" test_minerRewardsMax
     , testCase "minerRewardsFitWord64" test_minerRewardsFitWord64
@@ -67,11 +67,11 @@ tests = testGroup "MinerReward"
 maxRewardHeight :: BlockHeight
 maxRewardHeight = 125538057
 
-prop_kdaToStuToKda :: PositiveKda -> Property
-prop_kdaToStuToKda (PositiveKda kda) = stuToKda (kdaToStu kda) === kda
+prop_kdaToPicoToKda :: PositiveKda -> Property
+prop_kdaToPicoToKda (PositiveKda kda) = picoToKda (kdaToPico kda) === kda
 
-prop_stuToKdaToStu :: Stu -> Property
-prop_stuToKdaToStu stu = kdaToStu (stuToKda stu) === stu
+prop_picoToKdaToPico :: Pico -> Property
+prop_picoToKdaToPico x = kdaToPico (picoToKda x) === x
 
 prop_blockMinerRewardLegacyCompat :: BlockHeight -> Property
 prop_blockMinerRewardLegacyCompat h
@@ -103,12 +103,12 @@ test_finalMinerReward = do
 test_minerRewardsMax :: Assertion
 test_minerRewardsMax = assertBool
     "maximum miner reward is smaller than 1e12 * 24"
-    (_stu (maximum minerRewards) < 1e12 * 24)
+    (_pico (maximum minerRewards) < 1e12 * 24)
 
 test_minerRewardsFitWord64 :: Assertion
 test_minerRewardsFitWord64 = assertBool
     "maximum miner reward fits into Word64"
-    (_stu (maximum minerRewards) <= fromIntegral (maxBound @Word64))
+    (_pico (maximum minerRewards) <= fromIntegral (maxBound @Word64))
 
 test_expectedMinerRewardsHash :: Assertion
 test_expectedMinerRewardsHash = assertEqual
@@ -180,4 +180,3 @@ legacyBlockMinerReward v h =
         Just (_, m) -> Kda $ roundTo 8 (_kda m / n)
   where
     !n = int . order $ chainGraphAt v h
-
