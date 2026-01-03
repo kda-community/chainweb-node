@@ -263,6 +263,10 @@ mkDynKeyPairs (CmdSigner Signer{..} privKey) =
       privWebAuthn <-
         either diePrivKey return (parseWebAuthnPrivateKey =<< parseB16TextOnly priv)
       return $ (DynWebAuthnKeyPair wasPrefixed pubWebAuthn privWebAuthn, _siCapList)
+    -- TODO Implement them
+    (SlhDsaSha128s, _, _) -> error "Unsupported"
+    (SlhDsaSha192s, _, _) -> error "Unsupported"
+    (SlhDsaSha256s, _, _) -> error "Unsupported"
   where
     diePubKey str = error $ "pubkey: " <> str
     diePrivKey str = error $ "privkey: " <> str
