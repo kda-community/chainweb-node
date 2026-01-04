@@ -143,7 +143,7 @@ jobs:
 
           "ghc": ["9.10.3"],
           "cabal": ["latest"],
-          "os": ["ubuntu-22.04"],
+          "os": ["ubuntu-22.04", "ubuntu-24.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
@@ -162,7 +162,7 @@ jobs:
         {
           "ghc": ["9.10.3"],
           "cabal": ["latest"],
-          "os": ["ubuntu-22.04"],
+          "os": ["ubuntu-22.04","ubuntu-24.04" ],
           "use-freeze-file": ["false"],
           "include" : [
             {
