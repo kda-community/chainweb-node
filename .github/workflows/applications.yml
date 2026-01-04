@@ -141,14 +141,14 @@ jobs:
         MATRIX="$(jq -c '.' <<EOF
         {
 
-          "ghc": ["9.10.2"],
+          "ghc": ["9.10.3"],
           "cabal": ["latest"],
           "os": ["ubuntu-22.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
               # These are the build values that will be used for release scripts
-              "ghc": "9.10.2",
+              "ghc": "9.10.3",
               "cabal": "latest",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
@@ -160,13 +160,13 @@ jobs:
         else
         MATRIX="$(jq -c '.' <<EOF
         {
-          "ghc": ["9.10.2"],
+          "ghc": ["9.10.3"],
           "cabal": ["latest"],
           "os": ["ubuntu-22.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
-              "ghc": "9.10.2",
+              "ghc": "9.10.3",
               "cabal": "3.14",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
@@ -656,7 +656,7 @@ jobs:
         # when adding more than one build, use a different package name or
         # different tags
         include:
-        - ghc: "9.10.2"
+        - ghc: "9.10.3"
           os: "ubuntu-22.04"
           use-freeze-file: "true"
     env:
