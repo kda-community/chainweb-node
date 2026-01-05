@@ -860,7 +860,11 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
 
     let localPact5 = do
             ph <- view psParentHeader
-            let pact5RequestKey = Pact5.RequestKey (Pact5.Hash $ Pact4.unHash $ Pact4.toUntypedHash $ Pact4._cmdHash cwtx)
+            let txCtx = Pact5.TxContext ph noMiner
+                bh = Pact5.ctxCurrentBlockHeight txCtx
+                pact5RequestKey = Pact5.RequestKey (Pact5.Hash $ Pact4.unHash $ Pact4.toUntypedHash $ Pact4._cmdHash cwtx)
+                spvSupport = Pact5.pactSPV bhdb (_parentHeader ph)
+
             evalContT $ withEarlyReturn $ \earlyReturn -> do
                 pact5Cmd <- case Pact5.parsePact4Command cwtx of
                     Left (Left errText) -> do
@@ -903,14 +907,12 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
                                 review _MetadataValidationFailure $ NonEmpty.singleton $ Text.pack err
                             Right _ -> return ()
                     _ -> do
-                        let validated = Pact5.assertCommand pact5Cmd
+                        let validated = Pact5.assertCommand pact5Cmd (validPPKSchemes v cid bh)
                         case validated of
                             Left err -> earlyReturn $
                                 review _MetadataValidationFailure (pure $ displayAssertCommandError err)
                             Right () -> return ()
 
-                let txCtx = Pact5.TxContext ph noMiner
-                let spvSupport = Pact5.pactSPV bhdb (_parentHeader ph)
                 case preflight of
                     Just PreflightSimulation -> do
                         -- preflight needs to do additional checks on the metadata

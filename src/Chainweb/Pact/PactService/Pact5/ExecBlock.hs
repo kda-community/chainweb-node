@@ -531,7 +531,7 @@ validateParsedChainwebTx _logger v cid db _blockHandle txValidationTime bh isGen
 
     checkTxSigs :: Pact5.Transaction -> ExceptT InsertError IO ()
     checkTxSigs t = do
-      case Pact5.assertValidateSigs hsh signers sigs of
+      case Pact5.assertValidateSigs (validPPKSchemes v cid bh) hsh signers sigs of
           Right _ -> do
               pure ()
           Left err -> do
