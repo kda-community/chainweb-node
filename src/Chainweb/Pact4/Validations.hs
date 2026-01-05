@@ -63,7 +63,7 @@ import Chainweb.Pact.Utils (fromPactChainId)
 import Chainweb.Time (Seconds(..), Time(..), secondsToTimeSpan, scaleTimeSpan, second, add)
 import Chainweb.Pact4.Transaction
 import Chainweb.Version
-import Chainweb.Version.Guards (isWebAuthnPrefixLegal, validPPKSchemes)
+import Chainweb.Version.Guards (PactPPKScheme(..), isWebAuthnPrefixLegal, validPPKSchemes)
 
 import qualified Pact.Types.Gas as P
 import qualified Pact.Types.Hash as P
@@ -174,7 +174,7 @@ assertTxSize initialGas gasLimit = initialGas < fromIntegral gasLimit
 -- transaction hash.
 --
 assertValidateSigs :: ()
-  => [P.PPKScheme]
+  => [PactPPKScheme]
   -> IsWebAuthnPrefixLegal
   -> P.PactHash
   -> [P.Signer]
@@ -193,7 +193,7 @@ assertValidateSigs validSchemes webAuthnPrefixLegal hsh signers sigs = do
   iforM_ (zip sigs signers) $ \pos (sig, signer) -> do
     ebool_
       (InvalidSignerScheme pos)
-      (fromMaybe P.ED25519 (P._siScheme signer) `elem` validSchemes)
+      ((SchemeV4 $ fromMaybe P.ED25519 $ P._siScheme signer) `elem` validSchemes)
     ebool_
       (InvalidSignerWebAuthnPrefix pos)
       (webAuthnPrefixLegal == WebAuthnPrefixLegal || not (P.webAuthnPrefix `Text.isPrefixOf` P._siPubKey signer))
@@ -239,7 +239,7 @@ assertTxNotInFuture (ParentCreationTime (BlockCreationTime txValidationTime)) tx
 
 -- | Assert that the command hash matches its payload and
 -- its signatures are valid, without parsing the payload.
-assertCommand :: P.Command (PayloadWithText m c) -> [P.PPKScheme] -> IsWebAuthnPrefixLegal -> Either AssertCommandError ()
+assertCommand :: P.Command (PayloadWithText m c) -> [PactPPKScheme] -> IsWebAuthnPrefixLegal -> Either AssertCommandError ()
 assertCommand (P.Command pwt sigs hsh) ppkSchemePassList webAuthnPrefixLegal = do
   if isRight assertHash
   then first AssertValidateSigsError $ assertValidateSigs ppkSchemePassList webAuthnPrefixLegal hsh signers sigs
