@@ -106,6 +106,7 @@ import Chainweb.Pact.Types
 import Chainweb.Pact4.SPV qualified as Pact4
 import Pact.Types.ChainMeta qualified as Pact4
 import Chainweb.Payload
+import Chainweb.Version.Guards (getForkHeight)
 import Chainweb.Payload.PayloadStore
 import Chainweb.RestAPI.Orphans ()
 import Chainweb.RestAPI.Utils
@@ -723,7 +724,12 @@ validateCommand v cid (fmap encodeUtf8 -> cmdBs) = case parsedCmd of
       Right () -> Right commandParsed
   Left e -> Left $ "Pact parsing error: " <> T.pack e
   where
-    bh = maxBound :: BlockHeight
+    -- It's supposed to be a Pact4 command, so take the height just before the Pact5 fork
+    bh = case getForkHeight Pact5Fork v cid of
+            ForkAtGenesis -> minBound :: BlockHeight
+            ForkNever -> maxBound :: BlockHeight
+            ForkAtBlockHeight bh' -> bh' -1
+
     decodeAndParse bs =
         traverse (Pact4.parsePact) =<< Aeson.eitherDecodeStrict' bs
     parsedCmd = Pact4.mkPayloadWithText <$>

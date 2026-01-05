@@ -50,6 +50,7 @@ module Chainweb.Version.Guards
     , chainweb31
     , migratePlatformShare
     , pact5
+    , getForkHeight
     , pact44NewTrans
     , pact4ParserVersion
     , maxBlockGasLimit
