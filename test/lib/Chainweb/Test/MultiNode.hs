@@ -87,8 +87,7 @@ import System.Directory (createDirectoryIfMissing)
 import System.FilePath
 import System.IO.Temp
 import System.LogLevel
-import System.Timeout
-
+import GHC.Conc (listThreads)
 import Test.Tasty.HUnit
 
 import PropertyMatchers qualified as P
@@ -331,8 +330,18 @@ runNodesForSeconds
     -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
 runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir inner = do
-    void $ timeout (int seconds * 1_000_000)
-        $ runNodes loglevel write v confBuilders rdb pactDbDir inner
+
+    intialThreads <- Set.fromList <$> listThreads
+
+    void $ race (threadDelay (int seconds * 1_000_000)) (runNodes loglevel write v confBuilders rdb pactDbDir inner)
+
+    -- Give threads 2 seconds to stop properly
+    threadDelay 2_000_000
+
+    -- And kill those created during the test
+    survivingThreads <- filter (flip Set.notMember intialThreads) <$> listThreads
+    write $ T.pack $ "Killing " ++ (show $ length survivingThreads) ++ " garbage threads"
+    forM_ survivingThreads killThread
 
 -- | Ensure that we can compact a live node(s).
 --
