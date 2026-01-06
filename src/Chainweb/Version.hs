@@ -350,8 +350,8 @@ instance Ord ForkHeight where
 -- We consider the following ordering for Forks:
 --   - ForkAtGenesis
 --   - ForkNumber = 0  (unusual case)
---   - BlockHeihgt = 0 (unusual case)
---   - Blockkheight = 1
+--   - BlockHeight = 0 (unusual case)
+--   - BlockHeight = 1
 --          ..
 --   - BlockHeight = n
 --   - ForkNumber = 1
@@ -361,7 +361,7 @@ instance Ord ForkHeight where
 
 makePrisms ''ForkHeight
 
-succByHeight:: ForkHeight -> ForkHeight
+succByHeight :: ForkHeight -> ForkHeight
 succByHeight (ForkAtBlockHeight x) = ForkAtBlockHeight $ succ x
 succByHeight ForkNever = ForkNever
 succByHeight _ = error "Only a Blockheight defined fork can be succ'ed"
