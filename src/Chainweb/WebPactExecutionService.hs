@@ -34,6 +34,7 @@ import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Mempool.Mempool (InsertError)
 import Chainweb.Miner.Pact
+import Chainweb.ForkState
 import Chainweb.Pact.Service.BlockValidation
 import Chainweb.Pact.Service.PactQueue
 import Chainweb.Pact.Types
@@ -67,10 +68,10 @@ newBlockToPayloadWithOutputs (NewBlockInProgress bip)
 newBlockToPayloadWithOutputs (NewBlockPayload _ pwo)
     = pwo
 
-newBlockParent :: NewBlock -> (BlockHash, BlockHeight, BlockCreationTime)
+newBlockParent :: NewBlock -> (BlockHash, ForkNumber, BlockHeight, BlockCreationTime)
 newBlockParent (NewBlockInProgress (ForSomePactVersion _ bip)) = blockInProgressParent bip
 newBlockParent (NewBlockPayload (ParentHeader ph) _) =
-    (view blockHash ph, view blockHeight ph, view blockCreationTime ph)
+    (view blockHash ph, view blockForkNumber ph, view blockHeight ph, view blockCreationTime ph)
 
 instance HasChainwebVersion NewBlock where
     _chainwebVersion (NewBlockInProgress (ForSomePactVersion _ bip)) = _chainwebVersion bip

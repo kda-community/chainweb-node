@@ -82,17 +82,17 @@ bench :: RocksDb -> C.Benchmark
 bench rdb = do
     C.bgroup "PactService"
         [ C.bgroup "Pact4"
-            [ C.bench "1 tx" $ oneBlock pact4Version rdb 1
-            , C.bench "10 txs" $ oneBlock pact4Version rdb 10
-            , C.bench "20 txs" $ oneBlock pact4Version rdb 20
-            , C.bench "30 txs" $ oneBlock pact4Version rdb 30
-            , C.bench "40 txs" $ oneBlock pact4Version rdb 40
-            , C.bench "50 txs" $ oneBlock pact4Version rdb 50
-            , C.bench "60 txs" $ oneBlock pact4Version rdb 60
-            , C.bench "70 txs" $ oneBlock pact4Version rdb 70
-            , C.bench "80 txs" $ oneBlock pact4Version rdb 80
-            , C.bench "90 txs" $ oneBlock pact4Version rdb 90
-            , C.bench "100 txs" $ oneBlock pact4Version rdb 100
+            [ C.bench "1 tx" $ oneBlockV4 pact4Version rdb 1
+            , C.bench "10 txs" $ oneBlockV4 pact4Version rdb 10
+            , C.bench "20 txs" $ oneBlockV4 pact4Version rdb 20
+            , C.bench "30 txs" $ oneBlockV4 pact4Version rdb 30
+            , C.bench "40 txs" $ oneBlockV4 pact4Version rdb 40
+            , C.bench "50 txs" $ oneBlockV4 pact4Version rdb 50
+            , C.bench "60 txs" $ oneBlockV4 pact4Version rdb 60
+            , C.bench "70 txs" $ oneBlockV4 pact4Version rdb 70
+            , C.bench "80 txs" $ oneBlockV4 pact4Version rdb 80
+            , C.bench "90 txs" $ oneBlockV4 pact4Version rdb 90
+            , C.bench "100 txs" $ oneBlockV4 pact4Version rdb 100
             ]
         , C.bgroup "Pact5"
             [ C.bench "1 tx" $ oneBlock pact5Version rdb 1
@@ -162,6 +162,36 @@ destroyFixture fx = do
     forM_ fx._fixturePactServiceSqls $ \sql -> do
         closeSQLiteConnection sql
     deleteNamespaceRocksDb fx._fixtureBlockDbRocksDb
+
+
+oneBlockV4 :: ChainwebVersion -> RocksDb -> Word -> C.Benchmarkable
+oneBlockV4 v rdb numTxs =
+    let cid = unsafeChainId 0
+        cfg = testPactServiceConfig
+
+        setupEnv _ = do
+            fx <- createFixture v rdb cfg
+            txs <- forM [1..numTxs] $ \_ -> do
+                buildCwCmdNoParse v (transferCmd cid 1.0)
+            return (fx, txs)
+
+        cleanupEnv _ (fx, _) = do
+            destroyFixture fx
+    in
+    C.perBatchEnvWithCleanup setupEnv cleanupEnv $ \ ~(fx, txs) -> do
+        prevCut <- getCut fx
+        result <- advanceAllChains fx $ onChain cid $ \ph pactQueue mempool -> do
+            mempoolClear mempool
+            mempoolInsert  (fx._fixtureMempools ^?! atChain cid) UncheckedInsert $ Vector.fromList txs
+
+            bip <- throwIfNoHistory =<<
+                newBlock noMiner NewBlockFill (ParentHeader ph) pactQueue
+            let block = forAnyPactVersion finalizeBlock bip
+            fromIntegral @_ @Word (Vector.length (_payloadWithOutputsTransactions block))
+                & P.equals numTxs
+            return block
+        revert fx prevCut
+        return result
 
 oneBlock :: ChainwebVersion -> RocksDb -> Word -> C.Benchmarkable
 oneBlock v rdb numTxs =
