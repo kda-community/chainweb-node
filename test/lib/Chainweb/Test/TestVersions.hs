@@ -529,7 +529,7 @@ pact5InstantCpmTestVersionExpiryDisabled g = buildTestVersion $ \v -> v
             )
         )
     & versionSpvProofRootValidWindow .~
-        ( (BlockHeight 5, Nothing) `Above`
+        ( (ForkAtBlockHeight $ BlockHeight 5, Nothing) `Above`
             Bottom (minBound, Just 20)
         )
 

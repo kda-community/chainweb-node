@@ -466,7 +466,7 @@ verifiersAt v cid bh =
         = snd
         $ ruleZipperHere
         $ snd
-        $ ruleSeek (\h _ -> bh >= h)
+        $ ruleSeek (\h _ -> ForkAtBlockHeight bh >= h)
         $ _versionVerifierPluginNames v ^?! atChain cid
 
 -- the mappings from names to verifier plugins is global. the list of verifier
