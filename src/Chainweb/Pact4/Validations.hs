@@ -57,6 +57,7 @@ import Data.Word (Word8)
 -- internal modules
 
 import Chainweb.BlockHeader
+import Chainweb.ForkState (pact4ForkNumber)
 import Chainweb.BlockCreationTime (BlockCreationTime(..))
 import Chainweb.Pact.Types
 import Chainweb.Pact.Utils (fromPactChainId)
@@ -89,7 +90,7 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
     bgl <- view psBlockGasLimit
 
     let bh = ctxCurrentBlockHeight txCtx
-    let validSchemes = validPPKSchemes v cid bh
+    let validSchemes = validPPKSchemes v cid pact4ForkNumber bh
     let webAuthnPrefixLegal = isWebAuthnPrefixLegal v cid bh
 
     let P.PublicMeta pcid _ gl gp _ _ = P._pMeta pay

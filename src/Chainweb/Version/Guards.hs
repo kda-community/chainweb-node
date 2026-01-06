@@ -73,6 +73,7 @@ import Chainweb.ChainId
 import Chainweb.Pact4.Transaction qualified as Pact4
 import Chainweb.Utils.Rule
 import Chainweb.Version
+import Chainweb.ForkState
 import Control.Lens
 import Data.Word (Word64)
 import Numeric.Natural
@@ -304,8 +305,8 @@ pact5 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 pact5 = checkFork atOrAfter Pact5Fork
 
 -- TODO Guard properly => For now, use the pact 5 fork
-pactPostQuantum :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
-pactPostQuantum = pact5
+pactPostQuantum :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> Bool
+pactPostQuantum v cid _ bh = pact5 v cid bh
 
 -- | Pact 5.1, including a new more succinct serializer for modules
 chainweb228Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
@@ -350,9 +351,9 @@ minimumBlockHeaderHistory v bh = snd $ ruleZipperHere $ snd
 data PactPPKScheme = SchemeV4 Pact4.PPKScheme | SchemeV5 Pact5.PPKScheme
     deriving(Eq)
 
-validPPKSchemes :: ChainwebVersion -> ChainId -> BlockHeight -> [PactPPKScheme]
-validPPKSchemes v cid bh
-    | pactPostQuantum v cid bh = map SchemeV5 [Pact5.ED25519, Pact5.WebAuthn, Pact5.SlhDsaSha128s, Pact5.SlhDsaSha192s, Pact5.SlhDsaSha256s]
+validPPKSchemes :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> [PactPPKScheme]
+validPPKSchemes v cid fn bh
+    | pactPostQuantum v cid fn bh = map SchemeV5 [Pact5.ED25519, Pact5.WebAuthn, Pact5.SlhDsaSha128s, Pact5.SlhDsaSha192s, Pact5.SlhDsaSha256s]
     | pact5 v cid bh = map SchemeV5 [Pact5.ED25519, Pact5.WebAuthn]
     | chainweb221Pact v cid bh = map SchemeV4 [Pact4.ED25519, Pact4.WebAuthn]
     | otherwise = [SchemeV4 Pact4.ED25519]

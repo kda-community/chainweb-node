@@ -91,6 +91,7 @@ import Chainweb.BlockHash
 import Chainweb.BlockHeader
 import Chainweb.BlockHeaderDB
 import Chainweb.BlockHeight
+import Chainweb.ForkState
 import Chainweb.ChainId
 import Chainweb.Crypto.MerkleLog
 import Chainweb.Cut
@@ -719,7 +720,7 @@ barf e = maybe (throwError e) return
 validateCommand :: ChainwebVersion -> ChainId -> Pact4.Command Text -> Either Text Pact4.Transaction
 validateCommand v cid (fmap encodeUtf8 -> cmdBs) = case parsedCmd of
   Right (commandParsed :: Pact4.Transaction) ->
-    case Pact4.assertCommand commandParsed (validPPKSchemes v cid bh) (isWebAuthnPrefixLegal v cid bh) of
+    case Pact4.assertCommand commandParsed (validPPKSchemes v cid pact4ForkNumber bh) (isWebAuthnPrefixLegal v cid bh) of
       Left err -> Left $ "Command failed validation: " <> Pact4.displayAssertCommandError err
       Right () -> Right commandParsed
   Left e -> Left $ "Pact parsing error: " <> T.pack e
@@ -740,14 +741,15 @@ validateCommand v cid (fmap encodeUtf8 -> cmdBs) = case parsedCmd of
 validatePact5Command :: ChainwebVersion -> ChainId -> Pact5.Command Text -> Either String Pact5.Transaction
 validatePact5Command _v cid cmdText = case parsedCmd of
   Right (commandParsed :: Pact5.Transaction) ->
-    if isRight $ Pact5.assertCommand commandParsed $ validPPKSchemes _v cid bh
+    if isRight $ Pact5.assertCommand commandParsed $ validPPKSchemes _v cid fn bh
     then Right commandParsed
     else Left "Command failed validation"
   Left e -> Left $ "Pact parsing error: " ++ Pact5.renderCompactString e
   where
     parsedCmd = Pact5.parseCommand cmdText
-    -- For Pact5, we take the highest possible BlockHeight
+    -- For Pact5, we take the highest possible BlockHeight and ForkNumber
     bh = maxBound :: BlockHeight
+    fn = maxBound :: ForkNumber
 
 
 -- | Validate the length of the request key's underlying hash.
