@@ -358,6 +358,11 @@ instance Ord ForkHeight where
 --          ..
 --   - ForkNumber = n
 --   - ForkNever
+--
+-- During the LLC era, forks were triggered by block heights, with a fork number of 0 (called feature flag).
+-- After version 3.1, forks are ONLY triggered by fork numbers, as soon as the fork number becomes equal to 1.
+-- So the fork heights are sorted chronologically: first block heights, then fork numbers.
+
 
 makePrisms ''ForkHeight
 
