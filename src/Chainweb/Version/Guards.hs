@@ -335,13 +335,18 @@ pact4ParserVersion v cid bh
     | chainweb213Pact v cid bh = Pact4.PactParserChainweb213
     | otherwise = Pact4.PactParserGenesis
 
-maxBlockGasLimit :: ChainwebVersion -> BlockHeight -> Maybe Natural
-maxBlockGasLimit v bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> ForkAtBlockHeight bh >= h) (_versionMaxBlockGasLimit v)
+maxBlockGasLimit :: ChainwebVersion -> ForkNumber -> BlockHeight -> Maybe Natural
+maxBlockGasLimit v fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h) (_versionMaxBlockGasLimit v)
+    where
+        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
-minimumBlockHeaderHistory :: ChainwebVersion -> BlockHeight -> Maybe Word64
-minimumBlockHeaderHistory v bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> ForkAtBlockHeight bh >= h) (_versionSpvProofRootValidWindow v)
+
+minimumBlockHeaderHistory :: ChainwebVersion -> ForkNumber -> BlockHeight -> Maybe Word64
+minimumBlockHeaderHistory v fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h) (_versionSpvProofRootValidWindow v)
+    where
+        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
 -- | Different versions of Chainweb allow different PPKSchemes.
 --

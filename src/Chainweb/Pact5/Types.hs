@@ -11,6 +11,7 @@ module Chainweb.Pact5.Types
     ( TxContext(..)
     , guardCtx
     , ctxCurrentBlockHeight
+    , ctxParentForkNumber
     , GasSupply(..)
     , PactBlockM(..)
     , PactBlockState(..)
@@ -34,6 +35,7 @@ import Chainweb.BlockHeader
 import Chainweb.Miner.Pact (Miner)
 import Chainweb.BlockHeight
 import Chainweb.Version
+import Chainweb.ForkState
 import Chainweb.Pact.Types
 import qualified Chainweb.ChainId
 import Control.Lens
@@ -83,6 +85,9 @@ ctxBlockHeader = _parentHeader . _tcParentHeader
 -- which influenced legacy switch checks as well.
 ctxCurrentBlockHeight :: TxContext -> BlockHeight
 ctxCurrentBlockHeight = succ . view blockHeight . ctxBlockHeader
+
+ctxParentForkNumber :: TxContext -> ForkNumber
+ctxParentForkNumber = view blockForkNumber . ctxBlockHeader
 
 ctxChainId :: TxContext -> Chainweb.ChainId.ChainId
 ctxChainId = _chainId . ctxBlockHeader
