@@ -135,7 +135,7 @@ forkNumber = lens _forkNumber $ \(ForkState w) v -> ForkState
 
 
 -- Pact4 -> Pact5 transition happened during ForkNumber=0 era.
-pact4ForkNumber:: ForkNumber
+pact4ForkNumber :: ForkNumber
 pact4ForkNumber = 0
 
 -- ---------------------------------------------------------------------------

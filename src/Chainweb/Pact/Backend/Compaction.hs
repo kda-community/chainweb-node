@@ -772,7 +772,7 @@ doCompactRocksDb logger cwVersion cids minBlockHeight srcDb targetDb = do
       --
       -- On new enough chainweb versions, we want to only copy over
       -- the minimal number of block headers.
-      -- Note, this behaviour may be dangerous in case of changes on the miniumum block history.
+      -- Note, this behaviour may be dangerous in case of changes on the minimum block history.
       --
       -- TODO = Option to prune headers history to the minimum should be enabled by flag.
       case minimumBlockHeaderHistory cwVersion (latestHeader ^. blockForkNumber) (latestHeader ^. blockHeight) of

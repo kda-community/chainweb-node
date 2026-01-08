@@ -86,6 +86,11 @@ ctxBlockHeader = _parentHeader . _tcParentHeader
 ctxCurrentBlockHeight :: TxContext -> BlockHeight
 ctxCurrentBlockHeight = succ . view blockHeight . ctxBlockHeader
 
+-- We use the parent fork number in Pact, so when the fork
+-- number is incremented, only that block's descendents will
+-- have the forking behavior active. We do this because computing
+-- the "currently active fork number" requires information from adjacent 
+-- headers, which is not actually available yet when we execute a new Pact payload.
 ctxParentForkNumber :: TxContext -> ForkNumber
 ctxParentForkNumber = view blockForkNumber . ctxBlockHeader
 
