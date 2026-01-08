@@ -401,7 +401,7 @@ withChainwebInternal conf logger peer serviceSock rocksDb pactDbDir backupDir re
             (\cid x -> do
                 let mcfg = validatingMempoolConfig cid v (_configBlockGasLimit conf) (_configMinGasPrice conf)
                 -- NOTE: the gas limit may be set based on block height in future, so this approach may not be valid.
-                let maxGasLimit = fromIntegral <$> maxBlockGasLimit v maxBound
+                let maxGasLimit = fromIntegral <$> maxBlockGasLimit v maxBound maxBound
                 case maxGasLimit of
                     Just maxGasLimit'
                         | _configBlockGasLimit conf > maxGasLimit' ->

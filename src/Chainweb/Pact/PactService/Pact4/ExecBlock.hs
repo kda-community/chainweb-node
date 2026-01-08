@@ -95,6 +95,7 @@ import Chainweb.Payload.PayloadStore
 import Chainweb.Time
 import Chainweb.Utils hiding (check)
 import Chainweb.Version
+import Chainweb.ForkState (pact4ForkNumber)
 import Chainweb.Version.Guards
 import Chainweb.Pact4.Backend.ChainwebPactDb
 import Data.Coerce
@@ -163,7 +164,7 @@ execBlock currHeader payload = do
     return (totalGasUsed, pwo)
   where
     blockGasLimit =
-      fromIntegral <$> maxBlockGasLimit v (view blockHeight currHeader)
+      fromIntegral <$> maxBlockGasLimit v pact4ForkNumber (view blockHeight currHeader)
 
     logInitCache = liftPactServiceM $ do
       mc <- fmap (fmap instr . _getModuleCache) <$> use psInitCache

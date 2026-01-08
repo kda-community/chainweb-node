@@ -183,7 +183,7 @@ runVerifiers txCtx cmd = do
       gasUsed <- liftIO . readIORef . _geGasRef . _txEnvGasEnv =<< ask
       let initGasRemaining = MilliGas $ case (gasToMilliGas (gasLimit ^. _GasLimit), gasUsed) of
             (MilliGas gasLimitMilliGasWord, MilliGas gasUsedMilliGasWord) -> gasLimitMilliGasWord - gasUsedMilliGasWord
-      let allVerifiers = verifiersAt v (_chainId txCtx) (ctxCurrentBlockHeight txCtx)
+      let allVerifiers = verifiersAt v (_chainId txCtx) (ctxParentForkNumber txCtx) (ctxCurrentBlockHeight txCtx)
       let toModuleName m =
             Pact4.ModuleName
                     { Pact4._mnName = _mnName m

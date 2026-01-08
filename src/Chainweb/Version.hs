@@ -37,6 +37,7 @@ module Chainweb.Version
     -- * Properties of Chainweb Version
       Fork(..)
     , ForkHeight(..)
+    , succByHeight
     , _ForkAtBlockHeight
     , _ForkAtGenesis
     , _ForkNever
@@ -322,11 +323,53 @@ instance FromJSON Fork where
 instance FromJSONKey Fork where
     fromJSONKey = FromJSONKeyTextParser $ either fail return . eitherFromText
 
-data ForkHeight = ForkAtBlockHeight !BlockHeight | ForkAtGenesis | ForkNever
-    deriving stock (Generic, Eq, Ord, Show)
+data ForkHeight =  ForkAtForkNumber !ForkNumber | ForkAtBlockHeight !BlockHeight | ForkAtGenesis | ForkNever
+    deriving stock (Generic, Eq, Show)
     deriving anyclass (Hashable, NFData)
 
+instance Bounded ForkHeight where
+    minBound = ForkAtGenesis
+    maxBound = ForkNever
+
+instance Ord ForkHeight where
+    compare ForkAtGenesis ForkAtGenesis = EQ
+    compare ForkNever ForkNever = EQ
+    compare (ForkAtForkNumber a) (ForkAtForkNumber b) = compare a b
+    compare (ForkAtBlockHeight a)  (ForkAtBlockHeight b) = compare a b
+    compare ForkAtGenesis  _ = LT
+    compare _ ForkAtGenesis = GT
+    compare ForkNever _ = GT
+    compare _ ForkNever = LT
+    compare (ForkAtForkNumber fn) (ForkAtBlockHeight _)
+        | fn == 0 = LT
+        | otherwise = GT
+    compare (ForkAtBlockHeight _) (ForkAtForkNumber fn)
+        | fn == 0 = GT
+        | otherwise = LT
+
+-- We consider the following ordering for Forks:
+--   - ForkAtGenesis
+--   - ForkNumber = 0  (unusual case)
+--   - BlockHeight = 0 (unusual case)
+--   - BlockHeight = 1
+--          ..
+--   - BlockHeight = n
+--   - ForkNumber = 1
+--          ..
+--   - ForkNumber = n
+--   - ForkNever
+--
+-- During the LLC era, forks were triggered by block heights, with a fork number of 0 (called feature flag).
+-- After version 3.1, forks are ONLY triggered by fork numbers, as soon as the fork number becomes equal to 1.
+-- So the fork heights are sorted chronologically: first block heights, then fork numbers.
+
+
 makePrisms ''ForkHeight
+
+succByHeight :: ForkHeight -> ForkHeight
+succByHeight (ForkAtBlockHeight x) = ForkAtBlockHeight $ succ x
+succByHeight ForkNever = ForkNever
+succByHeight _ = error "Only a Blockheight defined fork can be succ'ed"
 
 newtype ChainwebVersionName =
     ChainwebVersionName { getChainwebVersionName :: T.Text }
@@ -491,9 +534,9 @@ data ChainwebVersion
         --
         -- NOTE: This is internal. For the actual size of the serialized header
         -- use 'headerSizeBytes'.
-    , _versionMaxBlockGasLimit :: Rule BlockHeight (Maybe Natural)
+    , _versionMaxBlockGasLimit :: Rule ForkHeight (Maybe Natural)
         -- ^ The maximum gas limit for an entire block.
-    , _versionSpvProofRootValidWindow :: Rule BlockHeight (Maybe Word64)
+    , _versionSpvProofRootValidWindow :: Rule ForkHeight (Maybe Word64)
         -- ^ The minimum number of block headers a chainweb node should
         -- retain in its history at all times.
     , _versionBootstraps :: [PeerInfo]
@@ -504,7 +547,7 @@ data ChainwebVersion
         -- ^ Whether to disable any core functionality.
     , _versionDefaults :: VersionDefaults
         -- ^ Version-specific defaults that can be overridden elsewhere.
-    , _versionVerifierPluginNames :: ChainMap (Rule BlockHeight (Set VerifierName))
+    , _versionVerifierPluginNames :: ChainMap (Rule ForkHeight (Set VerifierName))
         -- ^ Verifier plugins that can be run to verify transaction contents.
     , _versionQuirks :: VersionQuirks
         -- ^ Modifications to behavior at particular blockheights

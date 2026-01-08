@@ -78,6 +78,24 @@ unregisterVersion v = do
     then error "You cannot unregister mainnet or testnet04 versions"
     else atomicModifyIORef' versionMap $ \m -> (HM.delete (_versionCode v) m, ())
 
+validateNoHeightAfterChainweb31' :: ChainwebVersion -> ForkHeight -> Either String ()
+validateNoHeightAfterChainweb31' v fh =
+    case (fork31Height, fh) of
+        (Just (ForkAtBlockHeight refAth), ForkAtBlockHeight ath) ->
+            if ath > (refAth + 1)
+                then Left ("validateVersion: Forking rule must only defined by Fork numbers after Chainweb31: " ++ show ath ++ " > " ++ show refAth)
+            else Right ()
+        _ -> Right ()
+    where
+        fork31Height =  v ^? versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0)
+
+validateNoHeightAfterChainweb31 :: ChainwebVersion -> Either String ()
+validateNoHeightAfterChainweb31 v =
+       (mapM_ (mapM_ (validateNoHeightAfterChainweb31' v)) (v ^. versionForks))
+    >> (mapM_ (validateNoHeightAfterChainweb31' v . fst) $ ruleElems $ v ^. versionMaxBlockGasLimit)
+    >> (mapM_ (validateNoHeightAfterChainweb31' v . fst) $ ruleElems $ v ^. versionSpvProofRootValidWindow)
+    >> (mapM_ (mapM_ (validateNoHeightAfterChainweb31' v . fst) . ruleElems) $ v ^. versionVerifierPluginNames)
+
 validateVersion :: HasCallStack => ChainwebVersion -> IO ()
 validateVersion v = do
     evaluate (rnf v)
@@ -92,8 +110,12 @@ validateVersion v = do
                 | not (all hasAllChains (_versionForks v)) ]
             , [ "validateVersion: chain graphs do not decrease in block height"
                 | not (ruleValid (_versionGraphs v)) ]
-            , [ "validateVersion: block gas limits do not decrease in block height"
+            , [ "validateVersion: block gas limits rules do not decrease in fork number and height"
                 | not (ruleValid (_versionMaxBlockGasLimit v)) ]
+            , [ "validateVersion: verifiers rules do not decrease in in fork number and height"
+                | not (all ruleValid (_versionVerifierPluginNames v)) ]
+             , [ "validateVersion: SPV valid window rules do not decrease in in fork number and height"
+                | not ( ruleValid (_versionSpvProofRootValidWindow v)) ]
             , [ "validateVersion: genesis data is missing for some chains"
                 | not (and
                     [ hasAllChains (_genesisBlockPayload $ _versionGenesis v)
@@ -102,6 +124,8 @@ validateVersion v = do
                     ])]
             , [ "validateVersion: some pact upgrade has no transactions"
                 | any (any isUpgradeEmpty) (_versionUpgrades v) ]
+            , [ err
+                | Left err <- [validateNoHeightAfterChainweb31 v] ]
             -- TODO: check that pact 4/5 upgrades are only enabled when pact 4/5 is enabled
             ]
     unless (null errors) $

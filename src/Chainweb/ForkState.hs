@@ -25,6 +25,7 @@ module Chainweb.ForkState
 -- * Fork Number
 , ForkNumber(..)
 , forkNumber
+, pact4ForkNumber
 
 -- * Fork Votes
 , ForkVotes(..)
@@ -131,6 +132,11 @@ forkNumber :: Lens' ForkState ForkNumber
 forkNumber = lens _forkNumber $ \(ForkState w) v -> ForkState
     $ (w .&. 0xFFFFFFFF00000000)
     .|. (fromIntegral v .&. 0xFFFFFFFF)
+
+
+-- Pact4 -> Pact5 transition happened during ForkNumber=0 era.
+pact4ForkNumber :: ForkNumber
+pact4ForkNumber = 0
 
 -- ---------------------------------------------------------------------------
 -- Fork Votes

@@ -29,14 +29,14 @@ module Chainweb.BlockHeaderDB.HeaderOracle
     where
 
 import Chainweb.BlockHash (BlockHash)
-import Chainweb.BlockHeader (BlockHeader, blockHash, blockHeight, genesisBlockHeader)
+import Chainweb.BlockHeader (BlockHeader, blockHash, blockHeight, blockForkNumber, genesisBlockHeader)
 import Chainweb.BlockHeaderDB (BlockHeaderDb)
 import Chainweb.TreeDB (seekAncestor)
 import Chainweb.TreeDB qualified as TreeDB
 import Chainweb.Version (_chainwebVersion)
 import Chainweb.Version.Guards (minimumBlockHeaderHistory)
 import Control.Exception (Exception(..), throwIO)
-import Control.Lens (view)
+import Control.Lens
 import Numeric.Natural (Natural)
 
 -- | A 'HeaderOracle' is a 'BlockHeaderDb' with a lower and upper bound, and the only
@@ -52,7 +52,7 @@ data HeaderOracle = HeaderOracle
 --   The lower bound of the oracle is determined by the 'spvProofExpirationWindow'.
 createSpv :: BlockHeaderDb -> BlockHeader -> IO HeaderOracle
 createSpv db upperBound = do
-    let mWindow = minimumBlockHeaderHistory (_chainwebVersion upperBound) (view blockHeight upperBound)
+    let mWindow = minimumBlockHeaderHistory (_chainwebVersion upperBound) (upperBound ^. blockForkNumber) (upperBound ^. blockHeight)
     let gh = genesisBlockHeader (_chainwebVersion upperBound) upperBound
     let defaultOracle = create db gh upperBound
 
