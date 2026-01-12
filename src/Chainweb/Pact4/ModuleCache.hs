@@ -72,3 +72,4 @@ cleanModuleCache v cid bh =
         ForkAtBlockHeight bh' -> bh == bh'
         ForkAtGenesis -> bh == genesisHeight v cid
         ForkNever -> False
+        ForkAtForkNumber _ -> error "ChainWeb217Pact is not supposed to be indexed by a ForkNumber"
