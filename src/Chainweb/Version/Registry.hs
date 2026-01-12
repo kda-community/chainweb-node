@@ -78,8 +78,8 @@ unregisterVersion v = do
     then error "You cannot unregister mainnet or testnet04 versions"
     else atomicModifyIORef' versionMap $ \m -> (HM.delete (_versionCode v) m, ())
 
-validateNoHeightAfterChainweb31' :: ChainwebVersion -> ForkHeight -> Either String ()
-validateNoHeightAfterChainweb31' v fh =
+validateNoHeightAfterChainweb31 :: ChainwebVersion -> ForkHeight -> Either String ()
+validateNoHeightAfterChainweb31 v fh =
     case (fork31Height, fh) of
         (Just (ForkAtBlockHeight refAth), ForkAtBlockHeight ath) ->
             if ath > (refAth + 1)
@@ -89,12 +89,21 @@ validateNoHeightAfterChainweb31' v fh =
     where
         fork31Height =  v ^? versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0)
 
-validateNoHeightAfterChainweb31 :: ChainwebVersion -> Either String ()
-validateNoHeightAfterChainweb31 v =
-       (mapM_ (mapM_ (validateNoHeightAfterChainweb31' v)) (v ^. versionForks))
-    >> (mapM_ (validateNoHeightAfterChainweb31' v . fst) $ ruleElems $ v ^. versionMaxBlockGasLimit)
-    >> (mapM_ (validateNoHeightAfterChainweb31' v . fst) $ ruleElems $ v ^. versionSpvProofRootValidWindow)
-    >> (mapM_ (mapM_ (validateNoHeightAfterChainweb31' v . fst) . ruleElems) $ v ^. versionVerifierPluginNames)
+validateNoForkAtZero :: ForkHeight -> Either String ()
+validateNoForkAtZero (ForkAtForkNumber atn)
+    | atn == 0 = Left ("ValidateSting: Fork Numbers can't be 0 ")
+    | otherwise = Right ()
+validateNoForkAtZero _ = Right ()
+
+
+validateForkHeights :: ChainwebVersion -> Either String ()
+validateForkHeights v =
+       (mapM_ (mapM_ doValidation) (v ^. versionForks))
+    >> (mapM_ (doValidation . fst) $ ruleElems $ v ^. versionMaxBlockGasLimit)
+    >> (mapM_ (doValidation . fst) $ ruleElems $ v ^. versionSpvProofRootValidWindow)
+    >> (mapM_ (mapM_ (doValidation . fst) . ruleElems) $ v ^. versionVerifierPluginNames)
+    where
+        doValidation fh = validateNoHeightAfterChainweb31 v fh >> validateNoForkAtZero fh
 
 validateVersion :: HasCallStack => ChainwebVersion -> IO ()
 validateVersion v = do
@@ -125,7 +134,7 @@ validateVersion v = do
             , [ "validateVersion: some pact upgrade has no transactions"
                 | any (any isUpgradeEmpty) (_versionUpgrades v) ]
             , [ err
-                | Left err <- [validateNoHeightAfterChainweb31 v] ]
+                | Left err <- [validateForkHeights v] ]
             -- TODO: check that pact 4/5 upgrades are only enabled when pact 4/5 is enabled
             ]
     unless (null errors) $
