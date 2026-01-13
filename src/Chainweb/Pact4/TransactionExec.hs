@@ -144,6 +144,7 @@ import qualified Pact.Utils.StableHashMap as SHM
 
 import Chainweb.BlockHeader
 import Chainweb.BlockHeight
+import Chainweb.ForkState (pact4ForkNumber)
 import Chainweb.Logger
 import qualified Chainweb.ChainId as Chainweb
 import Chainweb.Mempool.Mempool (pact4RequestKeyToTransactionHash)
@@ -371,7 +372,7 @@ applyCmd v logger gasLogger txFailuresCounter pdbenv miner gasModel txCtx txIdxI
     chainweb217Pact' = guardCtx chainweb217Pact txCtx
     chainweb219Pact' = guardCtx chainweb219Pact txCtx
     chainweb223Pact' = guardCtx chainweb223Pact txCtx
-    allVerifiers = verifiersAt v cid currHeight
+    allVerifiers = verifiersAt v cid pact4ForkNumber currHeight
     toEmptyPactError (PactError errty _ _ _) = PactError errty noInfo [] mempty
 
     toOldListErr pe = pe { peDoc = listErrMsg }
@@ -671,7 +672,8 @@ applyLocal logger gasLogger dbEnv gasModel txCtx spv cmdIn mc execConfig =
     currHeight = ctxCurrentBlockHeight txCtx
     cid = V._chainId txCtx
     v = _chainwebVersion txCtx
-    allVerifiers = verifiersAt v cid currHeight
+
+    allVerifiers = verifiersAt v cid pact4ForkNumber currHeight
     -- Note [Throw out verifier proofs eagerly]
     !verifiersWithNoProof =
         (fmap . fmap) (\_ -> ()) verifiers

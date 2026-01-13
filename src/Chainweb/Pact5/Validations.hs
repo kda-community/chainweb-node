@@ -80,7 +80,7 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
     let P.PublicMeta pcid _ gl gp _ _ = P._pMeta pay
         nid = P._pNetworkId pay
         signers = P._pSigners pay
-        validSchemes = validPPKSchemes v cid (ctxCurrentForkNumber txCtx) (ctxCurrentBlockHeight txCtx)
+        validSchemes = validPPKSchemes v cid (ctxParentForkNumber txCtx) (ctxCurrentBlockHeight txCtx)
 
     let errs = catMaybes
           [ eUnless "Chain id mismatch" $ assertChainId cid pcid

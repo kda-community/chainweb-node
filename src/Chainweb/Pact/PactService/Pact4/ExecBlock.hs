@@ -164,7 +164,7 @@ execBlock currHeader payload = do
     return (totalGasUsed, pwo)
   where
     blockGasLimit =
-      fromIntegral <$> maxBlockGasLimit v (view blockHeight currHeader)
+      fromIntegral <$> maxBlockGasLimit v pact4ForkNumber (view blockHeight currHeader)
 
     logInitCache = liftPactServiceM $ do
       mc <- fmap (fmap instr . _getModuleCache) <$> use psInitCache

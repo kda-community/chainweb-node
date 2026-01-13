@@ -863,7 +863,7 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
             ph <- view psParentHeader
             let txCtx = Pact5.TxContext ph noMiner
                 bh = Pact5.ctxCurrentBlockHeight txCtx
-                fn = Pact5.ctxCurrentForkNumber txCtx
+                fn = Pact5.ctxParentForkNumber txCtx
                 pact5RequestKey = Pact5.RequestKey (Pact5.Hash $ Pact4.unHash $ Pact4.toUntypedHash $ Pact4._cmdHash cwtx)
                 spvSupport = Pact5.pactSPV bhdb (_parentHeader ph)
 

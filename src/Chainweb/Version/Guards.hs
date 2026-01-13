@@ -2,6 +2,9 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- TODO Remove this when checkFork' will be used for real
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+
 -- |
 -- Module: Chainweb.Version.Guards
 -- Copyright: Copyright © 2023 Kadena LLC.
@@ -72,8 +75,8 @@ import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Pact4.Transaction qualified as Pact4
 import Chainweb.Utils.Rule
-import Chainweb.Version
 import Chainweb.ForkState
+import Chainweb.Version
 import Control.Lens
 import Data.Word (Word64)
 import Numeric.Natural
@@ -90,32 +93,33 @@ import Pact.Core.Scheme qualified as Pact5 (PPKScheme(..))
 getForkHeight :: Fork -> ChainwebVersion -> ChainId -> ForkHeight
 getForkHeight fork v cid = v ^?! versionForks . at fork . _Just . atChain cid
 
+-- Check Fork by height
 checkFork
-    :: (BlockHeight -> ForkHeight -> Bool)
+    :: (ForkHeight -> ForkHeight -> Bool)
     -> Fork -> ChainwebVersion -> ChainId -> BlockHeight -> Bool
-checkFork p f v cid h = p h (getForkHeight f v cid)
+checkFork p f v cid h = p (ForkAtBlockHeight h) (getForkHeight f v cid)
 
-after :: BlockHeight -> ForkHeight -> Bool
-after bh (ForkAtBlockHeight bh') = bh > bh'
-after _ ForkAtGenesis = True
-after _ ForkNever = False
+-- CheckFork by forkNumber
+checkFork'
+    :: (ForkHeight -> ForkHeight -> Bool)
+    -> Fork -> ChainwebVersion -> ChainId -> ForkNumber -> Bool
+checkFork' p f v cid fn = p (ForkAtForkNumber fn) (getForkHeight f v cid)
 
-atOrAfter :: BlockHeight -> ForkHeight -> Bool
-atOrAfter bh (ForkAtBlockHeight bh') = bh >= bh'
-atOrAfter _ ForkAtGenesis = True
-atOrAfter _ ForkNever = False
 
-before :: BlockHeight -> ForkHeight -> Bool
-before bh (ForkAtBlockHeight bh') = bh < bh'
-before _ ForkAtGenesis = False
-before _ ForkNever = True
+after :: ForkHeight -> ForkHeight -> Bool
+after = (>)
+
+atOrAfter :: ForkHeight -> ForkHeight -> Bool
+atOrAfter = (>=)
+
+before :: ForkHeight -> ForkHeight -> Bool
+before = (<)
 
 -- Intended for forks that intend to run upgrades at exactly one height, and so
 -- can't be "pre-activated" for genesis.
-atNotGenesis :: BlockHeight -> ForkHeight -> Bool
-atNotGenesis bh (ForkAtBlockHeight bh') = bh == bh'
+atNotGenesis :: ForkHeight -> ForkHeight -> Bool
 atNotGenesis _ ForkAtGenesis = error "fork cannot be at genesis"
-atNotGenesis _ ForkNever = False
+atNotGenesis fh fh' = fh == fh'
 
 -- -------------------------------------------------------------------------- --
 -- Header Validation Guards
@@ -338,13 +342,18 @@ pact4ParserVersion v cid bh
     | chainweb213Pact v cid bh = Pact4.PactParserChainweb213
     | otherwise = Pact4.PactParserGenesis
 
-maxBlockGasLimit :: ChainwebVersion -> BlockHeight -> Maybe Natural
-maxBlockGasLimit v bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> bh >= h) (_versionMaxBlockGasLimit v)
+maxBlockGasLimit :: ChainwebVersion -> ForkNumber -> BlockHeight -> Maybe Natural
+maxBlockGasLimit v fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h) (_versionMaxBlockGasLimit v)
+    where
+        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
-minimumBlockHeaderHistory :: ChainwebVersion -> BlockHeight -> Maybe Word64
-minimumBlockHeaderHistory v bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> bh >= h) (_versionSpvProofRootValidWindow v)
+
+minimumBlockHeaderHistory :: ChainwebVersion -> ForkNumber -> BlockHeight -> Maybe Word64
+minimumBlockHeaderHistory v fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h) (_versionSpvProofRootValidWindow v)
+    where
+        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
 -- | Different versions of Chainweb allow different PPKSchemes.
 --

@@ -68,7 +68,7 @@ import "yet-another-logger" System.Logger hiding (Logger)
 import "yet-another-logger" System.Logger qualified as YAL
 import "yet-another-logger" System.Logger.Backend.ColorOption (useColor)
 import Chainweb.BlockHash
-import Chainweb.BlockHeader (blockHeight, blockHash, blockPayloadHash)
+import Chainweb.BlockHeader (blockHeight, blockForkNumber, blockHash, blockPayloadHash)
 import Chainweb.BlockHeaderDB.Internal (BlockHeaderDb(..), RankedBlockHeader(..))
 import Chainweb.BlockHeight (BlockHeight(..))
 import Chainweb.Cut.CutHashes (cutIdToText)
@@ -762,7 +762,7 @@ doCompactRocksDb logger cwVersion cids minBlockHeight srcDb targetDb = do
         iterLast it
         iterValue it >>= \case
           Nothing -> exitLog logger "Missing final payload. This is likely due to a corrupted database."
-          Just rbh -> pure (_getRankedBlockHeader rbh ^. blockHeight)
+          Just rbh -> pure $ _getRankedBlockHeader rbh
 
       -- The header that we start at depends on whether or not
       -- we have a minimal block header history window.
@@ -772,7 +772,10 @@ doCompactRocksDb logger cwVersion cids minBlockHeight srcDb targetDb = do
       --
       -- On new enough chainweb versions, we want to only copy over
       -- the minimal number of block headers.
-      case minimumBlockHeaderHistory cwVersion latestHeader of
+      -- Note, this behaviour may be dangerous in case of changes on the minimum block history.
+      --
+      -- TODO = Option to prune headers history to the minimum should be enabled by flag.
+      case minimumBlockHeaderHistory cwVersion (latestHeader ^. blockForkNumber) (latestHeader ^. blockHeight) of
         -- Go to the earliest possible entry. We migrate all BlockHeaders, for now.
         -- They are needed for SPV.
         --
@@ -791,16 +794,18 @@ doCompactRocksDb logger cwVersion cids minBlockHeight srcDb targetDb = do
       earliestHeader <- do
         iterValue it >>= \case
           Nothing -> exitLog logger "Missing first payload. This is likely due to a corrupted database."
-          Just rbh -> pure (_getRankedBlockHeader rbh ^. blockHeight)
+          Just rbh -> pure $ _getRankedBlockHeader rbh
 
       -- Ensure that we log progress 100 times per chain
       -- I just made this number up as something that felt somewhat sensible
-      let offset = (latestHeader - earliestHeader) `div` 100
-      let headerProgressPoints = [earliestHeader + i * offset | i <- [1..100]]
+      let latestHeight = latestHeader ^. blockHeight
+          earliestHeight = earliestHeader ^. blockHeight
+          offset = (latestHeight - earliestHeight) `div` 100
+      let headerProgressPoints = [earliestHeight + i * offset | i <- [1..100]]
 
       let logHeaderProgress bHeight = do
             when (bHeight `elem` headerProgressPoints) $ do
-              let percentDone = sshow $ 100 * fromIntegral @_ @Double (bHeight - earliestHeader) / fromIntegral @_ @Double (latestHeader - earliestHeader)
+              let percentDone = sshow $ 100 * fromIntegral @_ @Double (bHeight - earliestHeight) / fromIntegral @_ @Double (latestHeight - earliestHeight)
               log' LL.Info $ percentDone <> "% done."
 
       let go = do

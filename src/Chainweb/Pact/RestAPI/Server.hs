@@ -728,8 +728,8 @@ validateCommand v cid (fmap encodeUtf8 -> cmdBs) = case parsedCmd of
     -- It's supposed to be a Pact4 command, so take the height just before the Pact5 fork
     bh = case getForkHeight Pact5Fork v cid of
             ForkAtGenesis -> minBound :: BlockHeight
-            ForkNever -> maxBound :: BlockHeight
             ForkAtBlockHeight bh' -> bh' -1
+            _ -> maxBound :: BlockHeight
 
     decodeAndParse bs =
         traverse (Pact4.parsePact) =<< Aeson.eitherDecodeStrict' bs

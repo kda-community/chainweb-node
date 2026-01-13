@@ -330,8 +330,9 @@ slowForks = tabulateHashMap \case
     Chainweb228Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 145)
     Chainweb230Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 155)
     Chainweb231Pact -> AllChains $ ForkAtBlockHeight (BlockHeight 160)
-    Chainweb31 -> AllChains $ ForkAtBlockHeight (BlockHeight 165)
-    MigratePlatformShare -> AllChains $ ForkAtBlockHeight (BlockHeight 170)
+    MigratePlatformShare -> AllChains $ ForkAtBlockHeight (BlockHeight 165)
+    Chainweb31 -> AllChains $ ForkAtBlockHeight (BlockHeight 170)
+
 
 -- | A set of fork heights which are relatively fast, but not fast enough to break anything.
 fastForks :: HashMap Fork (ChainMap ForkHeight)
@@ -529,7 +530,7 @@ pact5InstantCpmTestVersionExpiryDisabled g = buildTestVersion $ \v -> v
             )
         )
     & versionSpvProofRootValidWindow .~
-        ( (BlockHeight 5, Nothing) `Above`
+        ( (ForkAtBlockHeight $ BlockHeight 5, Nothing) `Above`
             Bottom (minBound, Just 20)
         )
 
