@@ -337,7 +337,7 @@ checkTxSigs logger v cid bh t = do
     hsh = Pact4._cmdHash t
     sigs = Pact4._cmdSigs t
     signers = Pact4._pSigners $ Pact4.payloadObj $ Pact4._cmdPayload t
-    validSchemes = validPPKSchemes v cid bh
+    validSchemes = validPPKSchemes v cid pact4ForkNumber bh
     webAuthnPrefixLegal = isWebAuthnPrefixLegal v cid bh
 
 checkCompile

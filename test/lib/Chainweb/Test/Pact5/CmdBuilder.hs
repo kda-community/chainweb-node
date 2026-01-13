@@ -189,10 +189,12 @@ defaultCmd cid = CmdBuilder
 -- | Build parsed + verified Pact command
 -- TODO: Use the new `assertPact4Command` function.
 buildCwCmd :: (MonadThrow m, MonadIO m) => ChainwebVersion -> CmdBuilder -> m Pact5.Transaction
-buildCwCmd v cmd = buildTextCmd v cmd >>= \(c :: Command Text) ->
-  case validatePact5Command v c of
-    Left err -> throwM $ userError $ "buildCwCmd failed: " ++ err
-    Right cmd' -> return cmd'
+buildCwCmd v cmd = do
+  cid <- Chainweb.chainIdFromText $ _cbChainId cmd
+  cmd' <- buildTextCmd v cmd
+  case validatePact5Command v cid cmd' of
+     Left err -> throwM $ userError $ "buildCwCmd failed: " ++ err
+     Right validatedCmd -> return validatedCmd
 
 -- | Build a Pact4 command without parsing it. This can be useful for inserting txs directly into the mempool for testing.
 buildCwCmdNoParse :: forall m. (MonadThrow m, MonadIO m) => ChainwebVersion -> CmdBuilder -> m Pact4.UnparsedTransaction
@@ -263,6 +265,10 @@ mkDynKeyPairs (CmdSigner Signer{..} privKey) =
       privWebAuthn <-
         either diePrivKey return (parseWebAuthnPrivateKey =<< parseB16TextOnly priv)
       return $ (DynWebAuthnKeyPair wasPrefixed pubWebAuthn privWebAuthn, _siCapList)
+    -- TODO Implement them
+    (SlhDsaSha128s, _, _) -> error "Unsupported"
+    (SlhDsaSha192s, _, _) -> error "Unsupported"
+    (SlhDsaSha256s, _, _) -> error "Unsupported"
   where
     diePubKey str = error $ "pubkey: " <> str
     diePrivKey str = error $ "privkey: " <> str

@@ -53,10 +53,12 @@ module Chainweb.Version.Guards
     , chainweb31
     , migratePlatformShare
     , pact5
+    , getForkHeight
     , pact44NewTrans
     , pact4ParserVersion
     , maxBlockGasLimit
     , minimumBlockHeaderHistory
+    , PactPPKScheme(..)
     , validPPKSchemes
     , isWebAuthnPrefixLegal
     , validKeyFormats
@@ -82,7 +84,8 @@ import Pact.Core.Builtin qualified as Pact5
 import Pact.Core.Info qualified as Pact5
 import Pact.Core.Serialise qualified as Pact5
 import Pact.Types.KeySet (PublicKeyText, ed25519HexFormat, webAuthnFormat)
-import Pact.Types.Scheme (PPKScheme(ED25519, WebAuthn))
+import Pact.Types.Scheme qualified as Pact4 (PPKScheme(..))
+import Pact.Core.Scheme qualified as Pact5 (PPKScheme(..))
 
 -- Gets the height which the fork is associated with.
 -- This may not be the first height at which the associated guard is `True`
@@ -305,6 +308,10 @@ chainweb225Pact = checkFork atOrAfter Chainweb225Pact
 pact5 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 pact5 = checkFork atOrAfter Pact5Fork
 
+-- TODO Guard properly => For now, use the pact 5 fork
+pactPostQuantum :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> Bool
+pactPostQuantum v cid _ bh = pact5 v cid bh
+
 -- | Pact 5.1, including a new more succinct serializer for modules
 chainweb228Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 chainweb228Pact = checkFork atOrAfter Chainweb228Pact
@@ -350,11 +357,15 @@ minimumBlockHeaderHistory v fn bh = snd $ ruleZipperHere $ snd
 
 -- | Different versions of Chainweb allow different PPKSchemes.
 --
-validPPKSchemes :: ChainwebVersion -> ChainId -> BlockHeight -> [PPKScheme]
-validPPKSchemes v cid bh =
-  if chainweb221Pact v cid bh
-  then [ED25519, WebAuthn]
-  else [ED25519]
+data PactPPKScheme = SchemeV4 Pact4.PPKScheme | SchemeV5 Pact5.PPKScheme
+    deriving(Eq)
+
+validPPKSchemes :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> [PactPPKScheme]
+validPPKSchemes v cid fn bh
+    | pactPostQuantum v cid fn bh = map SchemeV5 [Pact5.ED25519, Pact5.WebAuthn, Pact5.SlhDsaSha128s, Pact5.SlhDsaSha192s, Pact5.SlhDsaSha256s]
+    | pact5 v cid bh = map SchemeV5 [Pact5.ED25519, Pact5.WebAuthn]
+    | chainweb221Pact v cid bh = map SchemeV4 [Pact4.ED25519, Pact4.WebAuthn]
+    | otherwise = [SchemeV4 Pact4.ED25519]
 
 isWebAuthnPrefixLegal :: ChainwebVersion -> ChainId -> BlockHeight -> Pact4.IsWebAuthnPrefixLegal
 isWebAuthnPrefixLegal v cid bh =
