@@ -2,10 +2,11 @@ name: Build and cache with Nix
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-    - '**'
-      #    - '!.github/**'
+
+## For now disable NIX (until is maintained again)
+#  push:
+#    paths:
+#    - '**'
 
 jobs:
   build-and-cache:
