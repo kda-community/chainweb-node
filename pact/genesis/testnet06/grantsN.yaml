@@ -1,0 +1,8 @@
+# Internal testnet accounts
+code: |-
+  (coin.coinbase "sender0"  (read-keyset "sender0") 1.0)
+
+data:
+  sender0: ["c03e76c81a56f831a1ea91b93545d6b49daffc53c7416e065fcffb025faee47e"]
+nonce: testnet06-grants-N
+keyPairs: []

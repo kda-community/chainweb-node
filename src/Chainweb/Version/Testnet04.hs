@@ -5,6 +5,8 @@
 {-# language QuasiQuotes #-}
 {-# language ViewPatterns #-}
 
+-- Note: Testnet04 is deprecated
+
 module Chainweb.Version.Testnet04(testnet04, pattern Testnet04) where
 
 import Control.Lens
