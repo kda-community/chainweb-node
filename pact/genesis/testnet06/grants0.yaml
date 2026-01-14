@@ -1,0 +1,21 @@
+# Internal testnet accounts
+code: |-
+  (coin.coinbase "sender0" (read-keyset "sender0") 1.0)
+  (coin.coinbase "pascal"  (read-keyset "pascal") 100000.0)
+  (coin.coinbase "edmund"  (read-keyset "edmund") 100000.0)
+  (coin.coinbase "jose"    (read-keyset "jose")   100000.0)
+  (coin.coinbase "jumbo"   (read-keyset "jumbo")  100000.0)
+  (coin.coinbase "philipp" (read-keyset "edmund") 100000.0)
+  (coin.coinbase "louis"   (read-keyset "louis")  100000.0)
+
+
+data:
+  sender0: ["c03e76c81a56f831a1ea91b93545d6b49daffc53c7416e065fcffb025faee47e"]
+  pascal:  ["85e745b37605de2e4be123c8e9e65404227912c429e45f87b348b5c19ffb1f38"]
+  edmund:  ["bb42ed45d8f2676b0b75cc11abe834f8287841322271ba574011e4fdf23631b7"]
+  jose:    ["f5a17c5fd9f9d2623ba5e6283de1445f694c0d5a6f7df7b6a44a4f887b3e9eae"]
+  jumbo:   ["eeb0fca9d4d8a72178e4d150152858484a63c27d3991caf48cc9003479156f00"]
+  philipp: ["3c7cd44578bb90b793e62a10f05a99ce9a2e0f067fbb4ff094d19e13a279ef9b"]
+  louis:   ["c389e2fab9fabdc2958d3d9916ea7899f35b906d192b69f211a79bb4c2379bcf"]
+nonce: testnet06-grants-0
+keyPairs: []
