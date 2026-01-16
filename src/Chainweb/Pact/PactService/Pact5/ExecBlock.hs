@@ -359,7 +359,8 @@ applyPactCmd env miner txIdxInBlock tx = StateT $ \(blockHandle, blockGasRemaini
     (unsafeApplyPactCmd blockHandle
       (initialGasOf (_chainwebVersion env) (Chainweb.Version._chainId env)
         (env ^. psParentHeader . parentHeader . blockHeight)
-        (tx ^. Pact5.cmdPayload))
+        (env ^. psParentHeader . parentHeader . blockForkNumber)
+        tx)
       alteredTx)
     env
   case resultOrGasError of

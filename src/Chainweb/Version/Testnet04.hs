@@ -16,6 +16,7 @@ import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Difficulty
 import Chainweb.Graph
+import Chainweb.Pact5.InitialGasModel
 import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Utils.Rule
@@ -146,6 +147,10 @@ testnet04 = ChainwebVersion
     , _versionMaxBlockGasLimit =
         (succByHeight $ testnet04 ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) , Just 180_000) `Above`
         Bottom (minBound, Nothing)
+    , _versionInitialGasModel = AllChains $
+        (ForkNever, post32GasModel) `Above`
+        (succByHeight $ testnet04 ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0), post31GasModel) `Above`
+        Bottom (minBound, pre31GasModel)
     , _versionSpvProofRootValidWindow =
         (succByHeight $ testnet04 ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) , Just 20_000) `Above`
         Bottom (minBound, Nothing)

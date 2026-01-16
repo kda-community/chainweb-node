@@ -70,6 +70,7 @@ module Chainweb.Version
     , versionGraphs
     , versionHeaderBaseSizeBytes
     , versionMaxBlockGasLimit
+    , versionInitialGasModel
     , versionSpvProofRootValidWindow
     , versionName
     , versionWindow
@@ -184,6 +185,7 @@ import Chainweb.MerkleUniverse
 import Chainweb.Payload
 import Chainweb.Pact4.Transaction qualified as Pact4
 import Chainweb.Pact5.Transaction qualified as Pact5
+import Chainweb.Pact5.InitialGasModel
 import Chainweb.ForkState
 import Chainweb.Utils
 import Chainweb.Utils.Rule
@@ -539,6 +541,8 @@ data ChainwebVersion
     , _versionSpvProofRootValidWindow :: Rule ForkHeight (Maybe Word64)
         -- ^ The minimum number of block headers a chainweb node should
         -- retain in its history at all times.
+    , _versionInitialGasModel :: ChainMap (Rule ForkHeight (InitialGasModel))
+        -- ^ The initial gas model used for Pact 5 transactions processing
     , _versionBootstraps :: [PeerInfo]
         -- ^ The locations of the bootstrap peers.
     , _versionGenesis :: VersionGenesis
