@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Chainweb.BlockCreationTime
 import Chainweb.ChainId
 import Chainweb.Difficulty
+import Chainweb.Pact5.InitialGasModel
 import Chainweb.Graph
 import Chainweb.Time
 import Chainweb.Utils
@@ -52,6 +53,7 @@ devnet = ChainwebVersion
     -- defaultChainwebConfiguration._configBlockGasLimit
     , _versionMaxBlockGasLimit = Bottom (minBound, Nothing)
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
+    , _versionInitialGasModel = AllChains $  Bottom (minBound, post32GasModel)
     , _versionCheats = VersionCheats
         { _disablePow = True
         , _fakeFirstEpochStart = True
