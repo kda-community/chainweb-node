@@ -27,7 +27,7 @@ import Chainweb.BlockHeader
 import Chainweb.ChainId
 import Chainweb.Chainweb
 import Chainweb.Cut
-import Chainweb.Graph (singletonChainGraph)
+import Chainweb.Graph (singletonChainGraph, pairChainGraph)
 import Chainweb.Logger
 import Chainweb.Mempool.Consensus
 import Chainweb.Mempool.InMem
@@ -45,7 +45,7 @@ import Chainweb.Payload
 import Chainweb.Storage.Table.RocksDB
 import Chainweb.Test.Cut.TestBlockDb (TestBlockDb (_bdbPayloadDb, _bdbWebBlockHeaderDb), addTestBlockDb, getCutTestBlockDb, getParentTestBlockDb, mkTestBlockDb, setCutTestBlockDb)
 import Chainweb.Test.Pact5.CmdBuilder
-import Chainweb.Test.Pact5.Utils hiding (withTempSQLiteResource)
+import Chainweb.Test.Pact5.Utils hiding (withInMemSQLiteResource)
 import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils
 import Chainweb.Time
@@ -86,31 +86,34 @@ import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Text.Printf (printf)
 
 data Fixture = Fixture
-    { _fixtureBlockDb :: TestBlockDb
+    { _fixtureChains :: [ChainId]
+    , _fixtureBlockDb :: TestBlockDb
     , _fixtureMempools :: ChainMap (MempoolBackend Pact4.UnparsedTransaction)
     , _fixturePactQueues :: ChainMap PactQueue
     }
 
-mkFixtureWith :: PactServiceConfig -> RocksDb -> ResourceT IO Fixture
-mkFixtureWith pactServiceConfig baseRdb = do
-    sqlite <- withTempSQLiteResource
-    tdb <- mkTestBlockDb v baseRdb
-    perChain <- iforM (HashSet.toMap (chainIds v)) $ \chain () -> do
+mkFixtureWith :: PactServiceConfig -> ChainwebVersion -> RocksDb  -> ResourceT IO Fixture
+mkFixtureWith pactServiceConfig v' baseRdb = do
+
+    tdb <- mkTestBlockDb v' baseRdb
+    perChain <- iforM (HashSet.toMap (chainIds v')) $ \chain () -> do
+        sqlite <- withInMemSQLiteResource
         bhdb <- liftIO $ getWebBlockHeaderDb (_bdbWebBlockHeaderDb tdb) chain
         pactQueue <- liftIO $ newPactQueue 2_000
         pactExecutionServiceVar <- liftIO $ newMVar (mkPactExecutionService pactQueue)
-        let mempoolCfg = validatingMempoolConfig chain v (Pact4.GasLimit 150_000) (Pact4.GasPrice 1e-8) pactExecutionServiceVar
+        let mempoolCfg = validatingMempoolConfig chain v' (Pact4.GasLimit 150_000) (Pact4.GasPrice 1e-8) pactExecutionServiceVar
         logLevel <- liftIO getTestLogLevel
         let logger = genericLogger logLevel Text.putStrLn
         mempool <- liftIO $ startInMemoryMempoolTest mempoolCfg
         mempoolConsensus <- liftIO $ mkMempoolConsensus mempool bhdb (Just (_bdbPayloadDb tdb))
         let mempoolAccess = pactMemPoolAccess mempoolConsensus logger
         _ <- Resource.allocate
-            (forkIO $ runPactService v chain logger Nothing pactQueue mempoolAccess bhdb (_bdbPayloadDb tdb) sqlite pactServiceConfig)
+            (forkIO $ runPactService v' chain logger Nothing pactQueue mempoolAccess bhdb (_bdbPayloadDb tdb) sqlite pactServiceConfig)
             (\tid -> throwTo tid ThreadKilled)
         return (mempool, pactQueue)
     let fixture = Fixture
-            { _fixtureBlockDb = tdb
+            { _fixtureChains = HashSet.toList $ chainIds v'
+            , _fixtureBlockDb = tdb
             , _fixtureMempools = OnChains $ fst <$> perChain
             , _fixturePactQueues = OnChains $ snd <$> perChain
             }
@@ -121,8 +124,10 @@ mkFixtureWith pactServiceConfig baseRdb = do
     return fixture
 
 mkFixture :: RocksDb -> ResourceT IO Fixture
-mkFixture baseRdb = do
-    mkFixtureWith testPactServiceConfig baseRdb
+mkFixture = mkFixtureWith testPactServiceConfig v
+
+mkFixtureDual :: RocksDb -> ResourceT IO Fixture
+mkFixtureDual = mkFixtureWith testPactServiceConfig vPair
 
 tests :: RocksDb -> TestTree
 tests baseRdb = testGroup "Pact5 PactServiceTest"
@@ -242,7 +247,7 @@ newBlockTimeoutSpec baseRdb = runResourceT $ do
             -- it should be long enough that `timeoutTx` times out
             -- but neither `tx1` nor `tx2` time out.
             }
-    fixture <- mkFixtureWith pactServiceConfig baseRdb
+    fixture <- mkFixtureWith pactServiceConfig v baseRdb
 
     liftIO $ do
         tx1 <- buildCwCmd v (defaultCmd chain0)
@@ -585,8 +590,14 @@ tests = do
 chain0 :: ChainId
 chain0 = unsafeChainId 0
 
+chain1 :: ChainId
+chain1 = unsafeChainId 1
+
 v :: ChainwebVersion
 v = pact5InstantCpmTestVersion False singletonChainGraph
+
+vPair :: ChainwebVersion
+vPair = pact5InstantCpmTestVersion False pairChainGraph
 
 advanceAllChainsWithTxs :: Fixture -> ChainMap [Pact5.Transaction] -> IO (ChainMap (Vector TestPact5CommandResult))
 advanceAllChainsWithTxs fixture txsPerChain =
@@ -606,7 +617,7 @@ advanceAllChains :: ()
     -> IO (ChainMap (Vector TestPact5CommandResult))
 advanceAllChains Fixture{..} blocks = do
     commandResults <-
-        forConcurrently (HashSet.toList (chainIds v)) $ \c -> do
+        forConcurrently _fixtureChains $ \c -> do
             ph <- getParentTestBlockDb _fixtureBlockDb c
             creationTime <- getCurrentTimeIntegral
             let pactQueue = _fixturePactQueues ^?! atChain c
