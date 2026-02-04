@@ -24,6 +24,7 @@ import Data.List qualified as List
 import "pact" Pact.Types.Command qualified as Pact4
 import "pact" Pact.Types.Hash qualified as Pact4
 import Chainweb.BlockHeader
+import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Chainweb
 import Chainweb.Cut
@@ -50,6 +51,8 @@ import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils
 import Chainweb.Time
 import Chainweb.Utils
+import qualified Data.ByteString.Base64.URL as B64U
+import Chainweb.SPV.CreateProof
 import Chainweb.Version
 import Chainweb.WebBlockHeaderDB (getWebBlockHeaderDb)
 import Chainweb.WebPactExecutionService
@@ -67,6 +70,8 @@ import Data.Decimal
 import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet
 import Data.Maybe (fromMaybe)
+import Pact.Core.Command.RPC (ContMsg (..))
+import Pact.Core.SPV (ContProof(..))
 import Data.Text qualified as T
 import Data.Text.IO qualified as Text
 import Data.Vector (Vector)
@@ -74,6 +79,7 @@ import Data.Vector qualified as Vector
 import Pact.Core.Capabilities
 import Pact.Core.ChainData hiding (ChainId, _chainId)
 import Pact.Core.Command.Types
+import Pact.Core.DefPacts.Types
 import Pact.Core.Gas.Types
 import Pact.Core.Hash qualified as Pact5
 import Pact.Core.Names
@@ -82,7 +88,7 @@ import Pact.Types.Gas qualified as Pact4
 import PropertyMatchers ((?))
 import PropertyMatchers qualified as P
 import Test.Tasty
-import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase, (@?=))
 import Text.Printf (printf)
 
 data Fixture = Fixture
@@ -140,6 +146,7 @@ tests baseRdb = testGroup "Pact5 PactServiceTest"
     , testCase "failed txs should go into blocks" (failedTxsShouldGoIntoBlocks baseRdb)
     , testCase "modules with higher level transitive dependencies (simple)" (modulesWithHigherLevelTransitiveDependenciesSimple baseRdb)
     , testCase "modules with higher level transitive dependencies (complex)" (modulesWithHigherLevelTransitiveDependenciesComplex baseRdb)
+    , testCase "apply intial gas model" (testIntialGasModel baseRdb)
     ]
 
 simpleEndToEnd :: RocksDb -> IO ()
@@ -563,6 +570,155 @@ modulesWithHigherLevelTransitiveDependenciesComplex baseRdb = runResourceT $ do
                     ]
 
         return ()
+
+-- A simple test module that increments an integer, on a single chain or cross-chain
+testModule:: T.Text
+testModule =  "(namespace 'free) \
+              \ (module m G (defcap G () true) \
+              \  (defun inc (arg) \
+              \     (+ arg 1)) \
+              \  (defpact inc-x-chain (arg dest-chain) \
+              \      (step (yield { \"a\" : (+ arg 1)} dest-chain )) \
+              \      (step (resume { \"a\" := a } a)) \
+              \   ) \
+              \ )"
+
+assertCutHeight :: Fixture -> BlockHeight -> IO ()
+assertCutHeight fixt bh = do
+    cut <- getCut fixt
+    view cutMinHeight cut @?= bh
+    view cutMaxHeight cut @?= bh
+
+makeProof :: Fixture -> ChainId -> ChainId -> BlockHeight -> Int -> IO ContProof
+makeProof Fixture{..} cidT cidS bh i = (ContProof . B64U.encode . encodeToByteString) <$>
+                                         createTransactionOutputProof_ (_bdbWebBlockHeaderDb _fixtureBlockDb) ( _bdbPayloadDb _fixtureBlockDb)
+                                                                       cidT cidS bh i
+
+testIntialGasModel :: RocksDb -> IO ()
+testIntialGasModel baseRdb = runResourceT $ do
+    fixture <- mkFixtureDual baseRdb
+
+    liftIO $ do
+        -- Confirm We are here at height 1
+        assertCutHeight fixture $ BlockHeight 1
+
+        -- Deploy the module on both chains and initiate two defpact Txs on Chain 0
+        cmdDeployChain0 <-  buildCwCmd vPair (defaultCmd chain0)
+                    { _cbRPC = mkExec' testModule
+                    , _cbGasPrice = GasPrice 0.0004}
+
+        cmdDeployChain1 <-  buildCwCmd vPair (defaultCmd chain1)
+                    { _cbRPC = mkExec' testModule
+                    , _cbGasPrice = GasPrice 0.0004}
+
+        cmdDefPact1 <- buildCwCmd vPair (defaultCmd chain0)
+                       { _cbRPC = mkExec' "(free.m.inc-x-chain 0 \"1\")"
+                       ,  _cbGasPrice = GasPrice 0.0003}
+
+        cmdDefPact2 <- buildCwCmd vPair (defaultCmd chain0)
+                       { _cbRPC = mkExec' "(free.m.inc-x-chain 1 \"1\")"
+                       ,  _cbGasPrice = GasPrice 0.0002}
+
+        cmdDefPact3 <- buildCwCmd vPair (defaultCmd chain0)
+                       { _cbRPC = mkExec' "(free.m.inc-x-chain 2 \"1\")"
+                       ,  _cbGasPrice = GasPrice 0.0001}
+
+        resBlock2 <- advanceAllChainsWithTxs fixture $ onChains [ (chain0, [cmdDeployChain0, cmdDefPact1, cmdDefPact2, cmdDefPact3])
+                                                                , (chain1, [cmdDeployChain1]) ]
+
+        -- Check That all transactions are successful
+        resBlock2 &
+            P.alignExact ? onChains [ (chain0, P.alignExact $ Vector.fromList [successfulTx, successfulTx, successfulTx, successfulTx])
+                                    , (chain1, P.alignExact $ Vector.fromList [successfulTx])]
+
+        -- Increase the height to allow SPV retrieval
+        _ <- advanceAllChainsWithTxs fixture $ AllChains []
+
+        -------------------------------------------------------------------------------------------------------------
+        ----------------------------------- HEIGHT 4 - pre31GasModel -----------------------------------------------
+        putStrLn "Test pre31GasModel"
+        -- Confirm We are here at height 3
+        -- We use the pre31GasModel
+        assertCutHeight fixture $ BlockHeight 3
+
+        prf1 <- makeProof fixture chain1 chain0 (BlockHeight 2) 1
+        cmdCont1  <- buildCwCmd vPair (defaultCmd chain1)
+                   { _cbRPC = mkCont $ ContMsg { _cmPactId = resBlock2 ^?! ixg chain0 . ix 1 . crContinuation . _Just . peDefPactId
+                                               , _cmStep = 1
+                                               , _cmRollback = False
+                                               , _cmData =  PObject mempty
+                                               , _cmProof = Just prf1
+                                               }
+                   ,  _cbGasPrice = GasPrice 0.0001}
+
+        cmd1 <-  buildCwCmd vPair (defaultCmd chain0)
+                 { _cbRPC = mkExec' "(free.m.inc 0)"
+                 }
+
+        resBlock4 <- advanceAllChainsWithTxs fixture $ onChains [ (chain0, [cmd1])
+                                                                , (chain1, [cmdCont1]) ]
+        resBlock4 &
+            P.alignExact ?  onChains [ (chain0, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 74)])
+                                     , (chain1, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 100)])
+                                     ]
+
+        -------------------------------------------------------------------------------------------------------------
+        ----------------------------------- HEIGHT 4 - post31GasModel -----------------------------------------------
+        putStrLn "Test post31GasModel"
+        -- Confirm We are here at height 4
+        assertCutHeight fixture $ BlockHeight 4
+
+        prf2 <- makeProof fixture chain1 chain0 (BlockHeight 2) 2
+        cmdCont2  <- buildCwCmd vPair (defaultCmd chain1)
+                   { _cbRPC = mkCont $ ContMsg { _cmPactId = resBlock2 ^?! ixg chain0 . ix 2 . crContinuation . _Just . peDefPactId
+                                               , _cmStep = 1
+                                               , _cmRollback = False
+                                               , _cmData =  PObject mempty
+                                               , _cmProof = Just prf2
+                                               }
+                   ,  _cbGasPrice = GasPrice 0.0001}
+
+        cmd2 <-  buildCwCmd vPair (defaultCmd chain0)
+                 { _cbRPC = mkExec' "(free.m.inc 1)"
+                 }
+
+        resBlock5 <- advanceAllChainsWithTxs fixture $ onChains [ (chain0, [cmd2])
+                                                                , (chain1, [cmdCont2]) ]
+
+        -- Check that now, with the post31GasModel => continuation proofs are charged
+        resBlock5 &
+            P.alignExact ?  onChains [ (chain0, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 74)])
+                                     , (chain1, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 124)])
+                                     ]
+
+        -------------------------------------------------------------------------------------------------------------
+        ----------------------------------- HEIGHT 5 - post32GasModel -----------------------------------------------
+        putStrLn "Test post32GasModel"
+        -- Confirm We are here at height 5
+        assertCutHeight fixture $ BlockHeight 5
+
+        prf3 <- makeProof fixture chain1 chain0 (BlockHeight 2) 3
+        cmdCont3  <- buildCwCmd vPair (defaultCmd chain1)
+                   { _cbRPC = mkCont $ ContMsg { _cmPactId = resBlock2 ^?! ixg chain0 . ix 3 . crContinuation . _Just . peDefPactId
+                                               , _cmStep = 1
+                                               , _cmRollback = False
+                                               , _cmData =  PObject mempty
+                                               , _cmProof = Just prf3
+                                               }
+                   }
+
+        cmd3 <-  buildCwCmd vPair (defaultCmd chain0)
+                 { _cbRPC = mkExec' "(free.m.inc 2)"}
+
+        resBlock6 <- advanceAllChainsWithTxs fixture $ onChains [ (chain0, [cmd3])
+                                                                , (chain1, [cmdCont3]) ]
+
+        -- Check that now, with the post32GasModel => continuation proofs + Signatures are charged
+        resBlock6 &
+            P.alignExact ?  onChains [ (chain0, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 85)])
+                                     , (chain1, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 134)])
+                                     ]
+
 
 {-
 tests = do

@@ -481,7 +481,9 @@ pact5InstantCpmTestVersion migrate g = buildTestVersion $ \v -> v
     & cpmTestVersion g
     & versionName .~ ChainwebVersionName ("instant-pact5-CPM-" <> toText g <> if migrate then "-migrate" else "")
     -- Used to check gas for xChain --
-    & versionInitialGasModel .~ AllChains (Bottom (minBound, post31GasModel))
+    & versionInitialGasModel .~ AllChains ( (ForkAtBlockHeight 5, post32GasModel) `Above`
+                                            (ForkAtBlockHeight 4, post31GasModel) `Above`
+                                            Bottom (minBound, pre31GasModel))
     & versionForks .~ tabulateHashMap (\case
         -- SPV Bridge is not in effect for Pact 5 yet.
         SPVBridge -> AllChains ForkNever
