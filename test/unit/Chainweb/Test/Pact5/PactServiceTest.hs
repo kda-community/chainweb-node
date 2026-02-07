@@ -715,8 +715,8 @@ testIntialGasModel baseRdb = runResourceT $ do
 
         -- Check that now, with the post32GasModel => continuation proofs + Signatures are charged
         resBlock6 &
-            P.alignExact ?  onChains [ (chain0, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 85)])
-                                     , (chain1, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 134)])
+            P.alignExact ?  onChains [ (chain0, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 96)])
+                                     , (chain1, P.alignExact $ Vector.fromList [P.fun _crGas ? P.equals (Gas 145)])
                                      ]
 
 

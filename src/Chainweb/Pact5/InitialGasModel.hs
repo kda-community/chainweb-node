@@ -72,6 +72,6 @@ post32GasModel = InitialGasModel
   , _signatureSizeFactor = 1.0
   , _sizePenalty = \x -> (x / 512) ^ (7 :: Integer)
   , _signatureCost = \case
-                        ED25519 -> 10.0     -- | TODO => Needs to be benchmarked
-                        WebAuthn -> 10.0    -- |
+                        ED25519 ->   21.0   -- | Benchmarked at 52 ns
+                        WebAuthn -> 526.0   -- | Benchmarked at 1.315 ms (worst case)
   }
