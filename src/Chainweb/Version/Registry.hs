@@ -57,7 +57,7 @@ import Chainweb.Utils.Rule
 versionMap :: IORef (HashMap ChainwebVersionCode ChainwebVersion)
 versionMap = unsafePerformIO $ do
     traverse_ validateVersion knownVersions
-    newIORef $ HM.fromList [(_versionCode v, v) | v <- [mainnet, testnet04, testnet06]]
+    newIORef $ HM.fromList [(_versionCode v, v) | v <- [mainnet, testnet06]]
 
 -- | Register a version into our registry by code, ensuring it contains no
 -- errors and there are no others registered with that code.
