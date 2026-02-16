@@ -95,12 +95,10 @@ testnet06 = ChainwebVersion
     , _versionHeaderBaseSizeBytes = 318 - 110
     , _versionBootstraps = domainAddr2PeerInfo testnet06BootstrapHosts
     , _versionGenesis = VersionGenesis
-        -- TODO Setup properly here
         { _genesisBlockTarget = onChains $ concat
             [ [(unsafeChainId i, HashTarget $ maxBound `div` 100_000) | i <- [0..19]]
             ]
-        -- TODO Setup Genesis time properly
-        , _genesisTime = AllChains $ BlockCreationTime [timeMicrosQQ| 2019-07-17T18:28:37.613832 |]
+        , _genesisTime = AllChains $ BlockCreationTime [timeMicrosQQ| 2026-02-16T08:15:00.000000 |]
         , _genesisBlockPayload = onChains $ concat
             [ [(unsafeChainId 0, TST0.payloadBlock)]
             , [(unsafeChainId i, TSTN.payloadBlock) | i <- [1..19]]
