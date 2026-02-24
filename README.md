@@ -30,7 +30,7 @@ For additional information, press, and development inquiries, please refer to th
 
 ## Docs
 
-The Kadena Docs site, which can be found [here](https://kadena-io.github.io/kadena-docs/) serves as a source of information about Kadena. You can find information about how to interact with the public chain, including how to get keys, view network activity, explore blocks, etc. [here](https://kadena-io.github.io/kadena-docs/Public-Chain-Docs).
+The Kadena Docs site, which can be found [here](https://kda-chain.org/docs/) serves as a source of information about Kadena. You can find information about how to interact with the public chain, including how to get keys, view network activity, explore blocks, etc. [here](https://kda-chain.org/docs/guides).
 
 If you have additions or comments, please submit a pull request or raise an issue - the GitHub project can be found [here](https://github.com/kda-community/kadena-docs)
 
