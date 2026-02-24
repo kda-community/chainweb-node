@@ -14,7 +14,7 @@ protocol. Chainweb is a braided, parallelized Proof Of Work consensus mechanism
 that improves throughput and scalability in executing transactions on the
 blockchain while maintaining the security and integrity found in Bitcoin.
 
-Read our [whitepapers](https://www.kadena.io/whitepapers):
+Read our [whitepapers](https://kda-chain.org/developers.html):
 
 - [Chainweb: A Proof-of-Work Parallel-Chain Architecture for Massive Throughput](https://d31d887a-c1e0-47c2-aa51-c69f9f998b07.filesusr.com/ugd/86a16f_029c9991469e4565a7c334dd716345f4.pdf)
 - [Agent-based Simulations of Blockchain Protocols illustrated via Kadena's *Chainweb*](https://d31d887a-c1e0-47c2-aa51-c69f9f998b07.filesusr.com/ugd/86a16f_3b2d0c58179d4edd9df6df4d55d61dda.pdf)
