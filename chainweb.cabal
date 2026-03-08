@@ -373,8 +373,6 @@ library
     build-depends:
         , Decimal >= 0.4.2
         , aeson >= 2.2
-        , asn1-encoding >=0.9
-        , asn1-types >=0.3
         , async >= 2.2
         , attoparsec >= 0.13
         , base >= 4.12 && < 5
@@ -391,7 +389,9 @@ library
         , containers >= 0.5
         , crypton >= 0.31
         , crypton-connection >= 0.4.2
-        , crypton-x509 >=1.7
+        , crypton-asn1-types >= 0.4.1
+        , crypton-asn1-encoding >= 0.10.0
+        , crypton-x509 >= 1.8
         , crypton-x509-system >=1.6
         , crypton-x509-validation >=1.6
         , cuckoo >= 0.3
@@ -410,7 +410,7 @@ library
         , growable-vector >= 0.1
         , hashable >= 1.4
         , heaps >= 0.3
-        , hourglass >=0.2
+        , time-hourglass >=0.2
         , http2 >= 5.2.1
         , http-client >= 0.5
         , http-client-tls >=0.3
