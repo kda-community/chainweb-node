@@ -238,7 +238,7 @@ newWork logFun choice targetFork eminer@(Miner mid _) hdb pact tpw c = do
             logFun @T.Text Debug $ "newWork: chain " <> toText cid <> " not mineable"
             newWork logFun Anything targetFork eminer hdb pact tpw c
         Just (T2 (WorkReady newBlock) extension) -> do
-            let (primedParentHash, primedParentHeight, _) = newBlockParent newBlock
+            let (primedParentHash, _, primedParentHeight, _) = newBlockParent newBlock
             if primedParentHash == view blockHash (_parentHeader (_cutExtensionParent extension))
             then do
                 let payload = newBlockToPayloadWithOutputs newBlock
