@@ -1,7 +1,10 @@
 <p align="center">
-<img src="https://i.imgur.com/bAZFAGF.png" width="450" height="243" alt="Kadena" title="Kadena">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kda-community/graphic-assets/refs/heads/main/logos/kda_community_edition_original/kdace_extended_darkbg_light_4000_1000.png" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/kda-community/graphic-assets/refs/heads/main/logos/kda_community_edition_original/kdace_extended_lightbg_dark_4000_1000.png" />
+  <img alt="KDA Community Edition" src="https://raw.githubusercontent.com/kda-community/graphic-assets/refs/heads/main/logos/kda_community_edition_original/kdace_extended_lightbg_dark_4000_1000.png" />
+</picture>
 </p>
-
 <p>&nbsp;</p>
 
 # Kadena Public Blockchain
@@ -11,12 +14,12 @@ protocol. Chainweb is a braided, parallelized Proof Of Work consensus mechanism
 that improves throughput and scalability in executing transactions on the
 blockchain while maintaining the security and integrity found in Bitcoin.
 
-Read our [whitepapers](https://www.kadena.io/whitepapers):
+Read our [whitepapers](https://kda-chain.org/developers.html):
 
 - [Chainweb: A Proof-of-Work Parallel-Chain Architecture for Massive Throughput](https://d31d887a-c1e0-47c2-aa51-c69f9f998b07.filesusr.com/ugd/86a16f_029c9991469e4565a7c334dd716345f4.pdf)
 - [Agent-based Simulations of Blockchain Protocols illustrated via Kadena's *Chainweb*](https://d31d887a-c1e0-47c2-aa51-c69f9f998b07.filesusr.com/ugd/86a16f_3b2d0c58179d4edd9df6df4d55d61dda.pdf)
 
-For additional information, press, and development inquiries, please refer to the Kadena [website](https://kadena.io)
+For additional information, press, and development inquiries, please refer to the Kadena [website](https://kda-chain.org/index.html)
 
 ## Table of Contents
 
@@ -31,7 +34,7 @@ For additional information, press, and development inquiries, please refer to th
 
 ## Docs
 
-The Kadena Docs site, which can be found [here](https://kadena-io.github.io/kadena-docs/) serves as a source of information about Kadena. You can find information about how to interact with the public chain, including how to get keys, view network activity, explore blocks, etc. [here](https://kadena-io.github.io/kadena-docs/Public-Chain-Docs).
+The Kadena Docs site, which can be found [here](https://kda-chain.org/docs/) serves as a source of information about Kadena. You can find information about how to interact with the public chain, including how to get keys, view network activity, explore blocks, etc. [here](https://kda-chain.org/docs/guides).
 
 If you have additions or comments, please submit a pull request or raise an issue - the GitHub project can be found [here](https://github.com/kda-community/kadena-docs)
 

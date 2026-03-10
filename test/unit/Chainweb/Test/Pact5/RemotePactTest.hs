@@ -397,7 +397,7 @@ spvExpirationTest v baseRdb prop = runResourceT $ do
         -- disabled" case, we definitely don't want to use maxBound.
         let expirationWindow = fromMaybe
                 (error "missing minimumBlockHeaderHistory")
-                (minimumBlockHeaderHistory v minBound)
+                (minimumBlockHeaderHistory v minBound minBound)
         when (int expirationWindow < waitBlocks + diameter (chainGraphAt v maxBound)) $ assertFailure "test version has a minimumBlockHeaderHistory that is too short to test"
 
         replicateM_ waitBlocks $ advanceAllChains_ fx

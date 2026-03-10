@@ -145,7 +145,7 @@ import Network.TLS.Extra (ciphersuite_default)
 import Network.Wai.Handler.WarpTLS as WARP
     (TLSSettings(..), tlsSettingsChainMemory, tlsSettingsMemory)
 
-import System.Hourglass (dateCurrent)
+import Time.System (dateCurrent)
 import System.X509 (getSystemCertificateStore)
 
 -- internal modules
