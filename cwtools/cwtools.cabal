@@ -127,10 +127,10 @@ executable db-checksum
         , cereal >= 0.5
         , configuration-tools
         , containers
-        , crypton
+        , crypton >= 1.1.2
         , direct-sqlite
         , directory
-        , memory
+        , ram >=0.2.2
         , mtl
         , pact
         , safe-exceptions
