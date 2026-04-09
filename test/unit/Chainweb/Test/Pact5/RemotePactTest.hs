@@ -432,7 +432,7 @@ spvExpirationTest v baseRdb prop = runResourceT $ do
 -- this test suite really wants you not to put any transactions into the final block.
 sendInvalidTxsTest :: RocksDb -> TestTree
 sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
-    sequentialTestGroup "invalid txs in /send" AllFinish
+    dependentTestGroup "invalid txs in /send" AllFinish
         [ testGroup "send txs"
             [ testCase "syntax error" $ do
                 cmdParseFailure <- buildTextCmd v

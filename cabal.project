@@ -95,14 +95,17 @@ package yet-another-logger
 source-repository-package
     type: git
     location: https://github.com/kda-community/pact.git
-    tag: 4208012e3f2fdf1721c24cdcb97de5f64fd5f58a
-    --sha256: 1al11csqr291avfwbb7hcrfxapz9sx0iclv3j5ipnli287h52cvs
+    tag: ef859d8b7992b8f91bd4864f55a16080c8ae2b2a
 
 source-repository-package
     type: git
     location: https://github.com/kda-community/pact-5.git
-    tag: bfc5310c462aaefabe7c512407ac6dab87fc8c42
-    --sha256: 05xp1vwxkvjxrn8pij9z4g1hadbkb8hrgziwzs408yxxxmkcv6kq
+    tag: 7feeab02fe28bb9bfb0f1792f3ca9adffbcd2576
+
+source-repository-package
+    type: git
+    location: https://github.com/kda-community/merkle-log
+    tag: c502176643de644dec624001096342b1f0cd0f45
 
 source-repository-package
     type: git
