@@ -29,6 +29,7 @@ module P2P.Node.Configuration
 , p2pConfigKnownPeers
 , p2pConfigIgnoreBootstrapNodes
 , p2pConfigBootstrapReachability
+, p2pDisableCertVerification
 , defaultP2pConfiguration
 , validateP2pConfiguration
 , pP2pConfiguration
@@ -92,6 +93,10 @@ data P2pConfiguration = P2pConfiguration
         -- be able to reach this node on startup. Default value
         -- is 0.5.
 
+    , _p2pDisableCertVerification :: !Bool
+    -- ^ Disable TLS Client certificate verification. This is insecure and should
+    -- only be used in specific case and test setups.
+
     , _p2pConfigTls :: !Bool
         -- ^ enable TLS. WARNING: is is an expert setting. Disabling this flag
         -- requires a particular setup of a proxy server that terminates TLS. A
@@ -132,6 +137,7 @@ defaultP2pConfiguration = P2pConfiguration
     , _p2pConfigIgnoreBootstrapNodes = False
     , _p2pConfigPrivate = False
     , _p2pConfigBootstrapReachability = 0.5
+    , _p2pDisableCertVerification = False
     , _p2pConfigTls = True
     , _p2pConfigValidateSpec = False
     }
@@ -162,6 +168,9 @@ validateP2pConfiguration c = do
     when (_p2pConfigMaxSessionCount c < 3) $ tell
         $ pure "This node is configured to have a maximum session count of less than 5. This will limit the ability of this node to communicate with the rest of the network. A max session count between 5 and 15 is advised."
 
+    when (_p2pDisableCertVerification c) $ tell
+        $ pure "This node is configured with TLS verifiation disabled. This is not desirable in most cases"
+
     when (_p2pConfigMaxSessionCount c > 30) $ throwError
         "This node is configured with a maximum session count of more than 30. This may put a high load on the network stack of the node and may cause connectivity problems. A max session count between 5 and 15 is advised."
 
@@ -178,6 +187,7 @@ instance ToJSON P2pConfiguration where
         , "ignoreBootstrapNodes" .= _p2pConfigIgnoreBootstrapNodes o
         , "private" .= _p2pConfigPrivate o
         , "bootstrapReachability" .= _p2pConfigBootstrapReachability o
+        , "disableCertVerification" .= _p2pDisableCertVerification o
         ]
         -- hidden: Do not print the default value.
         <> [ "tls" .= _p2pConfigTls o | not (_p2pConfigTls o) ]
@@ -193,6 +203,7 @@ instance FromJSON (P2pConfiguration -> P2pConfiguration) where
         <*< p2pConfigIgnoreBootstrapNodes ..: "ignoreBootstrapNodes" % o
         <*< p2pConfigPrivate ..: "private" % o
         <*< p2pConfigBootstrapReachability ..: "bootstrapReachability" % o
+        <*< p2pDisableCertVerification ..: "disableCertVerification" % o
         <*< p2pConfigTls ..: "tls" % o
         <*< p2pConfigValidateSpec ..: "validateSpec" % o
 
@@ -206,6 +217,7 @@ instance FromJSON P2pConfiguration where
         <*> o .: "ignoreBootstrapNodes"
         <*> o .: "private"
         <*> o .: "bootstrapReachability"
+        <*> o .: "disableCertVerification"
         <*> o .:? "tls" .!= True
         <*> o .:? "validateSpec" .!= False
 
@@ -233,6 +245,9 @@ pP2pConfiguration = id
         % prefixLong net "bootstrap-reachability"
         <> help "the fraction of bootstrap nodes that must be reachable at startup"
         <> metavar "[0,1]"
+    <*< p2pDisableCertVerification .:: boolOption_
+        % prefixLong net "disable-cert-verification"
+        <> help "Disable P2P client cert verification"
     <*< p2pConfigTls .:: enableDisableFlag
         % prefixLong net "tls"
         <> internal -- hidden option, only for expert use

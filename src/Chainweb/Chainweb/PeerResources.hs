@@ -129,7 +129,7 @@ withPeerResources
     -> IO a
 withPeerResources v conf logger inner = withPeerSocket conf $ \(conf', sock) -> do
     withPeerDb_ v conf' $ \peerDb -> do
-        (!mgr, !counter) <- connectionManager peerDb
+        (!mgr, !counter) <- connectionManager (conf ^. p2pDisableCertVerification) peerDb
         withHost mgr v conf' logger $ \conf'' -> do
 
             peer <- unsafeCreatePeer $ _p2pConfigPeer conf''
@@ -286,10 +286,10 @@ p2pResponseTimeout = HTTP.responseTimeoutMicro 3_000_000
 -- - requests by the logging backend (cf. withNodeLogger in
 --   node/ChainwebNode.hs).
 --
-connectionManager :: PeerDb -> IO (HTTP.Manager, ManagerCounter)
-connectionManager peerDb = do
-    settings <- certificateCacheManagerSettings
-        (TlsSecure True certCacheLookup)
+connectionManager :: Bool -> PeerDb -> IO (HTTP.Manager, ManagerCounter)
+connectionManager noCertVerif peerDb = do
+    settings <- certificateCacheManagerSettings $
+        if noCertVerif then TlsInsecure else (TlsSecure True certCacheLookup)
 
     let settings' = settings
             { HTTP.managerConnCount = 5
