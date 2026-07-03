@@ -10,6 +10,7 @@ module Chainweb.Version.Development(devnet, pattern Development) where
 import qualified Data.Set as Set
 
 import Chainweb.BlockCreationTime
+import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Difficulty
 import Chainweb.Graph
@@ -32,6 +33,9 @@ devnet = ChainwebVersion
     { _versionCode = ChainwebVersionCode 0x00000002
     , _versionName = ChainwebVersionName "development"
     , _versionForks = tabulateHashMap $ \case
+        -- MigratePlatformShare is a one-shot migration guarded by
+        -- 'atNotGenesis', which errors on 'ForkAtGenesis'.
+        MigratePlatformShare -> AllChains $ ForkAtBlockHeight $ BlockHeight 2
         _ -> AllChains ForkAtGenesis
     , _versionUpgrades = AllChains mempty
     , _versionGraphs = Bottom (minBound, twentyChainGraph)
