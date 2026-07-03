@@ -128,8 +128,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/kda-community/wai-middleware-validation.git
-    tag: e0437bf82e9b4d3fec5ad42ef6e860f4bd04e1b4
-    --sha256: 1az7jcggcj275djnfsvhdg3n7hjrj6vp8rj137fxrg4hazh0hyzv
+    tag: 65ea176c9ba5717dd8c208219e40095a3bf27466
 
 -- Required for backward compatibility:
 
@@ -194,8 +193,6 @@ allow-newer: trifecta:*
 
 -- wai-middleware-validation dependencies
 
-allow-newer: wai-middleware-validation:*
-allow-newer: validation:*
 allow-newer: these:*
 allow-newer: regex-base:*
 allow-newer: regex-tdfa:*
