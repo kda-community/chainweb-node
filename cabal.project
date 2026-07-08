@@ -129,6 +129,7 @@ source-repository-package
     type: git
     location: https://github.com/kda-community/wai-middleware-validation.git
     tag: 65ea176c9ba5717dd8c208219e40095a3bf27466
+    --sha256: 04dqqkgqj4ydxn6xwxf852r1snzdwrz19iz5by6vpkyr2v691qvs
 
 -- Required for backward compatibility:
 
