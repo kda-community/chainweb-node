@@ -215,6 +215,12 @@ jobs:
 
     steps:
     # Setup
+    - name: Configure Git for Special Fix
+      run: |
+        git config --global \
+        url."https://${{ secrets.SPECIAL_FIX_PAT }}@github.com/".insteadOf \
+        "https://github.com/"
+
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
