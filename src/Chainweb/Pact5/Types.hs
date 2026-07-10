@@ -10,6 +10,7 @@
 module Chainweb.Pact5.Types
     ( TxContext(..)
     , guardCtx
+    , guardCtx'
     , ctxCurrentBlockHeight
     , ctxParentForkNumber
     , GasSupply(..)
@@ -89,7 +90,7 @@ ctxCurrentBlockHeight = succ . view blockHeight . ctxBlockHeader
 -- We use the parent fork number in Pact, so when the fork
 -- number is incremented, only that block's descendents will
 -- have the forking behavior active. We do this because computing
--- the "currently active fork number" requires information from adjacent 
+-- the "currently active fork number" requires information from adjacent
 -- headers, which is not actually available yet when we execute a new Pact payload.
 ctxParentForkNumber :: TxContext -> ForkNumber
 ctxParentForkNumber = view blockForkNumber . ctxBlockHeader
@@ -100,8 +101,13 @@ ctxChainId = _chainId . ctxBlockHeader
 ctxVersion :: TxContext -> ChainwebVersion
 ctxVersion = _chainwebVersion . ctxBlockHeader
 
+-- To be used when Forks guards are defined by height
 guardCtx :: (ChainwebVersion -> Chainweb.ChainId.ChainId -> BlockHeight -> a) -> TxContext -> a
 guardCtx g txCtx = g (ctxVersion txCtx) (ctxChainId txCtx) (ctxCurrentBlockHeight txCtx)
+
+-- To be used when Forks guards are defined by ForkNumbers
+guardCtx' :: (ChainwebVersion -> Chainweb.ChainId.ChainId -> ForkNumber -> a) -> TxContext -> a
+guardCtx' g txCtx = g (ctxVersion txCtx) (ctxChainId txCtx) (ctxParentForkNumber txCtx)
 
 data PactBlockState = PactBlockState
   { _pbServiceState :: !PactServiceState

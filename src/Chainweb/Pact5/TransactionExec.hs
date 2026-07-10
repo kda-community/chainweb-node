@@ -309,7 +309,8 @@ applyLocal logger maybeGasLogger coreDb txCtx spvSupport cmd = do
     [ defaultFlags
     , guardDisablePact51Flags txCtx
     , guardDisablePact52And53Flags txCtx
-    , guardDisablePact54Flags txCtx]
+    , guardDisablePact54Flags txCtx
+    , guardDisablePact54FixFlags txCtx ]
 
 -- | The main entry point to executing transactions. From here,
 -- 'applyCmd' assembles the command environment for a command,
@@ -1058,3 +1059,8 @@ guardDisablePact54Flags :: TxContext -> Set ExecutionFlag
 guardDisablePact54Flags txCtx
   | guardCtx chainweb231Pact txCtx = Set.empty
   | otherwise = Set.fromList [FlagDisablePact54]
+
+guardDisablePact54FixFlags :: TxContext -> Set ExecutionFlag
+guardDisablePact54FixFlags txCtx
+  | guardCtx' chainweb32 txCtx = Set.empty
+  | otherwise = Set.fromList [FlagDisablePact54Fix]

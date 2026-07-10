@@ -31,7 +31,6 @@ import "pact-json" Pact.JSON.Encode qualified as J
 import "pact-json" Pact.JSON.Encode (Encode(..))
 import "pact-tng" Pact.Core.ChainData
 import "pact-tng" Pact.Core.Command.Types
-import "pact-tng" Pact.Core.StableEncoding
 import "pact-tng" Pact.Core.Errors
 import "pact-tng" Pact.Core.Info
 import "pact-tng" Pact.Core.Pretty qualified as Pact5

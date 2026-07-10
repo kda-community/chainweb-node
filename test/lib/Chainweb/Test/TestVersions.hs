@@ -304,6 +304,7 @@ slowForks = tabulateHashMap \case
     PactBackCompat_v16 -> AllChains ForkAtGenesis
     SPVBridge -> AllChains ForkAtGenesis
     Pact44NewTrans -> AllChains ForkAtGenesis
+    Chainweb32 -> AllChains ForkAtGenesis -- Being mainly a bugfix, it's safe to do at it at genesis
     CoinV2 -> AllChains $ ForkAtBlockHeight (BlockHeight 1)
     SkipTxTimingValidation -> AllChains $ ForkAtBlockHeight (BlockHeight 2)
     ModuleNameFix -> AllChains $ ForkAtBlockHeight (BlockHeight 2)
@@ -349,6 +350,7 @@ fastForks = tabulateHashMap $ \case
     Pact44NewTrans -> AllChains ForkAtGenesis
     Chainweb213Pact -> AllChains ForkAtGenesis
     PactEvents -> AllChains ForkAtGenesis
+    Chainweb32 -> AllChains ForkAtGenesis -- Being mainly a bugfix, it's safe to do at it at genesis
     CoinV2 -> AllChains $ ForkAtBlockHeight $ BlockHeight 1
     Pact42 -> AllChains $ ForkAtBlockHeight $ BlockHeight 1
     SkipTxTimingValidation -> AllChains $ ForkAtBlockHeight $ BlockHeight 2

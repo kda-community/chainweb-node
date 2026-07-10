@@ -31,13 +31,11 @@ import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils
 
 import Chainweb.Version
-import Pact.Core.Command.Types
+import Pact.Core.Command.Types hiding (ChainId)
 import Pact.Core.Gas
 import Pact.Core.Names
 import Pact.Core.PactValue
-import Pact.Core.Capabilities
 import Pact.Core.Verifiers
-import Pact.Core.Signer
 
 -- | Test suite
 

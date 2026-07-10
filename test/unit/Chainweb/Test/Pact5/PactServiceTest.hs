@@ -72,11 +72,11 @@ import Data.Text.IO qualified as Text
 import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Pact.Core.Capabilities
-import Pact.Core.ChainData hiding (ChainId, _chainId)
-import Pact.Core.Command.Types
+import Pact.Core.Command.Types hiding (ChainId)
 import Pact.Core.Gas.Types
 import Pact.Core.Hash qualified as Pact5
 import Pact.Core.Names
+import Pact.Core.ChainData (TxCreationTime(..))
 import Pact.Core.PactValue
 import Pact.Types.Gas qualified as Pact4
 import PropertyMatchers ((?))

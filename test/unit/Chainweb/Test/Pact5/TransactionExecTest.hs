@@ -51,7 +51,7 @@ import Data.Text.IO qualified as T
 import Chainweb.Test.Pact5.Utils hiding (withTempSQLiteResource)
 import GHC.Stack
 import Pact.Core.Capabilities
-import Pact.Core.Command.Types
+import Pact.Core.Command.Types hiding (ChainId)
 import Pact.Core.Compile(CompileValue(..))
 import Pact.Core.Errors
 import Pact.Core.Evaluate
@@ -62,7 +62,6 @@ import Pact.Core.Names
 import Pact.Core.PactValue
 import Pact.Core.Persistence hiding (pactDb)
 import Pact.Core.SPV (noSPVSupport)
-import Pact.Core.Signer
 import Pact.Core.Verifiers
 import Pact.Types.KeySet qualified as Pact4
 import Pact.JSON.Encode qualified as J
