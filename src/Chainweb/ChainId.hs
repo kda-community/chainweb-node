@@ -282,6 +282,9 @@ data ChainMap a = AllChains a | OnChains (HashMap ChainId a)
     deriving stock (Eq, Functor, Foldable, Traversable, Generic, Ord, Show)
     deriving anyclass (Hashable, NFData)
 
+instance Unzip ChainMap where
+    unzip = unzipDefault
+
 -- TODO: fix this. This is not a legal instance, because `align` can change the
 -- shape from `AllChains` to `OnChains`. This breaks the "alignedness" law.
 instance Semialign ChainMap where

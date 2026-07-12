@@ -397,7 +397,7 @@ spvExpirationTest v baseRdb prop = runResourceT $ do
         -- disabled" case, we definitely don't want to use maxBound.
         let expirationWindow = fromMaybe
                 (error "missing minimumBlockHeaderHistory")
-                (minimumBlockHeaderHistory v minBound)
+                (minimumBlockHeaderHistory v minBound minBound)
         when (int expirationWindow < waitBlocks + diameter (chainGraphAt v maxBound)) $ assertFailure "test version has a minimumBlockHeaderHistory that is too short to test"
 
         replicateM_ waitBlocks $ advanceAllChains_ fx
@@ -432,7 +432,7 @@ spvExpirationTest v baseRdb prop = runResourceT $ do
 -- this test suite really wants you not to put any transactions into the final block.
 sendInvalidTxsTest :: RocksDb -> TestTree
 sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
-    sequentialTestGroup "invalid txs in /send" AllFinish
+    dependentTestGroup "invalid txs in /send" AllFinish
         [ testGroup "send txs"
             [ testCase "syntax error" $ do
                 cmdParseFailure <- buildTextCmd v
