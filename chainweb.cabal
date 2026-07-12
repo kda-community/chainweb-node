@@ -387,7 +387,7 @@ library
         , clock >= 0.7
         , configuration-tools >= 0.6
         , containers >= 0.5
-        , crypton >= 0.31
+        , crypton >= 1.1.2
         , crypton-connection >= 0.4.2
         , crypton-asn1-types >= 0.4.1
         , crypton-asn1-encoding >= 0.10.0
@@ -420,8 +420,8 @@ library
         , ixset-typed >= 0.4
         , lens >= 4.17
         , loglevel >= 0.1
-        , memory >=0.14
-        , merkle-log >=0.2
+        , ram >=0.2.2
+        , merkle-log >=0.2.1
         , mmorph >= 1.1
         , monad-control >= 1.0
         , mtl >= 2.3
@@ -541,7 +541,7 @@ library chainweb-test-utils
         , chainweb-storage >= 0.1
         , chronos >= 1.1
         , containers >= 0.5
-        , crypton >= 0.31
+        , crypton >= 1.1.2
         , crypton-connection >=0.4
         , data-dword >= 0.3
         , deepseq >= 1.4
@@ -554,7 +554,7 @@ library chainweb-test-utils
         , http-types >= 0.12
         , lens >= 4.17
         , loglevel >= 0.1
-        , merkle-log >=0.2
+        , merkle-log >=0.2.1
         , mtl >= 2.3
         , network >= 3.1.2
         , patience >= 0.3
@@ -701,7 +701,7 @@ test-suite chainweb-tests
         , cassava >= 0.5.1
         , chainweb-storage >= 0.1
         , containers >= 0.5
-        , crypton >= 0.31
+        , crypton >= 1.1.2
         , crypton-connection >=0.4
         , data-dword >= 0.3
         , data-ordlist >= 0.4.7
@@ -719,8 +719,8 @@ test-suite chainweb-tests
         , lens >= 4.17
         , lens-aeson >= 1.2.2
         , loglevel >= 0.1
-        , memory >=0.14
-        , merkle-log >=0.2
+        , ram >=0.2.2
+        , merkle-log >=0.2.1
         , mtl >= 2.3
         , network >= 3.1.2
         , pact

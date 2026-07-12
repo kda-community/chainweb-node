@@ -33,6 +33,7 @@ devnet = ChainwebVersion
     { _versionCode = ChainwebVersionCode 0x00000002
     , _versionName = ChainwebVersionName "development"
     , _versionForks = tabulateHashMap $ \case
+        MigratePlatformShare -> AllChains ForkNever
         _ -> AllChains ForkAtGenesis
     , _versionUpgrades = AllChains mempty
     , _versionGraphs = Bottom (minBound, twentyChainGraph)
