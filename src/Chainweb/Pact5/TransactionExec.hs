@@ -172,6 +172,13 @@ chargeGas info gasArgs = do
   either throwError return =<<
     liftIO (chargeGasArgsM gasEnv info [] gasArgs)
 
+
+-- Create a Set of Flags from a list of default flags (unconditional)
+-- and a list of guarded flags (context-dependent).
+aggregateFlags :: TxContext -> [ExecutionFlag] -> [TxContext -> Set ExecutionFlag] -> Set ExecutionFlag
+aggregateFlags ctx defaultFlags guardedFlags = Set.fromList defaultFlags `Set.union` foldMap ($ ctx) guardedFlags
+
+
 -- run verifiers
 -- nasty... perhaps later convert verifier plugins to use GasM instead of tracking "gas remaining"
 -- TODO: Verifiers are also tied to Pact enough that this is going to be an annoying migration
@@ -296,7 +303,7 @@ applyLocal logger maybeGasLogger coreDb txCtx spvSupport cmd = do
         }
 
   where
-  defaultFlags = S.fromList
+  localFlags = aggregateFlags txCtx
     [ FlagDisableRuntimeRTC
     , FlagEnforceKeyFormats
     -- Note: this is currently not conditional
@@ -305,12 +312,12 @@ applyLocal logger maybeGasLogger coreDb txCtx spvSupport cmd = do
     , FlagAllowReadInLocal
     , FlagRequireKeysetNs
     ]
-  localFlags = Set.unions
-    [ defaultFlags
-    , guardDisablePact51Flags txCtx
-    , guardDisablePact52And53Flags txCtx
-    , guardDisablePact54Flags txCtx
-    , guardDisablePact54FixFlags txCtx ]
+
+    [ guardDisablePact51Flags
+    , guardDisablePact52And53Flags
+    , guardDisablePact54Flags
+    , guardDisablePact54FixFlags
+    ]
 
 -- | The main entry point to executing transactions. From here,
 -- 'applyCmd' assembles the command environment for a command,
@@ -340,19 +347,17 @@ applyCmd
     -> IO (Either Pact5GasPurchaseFailure (CommandResult [TxLog ByteString] (Pact5.PactError Info)))
 applyCmd logger maybeGasLogger db txCtx txIdxInBlock spv initialGas cmd = do
   logDebug_ logger $ "applyCmd: " <> sshow (_cmdHash cmd)
-  let defaultFlags = Set.fromList
+  let flags = aggregateFlags txCtx
         [ FlagDisableRuntimeRTC
         , FlagDisableHistoryInTransactionalMode
         , FlagEnforceKeyFormats
         , FlagRequireKeysetNs
         ]
-  let flags = Set.unions
-              [ defaultFlags
-              , guardDisablePact51Flags txCtx
-              , guardDisablePact52And53Flags txCtx
-              , guardDisablePact54Flags txCtx
-              , guardDisablePact54FixFlags txCtx
-              ]
+        [ guardDisablePact51Flags
+        , guardDisablePact52And53Flags
+        , guardDisablePact54Flags
+        , guardDisablePact54FixFlags
+        ]
 
   let gasLogsEnabled = maybe GasLogsDisabled (const GasLogsEnabled) maybeGasLogger
   gasEnv <- mkTableGasEnv (MilliGasLimit $ gasToMilliGas $ gasLimit ^. _GasLimit) gasLogsEnabled
@@ -488,8 +493,7 @@ applyCoinbase logger db reward txCtx = do
   freeGasEnv <- mkFreeGasEnv GasLogsDisabled
   let
     (coinbaseTerm, coinbaseData) = mkCoinbaseTerm mid mks reward
-    defaultFlags = Set.singleton FlagDisableRuntimeRTC
-    flags = Set.unions [defaultFlags, guardDisablePact52And53Flags txCtx]
+    flags = aggregateFlags txCtx [FlagDisableRuntimeRTC] [guardDisablePact52And53Flags]
   eCoinbaseTxResult <-
     evalExecTerm Transactional
       db noSPVSupport freeGasEnv flags SimpleNamespacePolicy
@@ -610,8 +614,7 @@ runGenesisPayload logger db spv ctx cmd = do
   let txEnv = TransactionEnv logger gasEnv
   -- Todo gas logs
   freeGasEnv <- mkFreeGasEnv GasLogsDisabled
-  let defaultFlags = Set.fromList [FlagDisableRuntimeRTC]
-      flags = Set.unions [defaultFlags, guardDisablePact52And53Flags ctx, guardDisablePact54Flags ctx]
+  let flags = aggregateFlags ctx [FlagDisableRuntimeRTC] [guardDisablePact52And53Flags, guardDisablePact54Flags]
   runExceptT
     (runReaderT
       (runTransactionM
@@ -1060,7 +1063,7 @@ guardDisablePact52And53Flags txCtx
 guardDisablePact54Flags :: TxContext -> Set ExecutionFlag
 guardDisablePact54Flags txCtx
   | guardCtx chainweb231Pact txCtx = Set.empty
-  | otherwise = Set.fromList [FlagDisablePact54]
+  | otherwise = Set.singleton FlagDisablePact54
 
 guardDisablePact54FixFlags :: TxContext -> Set ExecutionFlag
 guardDisablePact54FixFlags txCtx
