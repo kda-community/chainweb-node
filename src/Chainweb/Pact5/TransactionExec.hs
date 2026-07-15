@@ -350,7 +350,9 @@ applyCmd logger maybeGasLogger db txCtx txIdxInBlock spv initialGas cmd = do
               [ defaultFlags
               , guardDisablePact51Flags txCtx
               , guardDisablePact52And53Flags txCtx
-              , guardDisablePact54Flags txCtx]
+              , guardDisablePact54Flags txCtx
+              , guardDisablePact54FixFlags txCtx
+              ]
 
   let gasLogsEnabled = maybe GasLogsDisabled (const GasLogsEnabled) maybeGasLogger
   gasEnv <- mkTableGasEnv (MilliGasLimit $ gasToMilliGas $ gasLimit ^. _GasLimit) gasLogsEnabled
@@ -1063,4 +1065,4 @@ guardDisablePact54Flags txCtx
 guardDisablePact54FixFlags :: TxContext -> Set ExecutionFlag
 guardDisablePact54FixFlags txCtx
   | guardCtx' chainweb32 txCtx = Set.empty
-  | otherwise = Set.fromList [FlagDisablePact54Fix]
+  | otherwise = Set.singleton FlagDisablePact54Fix
