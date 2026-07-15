@@ -16,6 +16,7 @@ import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Difficulty
 import Chainweb.Graph
+import Chainweb.Pact5.InitialGasModel
 import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Utils.Rule
@@ -167,6 +168,10 @@ mainnet = ChainwebVersion
     , _versionMaxBlockGasLimit =
         (succByHeight $ mainnet ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0), Just 180_000) `Above`
         Bottom (minBound, Nothing)
+    , _versionInitialGasModel = AllChains $
+        (mainnet ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), post32GasModel) `Above`
+        (mainnet ^?! versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0), post31GasModel) `Above`
+        Bottom (minBound, pre31GasModel)
     , _versionSpvProofRootValidWindow =
         -- TODO : Question is ChainWeb3.2 a good opportunity to reduce Proof valid window (6 month? eg. ) ????
         --(succByHeight $ mainnet ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), Just 525_600) `Above`
