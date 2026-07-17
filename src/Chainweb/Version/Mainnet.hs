@@ -169,7 +169,7 @@ mainnet = ChainwebVersion
         Bottom (minBound, Nothing)
     , _versionSpvProofRootValidWindow =
         -- TODO : Question is ChainWeb3.2 a good opportunity to reduce Proof valid window (6 month? eg. ) ????
-        --(succByHeight $ mainnet ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), Just 525_600) `Above`
+        -- (mainnet ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), Just 525_600) `Above`
         (succByHeight $ mainnet ^?! versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0), Nothing) `Above`
         (succByHeight $ mainnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) , Just 20_000) `Above`
         Bottom (minBound, Nothing)
