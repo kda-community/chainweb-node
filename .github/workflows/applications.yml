@@ -480,7 +480,7 @@ jobs:
       timeout-minutes: 20
       run: |
           ulimit -n 10000
-          compaction-tests
+          compaction-tests --num-threads 1
 
   multi-node-network-tests:
     name: Multi-node network tests
@@ -508,7 +508,7 @@ jobs:
       timeout-minutes: 20
       run: |
           ulimit -n 10000
-          multi-node-network-tests
+          multi-node-network-tests --num-threads 1
 
   rocksdb-library-tests:
     name: RocksDB library tests

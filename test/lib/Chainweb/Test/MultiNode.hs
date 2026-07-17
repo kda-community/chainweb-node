@@ -316,7 +316,7 @@ runNodes' withTimeout loglevel write v confBuilders rdb pactDbDir inner = do
             | otherwise ->
                 setBootstrapPeerInfo <$> readMVar bootstrapPortVar <*> pure baseConf
 
-        withTimeout $ multiNode loglevel write bootstrapPortVar (confBuilder conf) rdb pactDbDir (NodeId i) inner
+        withTimeout $ multiNode Debug write bootstrapPortVar (confBuilder conf) rdb pactDbDir (NodeId i) inner
 
 
 runNodes
