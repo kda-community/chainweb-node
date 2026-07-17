@@ -39,6 +39,7 @@ import Chainweb.RestAPI.Utils
 import Chainweb.Utils
 import Chainweb.Utils.Rule
 import Chainweb.Version
+import Chainweb.ForkState (ForkNumber)
 
 type NodeInfoApi = "info" :> Get '[JSON] NodeInfo
 
@@ -69,6 +70,8 @@ data NodeInfo = NodeInfo
     -- ^ All graph upgrades
   , nodeBlockDelay :: BlockDelay
     -- ^ The PoW block delay of the node (microseconds)
+  , nodeForkNumber :: ForkNumber
+    -- ^ The ForkNumber of the given version of the node
   }
   deriving (Show, Eq, Generic)
   deriving anyclass (ToJSON)
@@ -92,6 +95,7 @@ nodeInfoHandler v (SomeCutDb (CutDbT db :: CutDbT cas v)) = do
       , nodeGenesisHeights = map (\c -> (chainIdToText c, genesisHeight v c)) $ HS.toList (chainIds v)
       , nodeHistoricalChains = ruleElems $ fmap (HM.toList . HM.map HS.toList . toAdjacencySets) $ _versionGraphs v
       , nodeBlockDelay = _versionBlockDelay v
+      , nodeForkNumber = _versionForkNumber v
       }
 
 -- | Converts chainwebGraphs to a simpler structure that has invertible JSON
