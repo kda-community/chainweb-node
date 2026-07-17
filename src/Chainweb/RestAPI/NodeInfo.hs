@@ -63,8 +63,8 @@ data NodeInfo = NodeInfo
   , nodeGraphHistory :: [(BlockHeight, [(Int, [Int])])]
     -- ^ List of chain graphs and the block height they took effect. Sorted
     -- descending by height so the current chain graph is at the beginning.
-  , nodeLatestBehaviorHeight :: BlockHeight
-    -- ^ Height at which the latest behavior of the node is activated. See
+  , nodeLatestBehaviorHeight :: ForkHeight
+    -- ^ Height or ForkuNumber at which the latest behavior of the node is activated. See
     -- `Chainweb.Version.latestBehaviorAt`.
   , nodeGenesisHeights :: [(Text, BlockHeight)]
     -- ^ Genesis heights of each chain.
