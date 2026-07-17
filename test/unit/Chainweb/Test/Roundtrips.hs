@@ -63,7 +63,6 @@ import Chainweb.Pact.Types
 import Chainweb.Payload
 import Chainweb.PowHash
 import Chainweb.RestAPI.NetworkID
-import Chainweb.RestAPI.NodeInfo
 import Chainweb.SPV
 import Chainweb.SPV.EventProof
 import Chainweb.SPV.PayloadProof
@@ -286,7 +285,6 @@ jsonTestCases f =
     , testProperty "CutId" $ f @CutId
     , testProperty "CutHashes" $ f @CutHashes
     , testProperty "NodeVersion" $ f @NodeVersion
-    , testProperty "NodeInfo" $ f @NodeInfo
     , testProperty "EnableConfig MiningConfig" $ f @(EnableConfig MiningConfig)
     , testProperty "NextItem Int" $ f @(NextItem Int)
     , testProperty "Page BlockHash BlockHeader" $ f @(Page BlockHash BlockHeader)

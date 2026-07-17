@@ -42,9 +42,6 @@ import Chainweb.Version
 
 type NodeInfoApi = "info" :> Get '[JSON] NodeInfo
 
-someNodeInfoApi :: SomeApi
-someNodeInfoApi = SomeApi (Proxy @NodeInfoApi)
-
 someNodeInfoServer :: ChainwebVersion -> CutDb tbl -> SomeServer
 someNodeInfoServer v c =
   SomeServer (Proxy @NodeInfoApi) (nodeInfoHandler v $ someCutDbVal v c)
@@ -74,7 +71,7 @@ data NodeInfo = NodeInfo
     -- ^ The PoW block delay of the node (microseconds)
   }
   deriving (Show, Eq, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving anyclass (ToJSON)
 
 nodeInfoHandler :: ChainwebVersion -> SomeCutDb tbl -> Server NodeInfoApi
 nodeInfoHandler v (SomeCutDb (CutDbT db :: CutDbT cas v)) = do
