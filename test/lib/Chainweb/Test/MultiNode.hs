@@ -282,8 +282,9 @@ multiNode loglevel write bootstrapPeerInfoVar conf rdb pactDbDir nid inner = do
 -- -------------------------------------------------------------------------- --
 -- Run Nodes
 
-runNodes
-    :: LogLevel
+runNodes'
+    :: ( IO() -> IO() )
+    -> LogLevel
     -> (T.Text -> IO ())
     -> ChainwebVersion
     -> [ChainwebConfiguration -> ChainwebConfiguration]
@@ -292,7 +293,7 @@ runNodes
     -> FilePath
     -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
-runNodes loglevel write v confBuilders rdb pactDbDir inner = do
+runNodes' withTimeout loglevel write v confBuilders rdb pactDbDir inner = do
     -- NOTE: pact is enabled until we have a good way to disable it globally in
     -- "Chainweb.Chainweb".
     --
@@ -315,7 +316,21 @@ runNodes loglevel write v confBuilders rdb pactDbDir inner = do
             | otherwise ->
                 setBootstrapPeerInfo <$> readMVar bootstrapPortVar <*> pure baseConf
 
-        multiNode loglevel write bootstrapPortVar (confBuilder conf) rdb pactDbDir (NodeId i) inner
+        withTimeout $ multiNode loglevel write bootstrapPortVar (confBuilder conf) rdb pactDbDir (NodeId i) inner
+
+
+runNodes
+    :: LogLevel
+    -> (T.Text -> IO ())
+    -> ChainwebVersion
+    -> [ChainwebConfiguration -> ChainwebConfiguration]
+        -- ^ number of nodes
+    -> RocksDb
+    -> FilePath
+    -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
+    -> IO ()
+runNodes = runNodes' id
+
 
 runNodesForSeconds
     :: LogLevel
@@ -330,9 +345,9 @@ runNodesForSeconds
     -> FilePath
     -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
-runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir inner = do
-    void $ timeout (int seconds * 1_000_000)
-        $ runNodes loglevel write v confBuilders rdb pactDbDir inner
+runNodesForSeconds loglevel write v confBuilders (Seconds seconds) =
+    runNodes' (void . timeout (int seconds * 1_000_000)) loglevel write v confBuilders
+
 
 -- | Ensure that we can compact a live node(s).
 --
