@@ -293,7 +293,7 @@ runNodes'
     -> FilePath
     -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
-runNodes' withTimeout loglevel write v confBuilders rdb pactDbDir inner = do
+runNodes' withTimeout _ write v confBuilders rdb pactDbDir inner = do
     -- NOTE: pact is enabled until we have a good way to disable it globally in
     -- "Chainweb.Chainweb".
     --
