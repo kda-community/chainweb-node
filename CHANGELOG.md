@@ -20,6 +20,8 @@ restart the node with the same configuration file as before.
 
 - Fix Genesis issue with Devnet ([#28](https://github.com/kda-community/chainweb-node/pull/28))
 
+- Fix some replay issues: ([#33](https://github.com/kda-community/chainweb-node/pull/33))
+
 - **TODO: Should this one be merged ??**
 - Improve resiliency of the network vs. unexpected hard forks and missing blocks ([#3](https://github.com/kda-community/chainweb-node/pull/3))
 
