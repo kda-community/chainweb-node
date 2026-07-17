@@ -366,6 +366,12 @@ instance Ord ForkHeight where
 
 makePrisms ''ForkHeight
 
+instance ToJSON ForkHeight where
+    toJSON (ForkAtForkNumber n )= object ["forkNumber" .= n]
+    toJSON (ForkAtBlockHeight h) = object ["blockHeight" .= h]
+    toJSON ForkAtGenesis= String "genesis"
+    toJSON ForkNever = String "never"
+
 succByHeight :: ForkHeight -> ForkHeight
 succByHeight (ForkAtBlockHeight x) = ForkAtBlockHeight $ succ x
 succByHeight ForkNever = ForkNever
