@@ -141,14 +141,14 @@ jobs:
         MATRIX="$(jq -c '.' <<EOF
         {
 
-          "ghc": ["9.10.2"],
+          "ghc": ["9.14.1"],
           "cabal": ["latest"],
           "os": ["ubuntu-22.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
               # These are the build values that will be used for release scripts
-              "ghc": "9.10.2",
+              "ghc": "9.14.1",
               "cabal": "latest",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
@@ -160,14 +160,14 @@ jobs:
         else
         MATRIX="$(jq -c '.' <<EOF
         {
-          "ghc": ["9.10.2"],
+          "ghc": ["9.14.1"],
           "cabal": ["latest"],
           "os": ["ubuntu-22.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
-              "ghc": "9.10.2",
-              "cabal": "3.14",
+              "ghc": "9.14.1",
+              "cabal": "3.16",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
             }

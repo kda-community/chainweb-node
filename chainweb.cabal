@@ -1,4 +1,4 @@
-cabal-version: 3.8
+cabal-version: 3.16
 
 name:         chainweb
 version:      3.1
@@ -15,8 +15,7 @@ category:     Blockchain, Currency, Bitcoin, Kadena
 build-type:   Simple
 
 tested-with:
-    GHC == 9.10
-    GHC == 9.8
+    GHC == 9.14
 
 extra-source-files:
     CHANGELOG.md
@@ -374,7 +373,7 @@ library
         , aeson >= 2.2
         , async >= 2.2
         , attoparsec >= 0.13
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , base16-bytestring >= 0.1
         , base64-bytestring-kadena == 0.1
         , binary >= 0.8
@@ -533,7 +532,7 @@ library chainweb-test-utils
         , QuickCheck >= 2.14
         , aeson >= 2.2
         , async >= 2.2
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , base16-bytestring >= 0.1
         , bytestring >= 0.10.12
         , case-insensitive >= 1.2
@@ -691,7 +690,7 @@ test-suite chainweb-tests
         , QuickCheck >= 2.14
         , aeson >= 2.2
         , async >= 2.2
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , base16-bytestring >= 0.1
         , base64-bytestring-kadena == 0.1
         , byteslice >= 0.2.12
@@ -781,7 +780,7 @@ test-suite compaction-tests
         , chainweb:chainweb-test-utils
 
         -- external
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , chainweb-storage >= 0.1
         , loglevel >= 0.1
         , tasty >= 1.0
@@ -808,7 +807,7 @@ test-suite multi-node-network-tests
         , chainweb:chainweb-test-utils
 
         -- external
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , chainweb-storage >= 0.1
         , loglevel >= 0.1
         , tasty >= 1.0
@@ -838,7 +837,7 @@ test-suite remote-tests
 
         -- external
         , async >= 2.2
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , bytestring >= 0.10.12
         , http-client >= 0.5
         , http-types >= 0.12
@@ -885,7 +884,7 @@ benchmark bench
         , QuickCheck >= 2.14
         , aeson >= 2.2
         , async >= 2.2
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , bytestring >= 0.10.12
         , chainweb-storage >= 0.1
         , containers >= 0.5
