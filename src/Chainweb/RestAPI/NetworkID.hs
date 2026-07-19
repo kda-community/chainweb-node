@@ -38,7 +38,7 @@ module Chainweb.RestAPI.NetworkID
 -- * Singletons
 , Sing(SChainNetwork, SMempoolNetwork, SCutNetwork)
 , type SNetwork
-, pattern FromSingNetworkId
+, data FromSingNetworkId
 ) where
 
 import Configuration.Utils

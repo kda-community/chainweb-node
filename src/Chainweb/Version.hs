@@ -93,9 +93,9 @@ module Chainweb.Version
     , PactVersionT(..)
     , ForBothPactVersions(..)
     , ForSomePactVersion(..)
-    , pattern ForPact4
+    , data ForPact4
     , _ForPact4
-    , pattern ForPact5
+    , data ForPact5
     , _ForPact5
     , forAnyPactVersion
 
@@ -110,7 +110,7 @@ module Chainweb.Version
     -- * Singletons
     , Sing(SChainwebVersion)
     , SChainwebVersion
-    , pattern FromSingChainwebVersion
+    , data FromSingChainwebVersion
 
     -- * HasChainwebVersion
     , HasChainwebVersion(..)
@@ -138,7 +138,7 @@ module Chainweb.Version
     -- ** Undirected Edges
     , AdjPair
     , _getAdjPair
-    , pattern Adj
+    , data Adj
     , adjs
     , adjsOfVertex
     , checkAdjacentChainIds

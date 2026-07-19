@@ -1,11 +1,12 @@
 {-# language LambdaCase #-}
 {-# language NumericUnderscores #-}
 {-# language OverloadedStrings #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# language PatternSynonyms #-}
 {-# language QuasiQuotes #-}
 {-# language ViewPatterns #-}
 
-module Chainweb.Version.Mainnet(mainnet, pattern Mainnet01) where
+module Chainweb.Version.Mainnet(mainnet, data Mainnet01) where
 
 import Control.Lens
 import qualified Data.HashMap.Strict as HM

@@ -88,13 +88,13 @@ module Chainweb.Pact.Types
   , _LocalResultWithWarns
   , _LocalResultLegacy
   , _LocalTimeout
-  , pattern Pact4LocalResultLegacy
+  , data Pact4LocalResultLegacy
   , _Pact4LocalResultLegacy
-  , pattern Pact5LocalResultLegacy
+  , data Pact5LocalResultLegacy
   , _Pact5LocalResultLegacy
-  , pattern Pact4LocalResultWithWarns
+  , data Pact4LocalResultWithWarns
   , _Pact4LocalResultWithWarns
-  , pattern Pact5LocalResultWithWarns
+  , data Pact5LocalResultWithWarns
   , _Pact5LocalResultWithWarns
   , LocalReq(..)
   , ReadOnlyReplayReq(..)

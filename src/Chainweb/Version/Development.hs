@@ -1,11 +1,12 @@
 {-# language LambdaCase #-}
 {-# language NumericUnderscores #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# language OverloadedStrings #-}
 {-# language PatternSynonyms #-}
 {-# language QuasiQuotes #-}
 {-# language ViewPatterns #-}
 
-module Chainweb.Version.Development(devnet, pattern Development) where
+module Chainweb.Version.Development(devnet, data Development) where
 
 import qualified Data.Set as Set
 
