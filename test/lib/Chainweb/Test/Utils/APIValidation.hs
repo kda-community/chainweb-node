@@ -24,7 +24,6 @@ import qualified Data.HashSet as HashSet
 import Data.IORef
 import qualified Data.Map as Map
 import qualified Data.Text.Encoding as T
-import Data.Typeable
 import qualified Data.Yaml as Yaml
 
 import GHC.Stack
@@ -53,7 +52,7 @@ data ValidationException = ValidationException
     , vResp :: (ResponseHeaders, Status, BL.ByteString)
     , vErr :: WV.TopLevelError
     }
-    deriving (Show, Typeable)
+    deriving (Show)
 
 instance Exception ValidationException
 

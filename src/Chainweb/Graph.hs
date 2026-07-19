@@ -48,7 +48,7 @@ module Chainweb.Graph
 
 -- * Undirected Edges
 , AdjPair
-, pattern Adj
+, data Adj
 , _getAdjPair
 , adjs
 , adjsOfVertex
@@ -476,4 +476,3 @@ d5k3ChainGraph = toChainGraph D5K3
 d5k4ChainGraph :: ChainGraph
 d5k4ChainGraph = toChainGraph D5K4
 {-# NOINLINE d5k4ChainGraph #-}
-

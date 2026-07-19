@@ -88,13 +88,13 @@ module Chainweb.Pact.Types
   , _LocalResultWithWarns
   , _LocalResultLegacy
   , _LocalTimeout
-  , pattern Pact4LocalResultLegacy
+  , data Pact4LocalResultLegacy
   , _Pact4LocalResultLegacy
-  , pattern Pact5LocalResultLegacy
+  , data Pact5LocalResultLegacy
   , _Pact5LocalResultLegacy
-  , pattern Pact4LocalResultWithWarns
+  , data Pact4LocalResultWithWarns
   , _Pact4LocalResultWithWarns
-  , pattern Pact5LocalResultWithWarns
+  , data Pact5LocalResultWithWarns
   , _Pact5LocalResultWithWarns
   , LocalReq(..)
   , ReadOnlyReplayReq(..)
@@ -609,7 +609,7 @@ instance Exception TxTimeout
 
 data Pact4TxFailureLog = Pact4TxFailureLog !Pact4.RequestKey !Pact4.PactError !Text
   deriving stock (Generic)
-  deriving anyclass (NFData, Typeable)
+  deriving anyclass (NFData)
 instance LogMessage Pact4TxFailureLog where
   logText (Pact4TxFailureLog rk err msg) =
     msg <> ": " <> sshow rk <> ": " <> sshow err
@@ -618,7 +618,7 @@ instance Show Pact4TxFailureLog where
 
 data Pact5TxFailureLog = Pact5TxFailureLog !Pact5.RequestKey !Text
   deriving stock (Generic)
-  deriving anyclass (NFData, Typeable)
+  deriving anyclass (NFData)
 instance LogMessage Pact5TxFailureLog where
   logText (Pact5TxFailureLog rk msg) =
     "Failed tx " <> sshow rk <> ": " <> msg

@@ -34,12 +34,12 @@ module Data.Singletons
 ( -- * Data family of singletons
   Sing(..)
 , SingI(..)
-, pattern Sing
+, data Sing
 
 -- * Sing Kind
 , SingKind(..)
 , SomeSing(..)
-, pattern FromSing
+, data FromSing
 
 -- * Sing Instance
 , SingInstance(..)
@@ -97,7 +97,7 @@ data family Sing :: k -> Type
 --
 class SingI (a :: k) where sing :: Sing a
 
--- | A pattern for converting between a singlton and the corresponding
+-- | A pattern for converting between a singleton and the corresponding
 -- 'SingInstance'.
 --
 pattern Sing :: forall k (a :: k) . () => SingI a => Sing a

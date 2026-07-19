@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -31,7 +32,7 @@ module Chainweb.MinerReward
 
 -- * KDA
 , Kda
-, pattern Kda
+, data Kda
 , _kda
 , stuToKda
 , kdaToStu
@@ -277,4 +278,3 @@ expectedMinerRewardsHash = read "8e4fb006c5045b3baab638d16d62c952e4981a4ba473ec6
 
 expectedRawMinerRewardsHash :: Digest SHA512
 expectedRawMinerRewardsHash = read "903d10b06666c0d619c8a28c74c3bb0af47209002f005b12bbda7b7df1131b2072ce758c1a8148facb1506022215ea201629f38863feb285c7e66f5965498fe0"
-

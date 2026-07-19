@@ -1,5 +1,6 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -8,7 +9,7 @@ module Ea.Genesis
 ( -- * Genesis tx data
   Genesis(..)
 , ChainIdRange
-, pattern ChainIdRange
+, data ChainIdRange
 , mkChainIdRange
 , onlyChainId
 , chainIdRangeTag

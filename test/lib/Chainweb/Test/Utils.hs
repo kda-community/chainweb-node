@@ -79,9 +79,9 @@ module Chainweb.Test.Utils
 -- * Tasty TestTree Server and ClientEnv
 , testHost
 , TestClientEnv(..)
-, pattern BlockHeaderDbsTestClientEnv
-, pattern PeerDbsTestClientEnv
-, pattern PayloadTestClientEnv
+, data BlockHeaderDbsTestClientEnv
+, data PeerDbsTestClientEnv
+, data PayloadTestClientEnv
 , withTestAppServer
 , withTestAppServerR
 , withChainwebTestServer

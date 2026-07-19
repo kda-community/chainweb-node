@@ -52,7 +52,7 @@ module Chainweb.ChainId
 -- * Singletons
 , Sing(SChainId)
 , type SChainId
-, pattern FromSingChainId
+, data FromSingChainId
 
 -- * Testing
 , unsafeChainId

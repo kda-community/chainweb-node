@@ -4,8 +4,9 @@
 {-# language PatternSynonyms #-}
 {-# language QuasiQuotes #-}
 {-# language ViewPatterns #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 
-module Chainweb.Version.Testnet04(testnet04, pattern Testnet04) where
+module Chainweb.Version.Testnet04(testnet04, data Testnet04) where
 
 import Control.Lens
 import qualified Data.HashMap.Strict as HM

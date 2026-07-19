@@ -1,5 +1,6 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 -- |
@@ -16,8 +17,8 @@ import Chainweb.Pact.Backend.ForkingBench qualified as ForkingBench
 import Chainweb.MempoolBench qualified as MempoolBench
 import Chainweb.Pact.Backend.PactService qualified as PactService
 import Chainweb.Storage.Table.RocksDB (withTempRocksDb)
-import Chainweb.Version.Development (pattern Development)
-import Chainweb.Version.RecapDevelopment (pattern RecapDevelopment)
+import Chainweb.Version.Development (data Development)
+import Chainweb.Version.RecapDevelopment (data RecapDevelopment)
 import Chainweb.Version.Registry (registerVersion)
 import Criterion.Main (defaultMain)
 import JSONEncoding qualified

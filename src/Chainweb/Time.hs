@@ -106,7 +106,7 @@ import Data.Int
 import qualified Data.Memory.Endian as BA
 import Data.Ratio
 import qualified Data.Text as T
-import Data.Time
+import Data.Time hiding (Seconds)
 import Data.Time.Clock.POSIX
 import Data.Time.Clock.System
 import Data.Word

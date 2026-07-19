@@ -43,8 +43,8 @@ import Chainweb.Storage.Table.RocksDB
 import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Version
-import Chainweb.Version.Development (pattern Development)
-import Chainweb.Version.RecapDevelopment (pattern RecapDevelopment)
+import Chainweb.Version.Development (data Development)
+import Chainweb.Version.RecapDevelopment (data RecapDevelopment)
 import Chainweb.Version.Registry (registerVersion)
 import Control.Concurrent.Async
 import Control.Exception
