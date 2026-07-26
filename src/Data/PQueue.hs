@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
 -- Module: Data.PQueue
@@ -14,19 +15,18 @@ module Data.PQueue
 ( PQueue
 , newEmptyPQueue
 , pQueueInsert
-, pQueueInsertLimit
 , pQueueRemove
 , pQueueIsEmpty
 , pQueueSize
 ) where
 
-import Control.Concurrent.MVar
-import Control.Exception (evaluate)
+import Control.Concurrent.STM
 import Control.Monad
+import Data.Foldable
 
-import qualified Data.Heap as H
-
-import GHC.Generics
+import Data.Ord
+import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Numeric.Natural
 
@@ -39,43 +39,53 @@ import Numeric.Natural
 -- items in the queue. An item of low priority my starve in the queue if higher
 -- priority items are added at a rate at least as high as items are removed.
 --
-data PQueue a = PQueue !(MVar ()) !(MVar (H.Heap a))
-    deriving (Generic)
+data PQueue a =
+    forall p k. (Ord p, Ord k) =>
+    PQueue (TVar (M.Map (Down p, k) a)) (TVar (S.Set k)) (a -> p) (a -> k) (Maybe Natural)
 
-newEmptyPQueue :: IO (PQueue a)
-newEmptyPQueue = PQueue <$> newEmptyMVar <*> newMVar mempty
+newEmptyPQueue :: (Ord p, Ord k) => (a -> p) -> (a -> k) -> Maybe Natural -> IO (PQueue a)
+newEmptyPQueue getPrio getKey maybeMaxLen = PQueue
+    <$> newTVarIO mempty
+    <*> newTVarIO mempty
+    <*> pure getPrio
+    <*> pure getKey
+    <*> pure maybeMaxLen
 
-pQueueInsert :: Ord a => PQueue a -> a -> IO ()
-pQueueInsert (PQueue s q) t = modifyMVarMasked_ q $ \h -> do
-    h' <- evaluate $ H.insert t h
-    void $ tryPutMVar s ()
-    return h'
-
-pQueueInsertLimit :: Ord a => PQueue a -> Natural -> a -> IO ()
-pQueueInsertLimit (PQueue s q) l t = modifyMVarMasked_ q $ \h -> do
-    h' <- evaluate $ H.insert t h
-    void $ tryPutMVar s ()
-    return $! if H.size h > 2 * fromIntegral l
-        then H.take (fromIntegral l) h'
-        else h'
+pQueueInsert :: PQueue a -> a -> IO ()
+pQueueInsert (PQueue mv sv getPrio getKey maybeMaxLen) a =
+    atomically $ do
+        s <- readTVar sv
+        m <- readTVar mv
+        let k = getKey a
+        if S.member k s
+        then return ()
+        else do
+            let s' = S.insert k s
+            let m' = M.insert (Down $ getPrio a, k) a m
+            let fixup (maxlen :: Natural) = if M.size m' > fromIntegral (2 * maxlen)
+                    then let (keep, dontkeep) = M.splitAt (fromIntegral maxlen) m'
+                    in (foldl' (flip (S.delete . snd)) s' (M.keys dontkeep), keep)
+                    else (s', m')
+            let (s'', m'') = maybe (s', m') fixup maybeMaxLen
+            writeTVar mv $! m''
+            writeTVar sv $! s''
 
 pQueueIsEmpty :: PQueue a -> IO Bool
-pQueueIsEmpty (PQueue _ q) = H.null <$!> readMVar q
+pQueueIsEmpty (PQueue mv _ _ _ _) = M.null <$!> readTVarIO mv
 
 pQueueSize :: PQueue a -> IO Natural
-pQueueSize (PQueue _ q) = fromIntegral . H.size <$!> readMVar q
+pQueueSize (PQueue mv _ _ _ _) = fromIntegral . M.size <$!> readTVarIO mv
 
 -- | If the queue is empty it blocks and races for new items
 --
 pQueueRemove :: PQueue a -> IO a
-pQueueRemove (PQueue s q) = run
+pQueueRemove (PQueue mv sv _getPrio _getKey _) = atomically run
   where
     run = do
-        r <- modifyMVarMasked q $ \h -> case H.uncons h of
-            Nothing -> return (h, Nothing)
-            Just (!a, !b) -> do
-                when (H.null b) $ void $ tryTakeMVar s
-                return (b, Just a)
-        case r of
-            Nothing -> takeMVar s >> run
-            (Just !x) -> return x
+        m <- readTVar mv
+        case M.minViewWithKey m of
+            Nothing -> retry
+            Just (((_, k), a), m') -> do
+                writeTVar mv $! m'
+                modifyTVar' sv (S.delete k)
+                return a
