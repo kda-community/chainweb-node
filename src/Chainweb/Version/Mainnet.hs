@@ -227,8 +227,20 @@ mainnet = ChainwebVersion
         Bottom (minBound, mempty)
     , _versionQuirks = VersionQuirks
         { _quirkGasFees = onChains
-            [ (unsafeChainId 0, HM.fromList [((BlockHeight 4585419, TxBlockIdx 0), Gas 67_618)])
-            , (unsafeChainId 9, HM.fromList [((BlockHeight 4594049, TxBlockIdx 0), Gas 69_092)])
+            [ (unsafeChainId 0, HM.fromList [((BlockHeight 4585419, TxBlockIdx 0), Gas 67_618)
+                                            ,((BlockHeight 4585422, TxBlockIdx 0), Gas 67_754)])
+            , (unsafeChainId 2, HM.fromList [((BlockHeight 4594041, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 3, HM.fromList [((BlockHeight 4594046, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 4, HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 5, HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 6, HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 7, HM.fromList [((BlockHeight 4594047, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 8, HM.fromList [((BlockHeight 4594051, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 9, HM.fromList [((BlockHeight 4594049, TxBlockIdx 0), Gas 69_092)
+                                            ,((BlockHeight 4594066, TxBlockIdx 0), Gas 67_777)])
+            , (unsafeChainId 10,HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 15,HM.fromList [((BlockHeight 4594049, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 19,HM.fromList [((BlockHeight 4594050, TxBlockIdx 0), Gas 69_092)])
             ]
         }
     , _versionForkNumber = 0
