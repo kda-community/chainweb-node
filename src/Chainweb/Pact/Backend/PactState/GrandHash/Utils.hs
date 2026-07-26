@@ -28,7 +28,7 @@ module Chainweb.Pact.Backend.PactState.GrandHash.Utils
 import Chainweb.BlockHeader (BlockHeader, blockHeight)
 import Chainweb.BlockHeight (BlockHeight(..))
 import Chainweb.ChainId (ChainId, chainIdToText)
-import Chainweb.CutDB (cutHashesTable, readHighestCutHeaders)
+import Chainweb.CutDB (cutHashesTable, readHighestCutHeaders')
 import Chainweb.Logger (Logger, logFunctionText)
 import Chainweb.Pact.Backend.PactState (getLatestPactStateAt, getLatestBlockHeight, addChainIdLabel)
 import Chainweb.Pact.Backend.PactState.EmbeddedSnapshot (Snapshot(..))
@@ -107,7 +107,7 @@ getLatestCutHeaders :: ()
 getLatestCutHeaders v rocksDb = do
   wbhdb <- initWebBlockHeaderDb rocksDb v
   let cutHashes = cutHashesTable rocksDb
-  latestCutHeaders <- readHighestCutHeaders v (\_ _ -> pure ()) wbhdb cutHashes
+  latestCutHeaders <- readHighestCutHeaders' v (\_ _ -> pure ()) wbhdb cutHashes
   pure (wbhdb, latestCutHeaders)
 
 -- | Take the latest cut headers, and find the minimum 'BlockHeight' across

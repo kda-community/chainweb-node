@@ -183,7 +183,7 @@ runVerifiers txCtx cmd = do
       gasUsed <- liftIO . readIORef . _geGasRef . _txEnvGasEnv =<< ask
       let initGasRemaining = MilliGas $ case (gasToMilliGas (gasLimit ^. _GasLimit), gasUsed) of
             (MilliGas gasLimitMilliGasWord, MilliGas gasUsedMilliGasWord) -> gasLimitMilliGasWord - gasUsedMilliGasWord
-      let allVerifiers = verifiersAt v (_chainId txCtx) (ctxCurrentBlockHeight txCtx)
+      let allVerifiers = verifiersAt v (_chainId txCtx) (ctxParentForkNumber txCtx) (ctxCurrentBlockHeight txCtx)
       let toModuleName m =
             Pact4.ModuleName
                     { Pact4._mnName = _mnName m
@@ -979,8 +979,8 @@ redeemGas logger db txCtx gasUsed maybeFundTxPactId cmd
 -- | Initial gas charged for transaction size
 --   ignoring the size of a continuation proof, if present
 --
-initialGasOf :: PayloadWithText meta ParsedCode -> Gas
-initialGasOf payload = Gas gasFee
+initialGasOf :: ChainwebVersion -> V.ChainId -> BlockHeight -> PayloadWithText meta ParsedCode -> Gas
+initialGasOf v cid bh payload = Gas gasFee
   where
     feePerByte :: Rational = 0.01
 
@@ -988,7 +988,9 @@ initialGasOf payload = Gas gasFee
       case payload ^. payloadObj . pPayload of
         Continuation (ContMsg _ _ _ _ (Just (ContProof p))) -> B.length p
         _ -> 0
-    txSize = SB.length (payload ^. payloadBytes) - contProofSize
+    txSize
+      | chainweb31 v cid bh = SB.length (payload ^. payloadBytes)
+      | otherwise = SB.length (payload ^. payloadBytes) - contProofSize
 
     costPerByte = fromIntegral txSize * feePerByte
     sizePenalty = txSizeAccelerationFee costPerByte

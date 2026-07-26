@@ -1023,6 +1023,7 @@ blockGasLimitTest _ reqIO = testCase "blockGasLimitTest" $ do
             (PactResult $ Right $ pString "output") 0 Nothing Nothing Nothing [])
         payload = toPayloadWithOutputs Pact4T noMiner block
         bh = newBlockHeader
+          (_versionForkNumber testVersion)
           mempty
           (_payloadWithOutputsPayloadHash payload)
           (Nonce 0)

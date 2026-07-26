@@ -130,13 +130,11 @@ testnet04 = ChainwebVersion
         Chainweb223Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 4_100_681 -- 2024-03-06 12:00:00+00:00
         Chainweb224Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 4_333_587 -- 2024-05-29 12:00:00+00:00
         Chainweb225Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 4_575_072 -- 2024-08-21 12:00:00+00:00
-        Chainweb226Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 4_816_925 -- 2024-11-13 12:00:00+00:00
         Pact5Fork -> AllChains $ ForkAtBlockHeight $ BlockHeight 5_058_738       -- 2025-02-05 12:00:00+00:00
         Chainweb228Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 5_155_146 -- 2025-03-11 00:00:00+00:00
-        Chainweb229Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 5_300_466 -- 2025-04-30 12:00:00+00:00
         Chainweb230Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 5_542_190 -- 2025-07-23 12:00:00+00:00
         Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 5_783_985 -- 2025-10-15 12:00:00+00:00
-        Chainweb232Pact -> AllChains ForkNever
+        Chainweb31 -> AllChains ForkNever
         MigratePlatformShare -> AllChains ForkNever
 
     , _versionGraphs =
@@ -146,10 +144,10 @@ testnet04 = ChainwebVersion
     , _versionWindow = WindowWidth 120
     , _versionHeaderBaseSizeBytes = 318 - 110
     , _versionMaxBlockGasLimit =
-        (succ $ testnet04 ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 180_000) `Above`
+        (succByHeight $ testnet04 ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) , Just 180_000) `Above`
         Bottom (minBound, Nothing)
-    , _versionMinimumBlockHeaderHistory =
-        (succ $ testnet04 ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 20_000) `Above`
+    , _versionSpvProofRootValidWindow =
+        (succByHeight $ testnet04 ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) , Just 20_000) `Above`
         Bottom (minBound, Nothing)
     , _versionBootstraps = domainAddr2PeerInfo testnet04BootstrapHosts
     , _versionGenesis = VersionGenesis
@@ -192,7 +190,7 @@ testnet04 = ChainwebVersion
         { _disablePeerValidation = False
         , _disableMempoolSync = False
         }
-    , _versionVerifierPluginNames = AllChains $ (4_100_681, Set.fromList $ map VerifierName ["hyperlane_v3_message"]) `Above`
+    , _versionVerifierPluginNames = AllChains $ (ForkAtBlockHeight $ BlockHeight $ 4_100_681, Set.fromList [VerifierName "hyperlane_v3_message"]) `Above`
         Bottom (minBound, mempty)
     , _versionQuirks = VersionQuirks
         { _quirkGasFees = onChains
@@ -200,5 +198,6 @@ testnet04 = ChainwebVersion
             , (unsafeChainId 2, HM.fromList [((BlockHeight 4108311, TxBlockIdx 0), Gas 65_130)])
             ]
         }
-    , _versionServiceDate = Just "2026-01-07T00:00:00Z"
+    , _versionForkNumber = 0
+    , _versionForkVoteCastingLength = 120 * 119 -- 5 days
     }

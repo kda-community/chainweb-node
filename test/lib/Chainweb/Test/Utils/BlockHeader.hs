@@ -137,7 +137,7 @@ testBlockHeader
         -- ^ parent block header
     -> BlockHeader
 testBlockHeader adj nonce p@(ParentHeader b) =
-    newBlockHeader adj payload nonce (BlockCreationTime $ add second t) p
+    newBlockHeader (_versionForkNumber $ _chainwebVersion b) adj payload nonce (BlockCreationTime $ add second t) p
   where
     payload = _payloadWithOutputsPayloadHash $ testBlockPayloadFromParent_ nonce p
     BlockCreationTime t = view blockCreationTime b

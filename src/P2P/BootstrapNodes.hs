@@ -30,13 +30,13 @@ import Chainweb.HostAddress
 --
 mainnetBootstrapHosts :: [HostAddress]
 mainnetBootstrapHosts = map unsafeHostAddressFromText
-    [ "fr-1.chainweb-community.org:443"
-    , "nl-1.chainweb-community.org:443"
-    , "pl-1.chainweb-community.org:443"
-    , "pl-2.chainweb-community.org:443"
-    , "ca-1.chainweb-community.org:443"
-    , "us-e1.bootstrap.kadinic.com:443"
-    ]
+     [ "fr-1.chainweb-community.org:443"
+     , "nl-1.chainweb-community.org:443"
+     , "pl-1.chainweb-community.org:443"
+     , "pl-2.chainweb-community.org:443"
+     , "ca-1.chainweb-community.org:443"
+     , "us-e1.bootstrap.kadinic.com:443"
+     ]
 
 -- -------------------------------------------------------------------------- --
 -- | Testnet04 bootstrap nodes.
@@ -48,11 +48,12 @@ mainnetBootstrapHosts = map unsafeHostAddressFromText
 -- Please make a pull request, if you like to see your node being included here.
 --
 testnet04BootstrapHosts :: [HostAddress]
-testnet04BootstrapHosts = map unsafeHostAddressFromText
-    [ "us1.testnet.chainweb.com:443"
-    , "us2.testnet.chainweb.com:443"
-    , "eu1.testnet.chainweb.com:443"
-    , "eu2.testnet.chainweb.com:443"
-    , "ap1.testnet.chainweb.com:443"
-    , "ap2.testnet.chainweb.com:443"
-    ]
+testnet04BootstrapHosts = []
+-- testnet04BootstrapHosts = map unsafeHostAddressFromText
+--     [ "us1.testnet.chainweb.com:443"
+--     , "us2.testnet.chainweb.com:443"
+--     , "eu1.testnet.chainweb.com:443"
+--     , "eu2.testnet.chainweb.com:443"
+--     , "ap1.testnet.chainweb.com:443"
+--     , "ap2.testnet.chainweb.com:443"
+--     ]

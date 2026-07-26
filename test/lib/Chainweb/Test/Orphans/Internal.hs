@@ -60,7 +60,7 @@ module Chainweb.Test.Orphans.Internal
 ) where
 
 import Control.Applicative
-import Control.Lens (view)
+import Control.Lens (view, set)
 import Control.Monad
 import Control.Monad.Catch
 
@@ -119,6 +119,7 @@ import Chainweb.Crypto.MerkleLog
 import Chainweb.Cut.Create
 import Chainweb.Cut.CutHashes
 import Chainweb.Difficulty
+import Chainweb.ForkState
 import Chainweb.Graph
 import Chainweb.HostAddress
 import Chainweb.Mempool.Mempool
@@ -189,10 +190,10 @@ instance Arbitrary ChainwebVersion where
     arbitrary = elements
         [ barebonesTestVersion singletonChainGraph
         , barebonesTestVersion petersenChainGraph
-        , timedConsensusVersion singletonChainGraph singletonChainGraph
-        , timedConsensusVersion petersenChainGraph petersenChainGraph
-        , timedConsensusVersion singletonChainGraph pairChainGraph
-        , timedConsensusVersion petersenChainGraph twentyChainGraph
+        , timedConsensusVersion 0 singletonChainGraph singletonChainGraph
+        , timedConsensusVersion 0 petersenChainGraph petersenChainGraph
+        , timedConsensusVersion 0 singletonChainGraph pairChainGraph
+        , timedConsensusVersion 0 petersenChainGraph twentyChainGraph
         , RecapDevelopment
         , Testnet04
         , Mainnet01
@@ -298,8 +299,7 @@ instance Arbitrary NodeInfo where
             , nodeGraphHistory = graphs
             , nodeLatestBehaviorHeight = latestBehaviorAt v
             , nodeGenesisHeights = map (\c -> (chainIdToText c, genesisHeight v c)) $ HS.toList $ chainIds v
-            , nodeHistoricalChains = ruleElems $ fmap (HM.toList . HM.map HS.toList . toAdjacencySets) $ _versionGraphs v
-            , nodeServiceDate = T.pack <$> _versionServiceDate v
+            , nodeHistoricalChains = ruleElems $ HM.toList . HM.map HS.toList . toAdjacencySets <$> _versionGraphs v
             , nodeBlockDelay = _versionBlockDelay v
             }
 
@@ -327,8 +327,14 @@ instance Arbitrary BlockCreationTime where
 instance Arbitrary EpochStartTime where
     arbitrary = EpochStartTime <$> arbitrary
 
-instance Arbitrary FeatureFlags where
-    arbitrary = return mkFeatureFlags
+instance Arbitrary ForkState where
+    arbitrary = do
+        v <- arbitrary
+        votes <- chooseBoundedIntegral (0, int (forkEpochLength v) * voteStep)
+        number <- chooseBoundedIntegral (0, 100000000)
+        return $ ForkState 0
+            & set forkVotes votes
+            & set forkNumber number
 
 instance Arbitrary BlockHeader where
     arbitrary = arbitrary >>= arbitraryBlockHeaderVersion
@@ -374,7 +380,8 @@ arbitraryBlockHeaderVersionHeightChain v h cid
     | otherwise = discard
   where
     entries t
-        = liftA2 (:+:) arbitrary -- feature flags
+        -- TODO: pick between 0 and the version fork number
+        = liftA2 (:+:) (pure $ ForkState 0) -- feature flags
         $ liftA2 (:+:) (pure $ BlockCreationTime t) -- time
         $ liftA2 (:+:) arbitrary -- parent hash
         $ liftA2 (:+:) arbitrary -- target
@@ -833,6 +840,7 @@ instance Arbitrary CoordinationConfig where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary NodeMiningConfig where
     arbitrary = NodeMiningConfig
@@ -849,7 +857,7 @@ instance Arbitrary MiningConfig where
 arbitraryEventPactValue :: Gen PactValue
 arbitraryEventPactValue = oneof
     [ PLiteral . LString <$> arbitrary
-    , PLiteral . LInteger <$> (int256ToInteger <$> arbitrary)
+    , PLiteral . LInteger . int256ToInteger <$> arbitrary
     ]
 
 -- | Arbitrary Pact events that are supported in events proofs

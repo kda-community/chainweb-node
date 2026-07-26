@@ -80,6 +80,7 @@ import Chainweb.Cut hiding (join)
 import Chainweb.Cut.Create
 import Chainweb.Cut.CutHashes
 import Chainweb.CutDB
+import Chainweb.ForkState(ForkNumber(..))
 import Chainweb.Logger (Logger, logFunction)
 import Chainweb.Logging.Miner
 import Chainweb.Miner.Config
@@ -130,6 +131,7 @@ data MiningCoordination logger tbl = MiningCoordination
     , _coordConf :: !CoordinationConfig
     , _coordUpdateStreamCount :: !(IORef Int)
     , _coordPrimedWork :: !(TVar PrimedWork)
+    , _coordTargetFork :: !ForkNumber
     }
 
 -- | Precached payloads for Private Miners. This allows new work requests to be
@@ -192,6 +194,7 @@ data ChainChoice = Anything | TriedLast !ChainId | Suggestion !ChainId
 newWork
     :: LogFunction
     -> ChainChoice
+    -> ForkNumber
     -> Miner
     -> WebBlockHeaderDb
         -- ^ this is used to lookup parent headers that are not in the cut
@@ -200,7 +203,7 @@ newWork
     -> TVar PrimedWork
     -> Cut
     -> IO (Maybe (T2 WorkHeader PayloadWithOutputs))
-newWork logFun choice eminer@(Miner mid _) hdb pact tpw c = do
+newWork logFun choice targetFork eminer@(Miner mid _) hdb pact tpw c = do
 
     -- Randomly pick a chain to mine on. we no longer support the caller
     -- specifying any particular one.
@@ -227,20 +230,20 @@ newWork logFun choice eminer@(Miner mid _) hdb pact tpw c = do
     case mr of
         Just (T2 WorkStale _) -> do
             logFun @T.Text Debug $ "newWork: chain " <> toText cid <> " has stale work"
-            newWork logFun Anything eminer hdb pact tpw c
+            newWork logFun Anything targetFork eminer hdb pact tpw c
         Just (T2 (WorkAlreadyMined _) _) -> do
             logFun @T.Text Debug $ "newWork: chain " <> sshow cid <> " has a payload that was already mined"
-            newWork logFun Anything eminer hdb pact tpw c
+            newWork logFun Anything targetFork eminer hdb pact tpw c
         Nothing -> do
             logFun @T.Text Debug $ "newWork: chain " <> toText cid <> " not mineable"
-            newWork logFun Anything eminer hdb pact tpw c
+            newWork logFun Anything targetFork eminer hdb pact tpw c
         Just (T2 (WorkReady newBlock) extension) -> do
             let (primedParentHash, primedParentHeight, _) = newBlockParent newBlock
             if primedParentHash == view blockHash (_parentHeader (_cutExtensionParent extension))
             then do
                 let payload = newBlockToPayloadWithOutputs newBlock
                 let !phash = _payloadWithOutputsPayloadHash payload
-                !wh <- newWorkHeader hdb extension phash
+                !wh <- newWorkHeader hdb targetFork extension phash
                 pure $ Just $ T2 wh payload
             else do
                 -- The cut is too old or the primed work is outdated. Probably
@@ -399,7 +402,7 @@ work mr mcid m = do
     --
     newWorkForCut = do
         c' <- _cut cdb
-        newWork logf choice m hdb pact (_coordPrimedWork mr) c' >>= \case
+        newWork logf choice (_coordTargetFork mr) m hdb pact (_coordPrimedWork mr) c' >>= \case
             Nothing -> newWorkForCut
             Just x -> return x
 

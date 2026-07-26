@@ -150,14 +150,12 @@ mainnet = ChainwebVersion
         Chainweb223Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 4_577_530) -- 2024-03-07 00:00:00+00:00
         Chainweb224Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 4_819_246) -- 2024-05-30 00:00:00+00:00
         Chainweb225Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 5_060_924) -- 2024-08-22 00:00:00+00:00
-        Chainweb226Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 5_302_559) -- 2024-11-14 00:00:00+00:00
         Pact5Fork -> AllChains (ForkAtBlockHeight $ BlockHeight 5_555_698)       -- 2025-02-10 00:00:00+00:00
         Chainweb228Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 5_659_280) -- 2025-03-18 00:00:00+00:00
-        Chainweb229Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 5_785_923) -- 2025-05-01 00:00:00+00:00
         Chainweb230Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 6_027_616) -- 2025-07-24 00:00:00+00:00
         Chainweb231Pact -> AllChains (ForkAtBlockHeight $ BlockHeight 6_269_344) -- 2025-10-16 00:00:00+00:00
-        Chainweb232Pact -> AllChains ForkNever
         MigratePlatformShare -> AllChains (ForkAtBlockHeight $ BlockHeight 6_335_858) -- 2025-11-07 04:00:00+00:00
+        Chainweb31 -> AllChains (ForkAtBlockHeight $ BlockHeight 6_510_742) -- 2026-01-08 00:00:00+00:00
 
     , _versionGraphs =
         (to20ChainsMainnet, twentyChainGraph) `Above`
@@ -166,10 +164,11 @@ mainnet = ChainwebVersion
     , _versionWindow = WindowWidth 120
     , _versionHeaderBaseSizeBytes = 318 - 110
     , _versionMaxBlockGasLimit =
-        (succ $ mainnet ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 180_000) `Above`
+        (succByHeight $ mainnet ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0), Just 180_000) `Above`
         Bottom (minBound, Nothing)
-    , _versionMinimumBlockHeaderHistory =
-        (succ $ mainnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) . _ForkAtBlockHeight, Just 20_000) `Above`
+    , _versionSpvProofRootValidWindow =
+        (succByHeight $ mainnet ^?! versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0), Nothing) `Above`
+        (succByHeight $ mainnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) , Just 20_000) `Above`
         Bottom (minBound, Nothing)
     , _versionBootstraps = domainAddr2PeerInfo mainnetBootstrapHosts
     , _versionGenesis = VersionGenesis
@@ -224,7 +223,7 @@ mainnet = ChainwebVersion
         , _disableMempoolSync = False
         }
     , _versionVerifierPluginNames = AllChains $
-        (4_577_530, Set.fromList $ map VerifierName ["hyperlane_v3_message"]) `Above`
+        (ForkAtBlockHeight $ BlockHeight 4_577_530, Set.fromList [VerifierName "hyperlane_v3_message"]) `Above`
         Bottom (minBound, mempty)
     , _versionQuirks = VersionQuirks
         { _quirkGasFees = onChains
@@ -232,5 +231,13 @@ mainnet = ChainwebVersion
             , (unsafeChainId 9, HM.fromList [((BlockHeight 4594049, TxBlockIdx 0), Gas 69_092)])
             ]
         }
-    , _versionServiceDate = Just "2026-01-07T00:00:00Z"
+    , _versionForkNumber = 0
+    -- | A epoch is 120 * 120 block heights, which, on mainnet, is expected to be 5
+    -- days.
+    --
+    -- Each fork epoch is divided into:
+    --
+    -- * 120 * 119 blocks for voting and
+    -- * 120 blocks for counting the votes
+    , _versionForkVoteCastingLength = 120 * 119
     }

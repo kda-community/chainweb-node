@@ -342,11 +342,12 @@ mineBlock ph nonce iop = timeout 5000000 go >>= \case
           $ _parentHeader ph
 
       let bh = newBlockHeader
-               mempty
-               (_payloadWithOutputsPayloadHash payload)
-               nonce
-               creationTime
-               ph
+              (_versionForkNumber $ _chainwebVersion ph)
+              mempty
+              (_payloadWithOutputsPayloadHash payload)
+              nonce
+              creationTime
+              ph
 
       _ <- validateBlock bh (CheckablePayloadWithOutputs payload) q
 

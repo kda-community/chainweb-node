@@ -74,14 +74,12 @@ recapDevnet = ChainwebVersion
         Chainweb223Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 600
         Chainweb224Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 610
         Chainweb225Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 620
-        Chainweb226Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 630
         Pact5Fork -> AllChains $ ForkAtBlockHeight $ BlockHeight 640
         Chainweb228Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 650
-        Chainweb229Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 660
         Chainweb230Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 680
         Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 690
-        Chainweb232Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
-        MigratePlatformShare -> AllChains $ ForkAtBlockHeight $ BlockHeight 710
+        MigratePlatformShare -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
+        Chainweb31 -> AllChains $ ForkAtBlockHeight $ BlockHeight 710
 
     , _versionUpgrades = foldr (chainZip HM.union) (AllChains mempty)
         [ indexByForkHeights recapDevnet
@@ -115,7 +113,7 @@ recapDevnet = ChainwebVersion
         }
 
     , _versionMaxBlockGasLimit = Bottom (minBound, Just 180_000)
-    , _versionMinimumBlockHeaderHistory = Bottom (minBound, Nothing)
+    , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
     , _versionCheats = VersionCheats
         { _disablePow = False
         , _fakeFirstEpochStart = True
@@ -126,8 +124,9 @@ recapDevnet = ChainwebVersion
         , _disableMempoolSync = False
         }
     , _versionVerifierPluginNames = AllChains $
-        (600, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"]) `Above`
+        (ForkAtBlockHeight $ BlockHeight 600, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"]) `Above`
         Bottom (minBound, mempty)
     , _versionQuirks = noQuirks
-    , _versionServiceDate = Nothing
+    , _versionForkNumber = 0
+    , _versionForkVoteCastingLength = 120 * 119 -- 5 days
     }

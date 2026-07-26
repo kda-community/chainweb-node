@@ -142,7 +142,19 @@ tests :: RocksDb -> TestTree
 tests rdb = withResource' (evaluate httpManager >> evaluate cert) $ \_ ->
     testGroup "Pact5 RemotePactTest"
         [ testCaseSteps "crosschainTest" (crosschainTest rdb)
-        , testCaseSteps "spvExpirationTest" (spvExpirationTest rdb)
+        , testCase "spvExpirationTest" $ spvExpirationTest
+            (pact5InstantCpmTestVersion False petersenChainGraph)
+            rdb
+            (P.fun _crResult
+                ? P.match _PactResultErr
+                ? P.fun _peMsg
+                ? P.equals "Continuation error: spv verification failed: target header is not in the chain or is out of bounds")
+        , testCase "spvExpirationDisabledTest" $ spvExpirationTest
+            (pact5InstantCpmTestVersionExpiryDisabled petersenChainGraph)
+            rdb
+            (P.fun _crResult
+                ? P.match _PactResultOk
+                ? P.succeed)
         , sendInvalidTxsTest rdb
         , testCaseSteps "caplistTest" (caplistTest rdb)
         , testCaseSteps "pollingInvalidRequestKeyTest" (pollingInvalidRequestKeyTest rdb)
@@ -162,7 +174,7 @@ tests rdb = withResource' (evaluate httpManager >> evaluate cert) $ \_ ->
 
 pollingInvalidRequestKeyTest :: RocksDb -> Step -> IO ()
 pollingInvalidRequestKeyTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -172,7 +184,7 @@ pollingInvalidRequestKeyTest baseRdb _step = runResourceT $ do
 
 pollingConfirmationDepthTest :: RocksDb -> Step -> IO ()
 pollingConfirmationDepthTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -239,7 +251,7 @@ pollingConfirmationDepthTest baseRdb _step = runResourceT $ do
 
 crosschainTest :: RocksDb -> Step -> IO ()
 crosschainTest baseRdb step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     fx <- mkFixture v baseRdb
 
     let srcChain = unsafeChainId 0
@@ -306,41 +318,51 @@ crosschainTest baseRdb step = runResourceT $ do
 
         recv <- buildTextCmd v
             $ set cbRPC (mkCont contMsg)
+            $ set cbGasPrice (GasPrice 1)
             $ defaultCmd targetChain
-        send fx v targetChain [recv]
-        let recvReqKey = cmdToRequestKey recv
-        advanceAllChains_ fx
-        poll fx v targetChain [recvReqKey]
-            >>= P.match (_head . _Just)
-            ? P.checkAll
-                [ P.fun _crResult ? P.match _PactResultOk P.succeed
-                , P.fun _crEvents ? P.alignExact
-                    [ P.succeed
-                    , P.checkAll
-                        [ P.fun _peName ? P.equals "TRANSFER_XCHAIN_RECD"
-                        , P.fun _peArgs ? P.equals
-                            [PString "", PString "sender01", PDecimal 1.0, PString (chainIdToText srcChain)]
-                        ]
-                    , P.fun _peName ? P.equals "X_RESUME"
-                    , P.succeed
-                    ]
-                ]
-
-        -- what if we try to complete an already-completed xchain?
+        -- what if we try to finish the xchain twice?
+        -- we need to submit this duplicate finisher *before* the completion for
+        -- coverage, because if we submit it *after*, the mempool will kick it
+        -- out, as we test later
         recvRepeated <- buildTextCmd v
             $ set cbRPC (mkCont contMsg)
+            $ set cbGasPrice (GasPrice 0.1)
             $ defaultCmd targetChain
-        send fx v targetChain [recvRepeated]
+        send fx v targetChain [recv, recvRepeated]
+        let recvReqKey = cmdToRequestKey recv
         let recvRepeatedReqKey = cmdToRequestKey recvRepeated
         advanceAllChains_ fx
-        poll fx v targetChain [recvRepeatedReqKey]
-            >>= P.match (_head . _Just)
-            ? P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.fun _boundedText
-            ? P.equals ("Requested defpact execution already completed for defpact id: " <> T.take 20 (renderDefPactId $ _peDefPactId cont) <> "...")
+        poll fx v targetChain [recvReqKey, recvRepeatedReqKey]
+            >>= P.alignExact ?
+                [ P.match _Just ? P.checkAll
+                    [ P.fun _crResult ? P.match _PactResultOk P.succeed
+                    , P.fun _crEvents ? P.alignExact
+                        [ P.succeed
+                        , P.checkAll
+                            [ P.fun _peName ? P.equals "TRANSFER_XCHAIN_RECD"
+                            , P.fun _peArgs ? P.equals
+                                [PString "", PString "sender01", PDecimal 1.0, PString (chainIdToText srcChain)]
+                            ]
+                        , P.fun _peName ? P.equals "X_RESUME"
+                        , P.succeed
+                        ]
+                    , P.fun _crGas ? P.equals (Gas 234)
+                    ]
+                , P.match _Just ? P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.fun _boundedText
+                    ? P.equals ("Requested defpact execution already completed for defpact id: " <> T.take 20 (renderDefPactId $ _peDefPactId cont) <> "...")
+                ]
+        recvRepeatedAfter <- buildTextCmd v
+            $ set cbRPC (mkCont contMsg)
+            $ defaultCmd targetChain
+        -- what if we try to continue an already-completed xchain, and submit
+        -- the continuation after the completion?
+        send fx v targetChain [recvRepeatedAfter]
+            & P.throws ? P.match _FailureResponse ? P.fun responseBody
+            ? textContains "failed with: This transaction is attempting to complete an already-completed defpact"
 
-spvExpirationTest :: RocksDb -> Step -> IO ()
-spvExpirationTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+
+spvExpirationTest :: ChainwebVersion -> RocksDb -> P.Prop TestPact5CommandResult -> IO ()
+spvExpirationTest v baseRdb prop = runResourceT $ do
     fx <- mkFixture v baseRdb
 
     let srcChain = unsafeChainId 0
@@ -371,7 +393,11 @@ spvExpirationTest baseRdb _step = runResourceT $ do
         -- more than sufficient for the target chain to be aware of the source xchain transfer.
         let waitBlocks :: Integral a => a
             waitBlocks = 10
-        let expirationWindow = fromMaybe (error "missing minimumBlockHeaderHistory") (minimumBlockHeaderHistory v maxBound)
+        -- the choice of minBound here is a bit arbitrary. but in the "expiry
+        -- disabled" case, we definitely don't want to use maxBound.
+        let expirationWindow = fromMaybe
+                (error "missing minimumBlockHeaderHistory")
+                (minimumBlockHeaderHistory v minBound minBound)
         when (int expirationWindow < waitBlocks + diameter (chainGraphAt v maxBound)) $ assertFailure "test version has a minimumBlockHeaderHistory that is too short to test"
 
         replicateM_ waitBlocks $ advanceAllChains_ fx
@@ -401,15 +427,12 @@ spvExpirationTest baseRdb _step = runResourceT $ do
         advanceAllChains_ fx
         poll fx v targetChain [recvReqKey]
             >>= P.match (_head . _Just)
-            ? P.checkAll
-                [ P.fun _crResult ? P.match _PactResultErr ? P.fun _peMsg ? P.equals "Continuation error: spv verification failed: target header is not in the chain or is out of bounds"
-                ]
-
+            ? prop
 
 -- this test suite really wants you not to put any transactions into the final block.
 sendInvalidTxsTest :: RocksDb -> TestTree
 sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
-    sequentialTestGroup "invalid txs in /send" AllFinish
+    dependentTestGroup "invalid txs in /send" AllFinish
         [ testGroup "send txs"
             [ testCase "syntax error" $ do
                 cmdParseFailure <- buildTextCmd v
@@ -578,8 +601,8 @@ sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
 
         ]
     where
-    v = pact5InstantCpmTestVersion petersenChainGraph
-    wrongV = pact5InstantCpmTestVersion twentyChainGraph
+    v = pact5InstantCpmTestVersion False petersenChainGraph
+    wrongV = pact5InstantCpmTestVersion False twentyChainGraph
 
     cid = unsafeChainId 0
     wrongChain = unsafeChainId 1
@@ -595,7 +618,7 @@ sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
 
 caplistTest :: RocksDb -> Step -> IO ()
 caplistTest baseRdb step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     fx <- mkFixture v baseRdb
 
     let cid = unsafeChainId 0
@@ -635,7 +658,7 @@ caplistTest baseRdb step = runResourceT $ do
 
 migratePlatformShareTest :: RocksDb -> Step -> IO ()
 migratePlatformShareTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion True petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
     cmd <- buildTextCmd v $ set cbRPC (mkExec' "(describe-keyset \"PS_C0\")") $ defaultCmd cid
@@ -761,7 +784,7 @@ allocation02KeyPair' =
 
 allocationTest :: RocksDb -> (String -> IO ()) -> IO ()
 allocationTest rdb step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v rdb
 
@@ -867,7 +890,7 @@ allocationTest rdb step = runResourceT $ do
 
 gasPurchaseFailureMessages :: RocksDb -> Step -> IO ()
 gasPurchaseFailureMessages rdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v rdb
 
@@ -943,7 +966,7 @@ transitionOccurs rdb _step = runResourceT $ do
         checkPactVersion fx v cid >>= P.equals Pact5
 
 -- | Test that xchains work across the Pact4->Pact4 transition boundary.
---   This is mostly the same as 'spvTest', except it waits for the transition.
+--   This is mostly the same as 'crosschainTest', except it waits for the transition.
 transitionCrosschain :: RocksDb -> Step -> IO ()
 transitionCrosschain rdb step = runResourceT $ do
     let v = instantCpmTransitionTestVersion petersenChainGraph
@@ -1026,7 +1049,7 @@ transitionCrosschain rdb step = runResourceT $ do
 -- by the pact service.
 webAuthnSignatureTest :: RocksDb -> Step -> IO ()
 webAuthnSignatureTest rdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion petersenChainGraph
+    let v = pact5InstantCpmTestVersion False petersenChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v rdb
     liftIO $ do
@@ -1041,7 +1064,7 @@ webAuthnSignatureTest rdb _step = runResourceT $ do
 
 localTests :: RocksDb -> TestTree
 localTests baseRdb = let
-    v = pact5InstantCpmTestVersion petersenChainGraph
+    v = pact5InstantCpmTestVersion False petersenChainGraph
     cid = unsafeChainId 0
     in testGroup "tests for local"
         [ testCase "ordinary txs" $ runResourceT $ do
@@ -1274,7 +1297,7 @@ localTests baseRdb = let
 
 pollingMetadataTest :: RocksDb -> Step -> IO ()
 pollingMetadataTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -1302,7 +1325,7 @@ pollingMetadataTest baseRdb _step = runResourceT $ do
 
 upgradeNamespaceTests :: RocksDb -> Step -> IO ()
 upgradeNamespaceTests baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 
@@ -1345,7 +1368,7 @@ upgradeNamespaceTests baseRdb _step = runResourceT $ do
 
 invalidSigCapNameTest :: RocksDb -> Step -> IO ()
 invalidSigCapNameTest baseRdb _step = runResourceT $ do
-    let v = pact5InstantCpmTestVersion singletonChainGraph
+    let v = pact5InstantCpmTestVersion False singletonChainGraph
     let cid = unsafeChainId 0
     fx <- mkFixture v baseRdb
 

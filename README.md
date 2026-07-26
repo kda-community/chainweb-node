@@ -1,7 +1,10 @@
 <p align="center">
-<img src="https://i.imgur.com/bAZFAGF.png" width="450" height="243" alt="Kadena" title="Kadena">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/kda-community/graphic-assets/refs/heads/main/logos/kda_community_edition_original/kdace_extended_darkbg_light_4000_1000.png" />
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/kda-community/graphic-assets/refs/heads/main/logos/kda_community_edition_original/kdace_extended_lightbg_dark_4000_1000.png" />
+  <img alt="KDA Community Edition" src="https://raw.githubusercontent.com/kda-community/graphic-assets/refs/heads/main/logos/kda_community_edition_original/kdace_extended_lightbg_dark_4000_1000.png" />
+</picture>
 </p>
-
 <p>&nbsp;</p>
 
 # Kadena Public Blockchain
@@ -11,12 +14,12 @@ protocol. Chainweb is a braided, parallelized Proof Of Work consensus mechanism
 that improves throughput and scalability in executing transactions on the
 blockchain while maintaining the security and integrity found in Bitcoin.
 
-Read our [whitepapers](https://www.kadena.io/whitepapers):
+Read our [whitepapers](https://kda-chain.org/developers.html):
 
 - [Chainweb: A Proof-of-Work Parallel-Chain Architecture for Massive Throughput](https://d31d887a-c1e0-47c2-aa51-c69f9f998b07.filesusr.com/ugd/86a16f_029c9991469e4565a7c334dd716345f4.pdf)
 - [Agent-based Simulations of Blockchain Protocols illustrated via Kadena's *Chainweb*](https://d31d887a-c1e0-47c2-aa51-c69f9f998b07.filesusr.com/ugd/86a16f_3b2d0c58179d4edd9df6df4d55d61dda.pdf)
 
-For additional information, press, and development inquiries, please refer to the Kadena [website](https://kadena.io)
+For additional information, press, and development inquiries, please refer to the Kadena [website](https://kda-chain.org/index.html)
 
 ## Table of Contents
 
@@ -31,9 +34,9 @@ For additional information, press, and development inquiries, please refer to th
 
 ## Docs
 
-The Kadena Docs site, which can be found [here](https://kadena-io.github.io/kadena-docs/) serves as a source of information about Kadena. You can find information about how to interact with the public chain, including how to get keys, view network activity, explore blocks, etc. [here](https://kadena-io.github.io/kadena-docs/Public-Chain-Docs).
+The Kadena Docs site, which can be found [here](https://kda-chain.org/docs/) serves as a source of information about Kadena. You can find information about how to interact with the public chain, including how to get keys, view network activity, explore blocks, etc. [here](https://kda-chain.org/docs/guides).
 
-If you have additions or comments, please submit a pull request or raise an issue - the GitHub project can be found [here](https://github.com/kadena-io/kadena-docs)
+If you have additions or comments, please submit a pull request or raise an issue - the GitHub project can be found [here](https://github.com/kda-community/kadena-docs)
 
 ## Installing Chainweb
 
@@ -49,7 +52,7 @@ If the node is also used as API server for Pact, mining, or chainweb-data: 4 CPU
 ### Docker (all batteries included)
 
 A docker image is available from
-[here](https://hub.docker.com/r/kadena/chainweb-node) and can be used with
+[here](https://hub.docker.com/r/mrkadcat/chainweb-node) and can be used with
 the following commands:
 
 ```shell
@@ -63,21 +66,21 @@ docker run -d -p 443:443 -v chainweb-db:target=/root/.local/share/chainweb-node/
 ```
 
 Further details can be found in the [README of the docker
-repository](https://hub.docker.com/r/kadena/chainweb-node).
+repository](https://hub.docker.com/r/mrkadcat/chainweb-node).
 
 ### Docker (bare metal)
 
 A docker image with just a bare chainweb-node binary and its dependencies is
-available at `ghcr.io/kadena-io/chainweb-node/ubuntu:latest`. It is up to the
+available at `ghcr.io/kda-community/chainweb-node/ubuntu:latest`. It is up to the
 user to setup and manage the database and configure the node to their needs.
 
 ```sh
-docker run -p 1789:1789 -p 80:80 --entrypoint=/chainweb/chainweb-node ghcr.io/kadena-io/chainweb-node/ubuntu:latest --help
-docker run -p 1789:1789 -p 80:80 --entrypoint=/chainweb/chainweb-node ghcr.io/kadena-io/chainweb-node/ubuntu:latest --print-config
+docker run -p 1789:1789 -p 80:80 --entrypoint=/chainweb/chainweb-node ghcr.io/kda-community/chainweb-node/ubuntu:latest --help
+docker run -p 1789:1789 -p 80:80 --entrypoint=/chainweb/chainweb-node ghcr.io/kda-community/chainweb-node/ubuntu:latest --print-config
 ```
 
 Examples for running docker compose setups for chainweb-node for different usage scenarios
-can be found in [this repository](https://github.com/kadena-io/docker-compose-chainweb-node).
+can be found in [this repository](https://github.com/kda-community/docker-compose-chainweb-node).
 
 ### Ubuntu Linux
 
@@ -94,7 +97,7 @@ The following packages must be installed on the host system:
     ```
 
 Chainweb-node binaries for ubuntu-20.04 and ubuntu-22.04 can be found
-[here](https://github.com/kadena-io/chainweb-node/releases).
+[here](https://github.com/kda-community/chainweb-node/releases).
 
 Download the archive for your system and extract the binaries and place them
 into a directory from where they can be executed.
@@ -106,7 +109,7 @@ At this point, you are ready to [run a Chainweb node](#configuring-running-and-m
 *IMPORTANT NOTE: We recommend the use of officially released chainweb-node
 binaries or docker images, which can be found in the
 [release section of this
-repository](https://github.com/kadena-io/chainweb-node/releases).
+repository](https://github.com/kda-community/chainweb-node/releases).
 If you decide to build your own binaries, please make sure to only use
 officially released and tagged versions of the code. Those versions are
 extensively tested to ensure that they are compatible with all other nodes in
@@ -150,7 +153,7 @@ cabal build
 Another way to build and run chainweb is to use the Nix package manager which
 has binary caching capabilities that allow you to download pre-built binaries
 for everything needed by Chainweb. For detailed instructions see [our
-    wiki](https://github.com/kadena-io/pact/wiki/Building-Kadena-Projects).
+    wiki](https://github.com/kda-community/pact/wiki/Building-Kadena-Projects).
 
 When the build is finished, you can run chainweb with the following command:
 
@@ -211,7 +214,7 @@ All bootstrap nodes are running on port 443.
 **This section assumes you've installed the `chainweb-node` binary** somewhere
 sensible, or otherwise have a simple way to refer to it. For running
 `chainweb-node` via docker, please see the instruction above in this document or
-visit our [docker repository](https://hub.docker.com/r/kadena/chainweb-node).
+visit our [docker repository](https://hub.docker.com/r/mrkadcat/chainweb-node).
 
 **Note:** Your node needs to be reachable from the public internet. You will
 have to perform Port Forwarding if your machine is behind a router (by default
@@ -312,15 +315,15 @@ $ curl -sk https://<bootstrap-node-url>/chainweb/0.0/mainnet01/cut | jq '.height
 
 ## Mine for a Chainweb Network
 
-Successful mining on mainnet requires specialized hardware (ASIC). The setup for solo mining involves running a chainweb-node with a configuration that enables mining and a [chainweb-mining-client](https://github.com/kadena-io/chainweb-mining-client/) that connects to the mining API of a chainweb-node and provides a Stratum API for the mining hardware (ASIC).
+Successful mining on mainnet requires specialized hardware (ASIC). The setup for solo mining involves running a chainweb-node with a configuration that enables mining and a [chainweb-mining-client](https://github.com/kda-community/chainweb-mining-client/) that connects to the mining API of a chainweb-node and provides a Stratum API for the mining hardware (ASIC).
 
 Detailed instructions for setting up all the infrastructure needed to start
-mining using `docker compose` can be found in the documentation of [docker-compose-chainweb-node/mining-node](https://github.com/kadena-io/docker-compose-chainweb-node/tree/main/mining-node).
+mining using `docker compose` can be found in the documentation of [docker-compose-chainweb-node/mining-node](https://github.com/kda-community/docker-compose-chainweb-node/tree/main/mining-node).
 
-For example, to set up a chainweb node for mining, see [this](https://github.com/kadena-io/docker-compose-chainweb-node/blob/main/mining-node/docker-compose.yaml#L126) section of the docker-compose file.
+For example, to set up a chainweb node for mining, see [this](https://github.com/kda-community/docker-compose-chainweb-node/blob/main/mining-node/docker-compose.yaml#L126) section of the docker-compose file.
 
 Detailed mining client instructions can be found in the documentation of
-[chainweb-mining-client](https://github.com/kadena-io/chainweb-mining-client/)
+[chainweb-mining-client](https://github.com/kda-community/chainweb-mining-client/)
 
 ## Chainweb Design
 

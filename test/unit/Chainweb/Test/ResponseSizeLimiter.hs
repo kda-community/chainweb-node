@@ -31,7 +31,7 @@ import PropertyMatchers qualified as P
 
 tests :: TestTree
 tests = testCase "Chainweb.Test.ResponseSizeLimiter" $ do
-    (mgr, _) <- PeerResources.connectionManager =<< PeerDB.newEmptyPeerDb (timedConsensusVersion singletonChainGraph pairChainGraph)
+    (mgr, _) <- PeerResources.connectionManager =<< PeerDB.newEmptyPeerDb (timedConsensusVersion 0 singletonChainGraph pairChainGraph)
 
     runResourceT $ do
         let smallString = "small string"

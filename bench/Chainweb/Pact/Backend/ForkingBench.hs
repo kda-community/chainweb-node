@@ -175,6 +175,7 @@ createBlock parent nonce pact = do
 
     let creationTime = add second $ view blockCreationTime $ _parentHeader parent
     let bh = newBlockHeader
+              (_versionForkNumber $ _chainwebVersion parent)
               mempty
               (_payloadWithOutputsPayloadHash payload)
               nonce

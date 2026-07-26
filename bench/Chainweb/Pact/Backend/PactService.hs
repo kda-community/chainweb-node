@@ -266,4 +266,4 @@ pact4Version :: ChainwebVersion
 pact4Version = instantCpmTestVersion singletonChainGraph
 
 pact5Version :: ChainwebVersion
-pact5Version = pact5InstantCpmTestVersion singletonChainGraph
+pact5Version = pact5InstantCpmTestVersion False singletonChainGraph

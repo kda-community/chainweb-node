@@ -172,6 +172,7 @@ blockHeaderFromTxLogs ph txLogs = do
         encodedLogRoot = runPutS $ encodeMerkleLogHash $ MerkleLogHash $ merkleRoot logMerkleTree
     fakePayloadHash <- runGetS decodeBlockPayloadHash encodedLogRoot
     return $ newBlockHeader
+        (_versionForkNumber (_chainwebVersion ph))
         mempty
         fakePayloadHash
         (Nonce 0)
