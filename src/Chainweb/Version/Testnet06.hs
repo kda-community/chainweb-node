@@ -15,6 +15,7 @@ import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Difficulty
 import Chainweb.Graph
+import Chainweb.Pact5.InitialGasModel
 import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Utils.Rule
@@ -104,7 +105,9 @@ testnet06 = ChainwebVersion
             , [(unsafeChainId i, TSTN.payloadBlock) | i <- [1..19]]
             ]
         }
-
+    , _versionInitialGasModel = AllChains $
+        (ForkNever, post32GasModel) `Above`
+        Bottom (minBound, post31GasModel)
     , _versionMaxBlockGasLimit = Bottom (minBound, Just 180_000)
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
     , _versionCheats = VersionCheats
@@ -117,7 +120,7 @@ testnet06 = ChainwebVersion
         , _disableMempoolSync = False
         }
     , _versionVerifierPluginNames = AllChains $
-        (600, Set.fromList $ map VerifierName ["hyperlane_v3_message"]) `Above`
+        (ForkAtBlockHeight $ BlockHeight 600, Set.fromList $ map VerifierName ["hyperlane_v3_message"]) `Above`
         Bottom (minBound, mempty)
     , _versionQuirks = noQuirks
     , _versionForkNumber = 0

@@ -22,7 +22,6 @@ module Data.PQueue
 
 import Control.Concurrent.STM
 import Control.Monad
-import Data.Foldable
 
 import Data.Ord
 import qualified Data.Map as M
