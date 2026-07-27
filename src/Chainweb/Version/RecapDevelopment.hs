@@ -9,10 +9,12 @@ module Chainweb.Version.RecapDevelopment(recapDevnet, pattern RecapDevelopment) 
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
+import Control.Lens
 
 import Chainweb.BlockCreationTime
 import Chainweb.BlockHeight
 import Chainweb.ChainId
+import Chainweb.Pact5.InitialGasModel
 import Chainweb.Difficulty
 import Chainweb.Graph
 import Chainweb.Time
@@ -113,6 +115,11 @@ recapDevnet = ChainwebVersion
         }
 
     , _versionMaxBlockGasLimit = Bottom (minBound, Just 180_000)
+    , _versionInitialGasModel = AllChains $
+        (ForkNever, post32GasModel) `Above`
+        (succByHeight $ recapDevnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0), post31GasModel) `Above`
+        Bottom (minBound, pre31GasModel)
+
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
     , _versionCheats = VersionCheats
         { _disablePow = False

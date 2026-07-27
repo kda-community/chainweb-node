@@ -57,6 +57,7 @@ module Chainweb.Version.Guards
     , pact4ParserVersion
     , maxBlockGasLimit
     , minimumBlockHeaderHistory
+    , activeInitialGasModel
     , validPPKSchemes
     , isWebAuthnPrefixLegal
     , validKeyFormats
@@ -75,6 +76,7 @@ import Chainweb.Pact4.Transaction qualified as Pact4
 import Chainweb.Utils.Rule
 import Chainweb.ForkState
 import Chainweb.Version
+import Chainweb.Pact5.InitialGasModel
 import Control.Lens
 import Data.Word (Word64)
 import Numeric.Natural
@@ -345,6 +347,12 @@ maxBlockGasLimit v fn bh = snd $ ruleZipperHere $ snd
 minimumBlockHeaderHistory :: ChainwebVersion -> ForkNumber -> BlockHeight -> Maybe Word64
 minimumBlockHeaderHistory v fn bh = snd $ ruleZipperHere $ snd
     $ ruleSeek (\h _ -> searchKey >= h) (_versionSpvProofRootValidWindow v)
+    where
+        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
+
+activeInitialGasModel :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> InitialGasModel
+activeInitialGasModel v cid fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h) $ v ^?! versionInitialGasModel . atChain cid
     where
         searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
