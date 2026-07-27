@@ -1,0 +1,12 @@
+code: |-
+  (define-keyset "allocation00" (read-keyset "allocation00"))
+  (define-keyset "allocation01" (read-keyset "allocation01"))
+  (define-keyset "allocation02" (read-keyset "allocation02"))
+
+data:
+  allocation00: ["f8a1c425cb65899ae0bf0dd4c6a982554f2ce8914c5084446f4999c3c0019990"]
+  allocation01: ["e55612401fb67190d3c0a905749264806a3b66c9b9d048b84b96e120e4a387dc"]
+  allocation02: ["d2502cdab08ef8649090e924d0fd69ce89c2c314fb52bf54405769aa5b425eeb"]
+
+nonce: testnet06-keysets-N
+keyPairs: []
