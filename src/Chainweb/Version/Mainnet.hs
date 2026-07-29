@@ -16,6 +16,7 @@ import Chainweb.BlockHeight
 import Chainweb.ChainId
 import Chainweb.Difficulty
 import Chainweb.Graph
+import Chainweb.Pact5.InitialGasModel
 import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Utils.Rule
@@ -167,6 +168,10 @@ mainnet = ChainwebVersion
     , _versionMaxBlockGasLimit =
         (succByHeight $ mainnet ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0), Just 180_000) `Above`
         Bottom (minBound, Nothing)
+    , _versionInitialGasModel = AllChains $
+        (ForkNever, post32GasModel) `Above`
+        (succByHeight $ mainnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0), post31GasModel) `Above`
+        Bottom (minBound, pre31GasModel)
     , _versionSpvProofRootValidWindow =
         -- TODO : Question is ChainWeb3.2 a good opportunity to reduce Proof valid window (6 month? eg. ) ????
         -- (mainnet ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), Just 525_600) `Above`
@@ -230,8 +235,20 @@ mainnet = ChainwebVersion
         Bottom (minBound, mempty)
     , _versionQuirks = VersionQuirks
         { _quirkGasFees = onChains
-            [ (unsafeChainId 0, HM.fromList [((BlockHeight 4585419, TxBlockIdx 0), Gas 67_618)])
-            , (unsafeChainId 9, HM.fromList [((BlockHeight 4594049, TxBlockIdx 0), Gas 69_092)])
+            [ (unsafeChainId 0, HM.fromList [((BlockHeight 4585419, TxBlockIdx 0), Gas 67_618)
+                                            ,((BlockHeight 4585422, TxBlockIdx 0), Gas 67_754)])
+            , (unsafeChainId 2, HM.fromList [((BlockHeight 4594041, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 3, HM.fromList [((BlockHeight 4594046, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 4, HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 5, HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 6, HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 7, HM.fromList [((BlockHeight 4594047, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 8, HM.fromList [((BlockHeight 4594051, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 9, HM.fromList [((BlockHeight 4594049, TxBlockIdx 0), Gas 69_092)
+                                            ,((BlockHeight 4594066, TxBlockIdx 0), Gas 67_777)])
+            , (unsafeChainId 10,HM.fromList [((BlockHeight 4594048, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 15,HM.fromList [((BlockHeight 4594049, TxBlockIdx 0), Gas 69_092)])
+            , (unsafeChainId 19,HM.fromList [((BlockHeight 4594050, TxBlockIdx 0), Gas 69_092)])
             ]
         }
     , _versionForkNumber = 1

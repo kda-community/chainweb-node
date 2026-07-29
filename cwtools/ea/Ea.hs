@@ -84,6 +84,7 @@ main = do
       , pact53Transitionnet
       , quirkedPact5Instantnet
       , testnet04
+      , testnet06
       , mainnet
       , genTxModules
       , genCoinV3Payloads
@@ -108,6 +109,7 @@ main = do
     pact53Transitionnet = mkPayloads [pact53TransitionCPM0, pact53TransitionCPMN]
     quirkedPact5Instantnet = mkPayloads [quirkedPact5InstantCPM0, quirkedPact5InstantCPMN]
     testnet04 = mkPayloads [testnet040, testnet04N]
+    testnet06 = mkPayloads [testnet060, testnet06N]
     mainnet = mkPayloads
       [ mainnet0
       , mainnet1

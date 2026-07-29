@@ -13,6 +13,8 @@
 module P2P.BootstrapNodes
 ( mainnetBootstrapHosts
 , testnet04BootstrapHosts
+, testnet06BootstrapHosts
+,
 ) where
 
 -- internal modules
@@ -57,3 +59,18 @@ testnet04BootstrapHosts = []
 --     , "ap1.testnet.chainweb.com:443"
 --     , "ap2.testnet.chainweb.com:443"
 --     ]
+
+-- -------------------------------------------------------------------------- --
+-- | Testnet06 bootstrap nodes.
+--
+-- Nodes in this list need a public DNS name and a corresponding TLS
+-- certificate. Operators of the nodes are expected to guarantee long term
+-- availability of the nodes.
+--
+-- Please make a pull request, if you like to see your node being included here.
+--
+testnet06BootstrapHosts :: [HostAddress]
+testnet06BootstrapHosts = map unsafeHostAddressFromText
+     [ "testnet06-1.chainweb-community.org:443"
+     , "testnet06-2.chainweb-community.org:443"
+     ]

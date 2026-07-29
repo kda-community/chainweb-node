@@ -36,6 +36,10 @@ module Ea.Genesis
 , testnet040
 , testnet04N
 
+-- * Testnet06 Genesis txs
+, testnet060
+, testnet06N
+
   -- * Mainnet Genesis txs
 , mainnet0
 , mainnet1
@@ -77,6 +81,7 @@ import Chainweb.Version.Development
 import Chainweb.Version.RecapDevelopment
 import Chainweb.Version.Mainnet
 import Chainweb.Version.Testnet04
+import Chainweb.Version.Testnet06
 
 -- ---------------------------------------------------------------------- --
 -- Genesis Tx Data
@@ -371,6 +376,28 @@ testnetAllocations = "pact/genesis/testnet04/allocations.yaml"
 
 testnetKeysets :: FilePath
 testnetKeysets = "pact/genesis/testnet04/keysets.yaml"
+
+
+-- ---------------------------------------------------------------------- --
+-- Testnet 06
+
+testnet060 :: Genesis
+testnet060 = Genesis
+    { _version = Testnet06
+    , _tag = "Testnet06"
+    , _txChainIds = onlyChainId 0
+    , _coinbase = Just "pact/genesis/testnet06/grants0.yaml"
+    , _keysets = Just "pact/genesis/testnet06/keysets.yaml"
+    , _allocations = Just "pact/genesis/testnet06/allocations.yaml"
+    , _namespaces = Just testNs
+    , _coinContract = [fungibleAssetV1, coinContractV1, gasPayer]
+    }
+
+testnet06N :: Genesis
+testnet06N = testnet060
+    & txChainIds .~ mkChainIdRange 1 19
+    & coinbase ?~ "pact/genesis/testnet06/grantsN.yaml"
+
 
 -- ---------------------------------------------------------------------- --
 -- Mainnet
