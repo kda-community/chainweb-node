@@ -22,15 +22,15 @@ restart the node with the same configuration file as before.
 
 - Fix some replay issues: ([#33](https://github.com/kda-community/chainweb-node/pull/33))
 
-- **TODO: Should this one be merged ??**
 - Improve resiliency of the network vs. unexpected hard forks and missing blocks ([#3](https://github.com/kda-community/chainweb-node/pull/3))
 
-- **TODO: Should this one be merged ??**
 - Add an option to disable X.509 certificate validation ([#26](https://github.com/kda-community/chainweb-node/pull/26))
 
-- **TODO: Should this one be merged ??**
 - Improve initial gas handling and gas-charge signatures/proofs according to their size and complexity ([#23](https://github.com/kda-community/chainweb-node/pull/23))
 
+- Fix some replay issues related to Pact-4 module cache.   ([#33](https://github.com/kda-community/chainweb-node/pull/33))
+
+- Shrink the SPV validation window to 6 months. Allowing nodes operators and miners to reduce dramatically the size of their blocks Database.
 
 ## 3.1 (2025-11-25)
 
