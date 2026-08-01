@@ -8,6 +8,7 @@
 module Chainweb.Version.Testnet06(testnet06, pattern Testnet06) where
 
 import qualified Data.HashMap.Strict as HM
+import Control.Lens
 import qualified Data.Set as Set
 
 import Chainweb.BlockCreationTime
@@ -78,6 +79,7 @@ testnet06 = ChainwebVersion
         Chainweb230Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 680
         Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 690
         Chainweb31 -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
+        Chainweb32-> AllChains (ForkAtForkNumber 1)
         MigratePlatformShare -> AllChains $ ForkNever
 
     , _versionUpgrades = foldr (chainZip HM.union) (AllChains mempty)
@@ -106,7 +108,7 @@ testnet06 = ChainwebVersion
             ]
         }
     , _versionInitialGasModel = AllChains $
-        (ForkNever, post32GasModel) `Above`
+        (testnet06 ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), post32GasModel) `Above`
         Bottom (minBound, post31GasModel)
     , _versionMaxBlockGasLimit = Bottom (minBound, Just 180_000)
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
@@ -123,6 +125,6 @@ testnet06 = ChainwebVersion
         (ForkAtBlockHeight $ BlockHeight 600, Set.fromList $ map VerifierName ["hyperlane_v3_message"]) `Above`
         Bottom (minBound, mempty)
     , _versionQuirks = noQuirks
-    , _versionForkNumber = 0
+    , _versionForkNumber = 1
     , _versionForkVoteCastingLength = 120 * 119 -- 5 days
     }

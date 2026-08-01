@@ -264,7 +264,6 @@ import Chainweb.Payload
 import Data.ByteString.Short (ShortByteString)
 import qualified Data.ByteString.Short as SB
 import qualified Data.Vector as V
-import qualified Pact.Core.Hash as Pact5
 import Data.Maybe
 import Chainweb.BlockCreationTime
 import qualified Data.Aeson as Aeson

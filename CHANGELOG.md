@@ -1,3 +1,37 @@
+## 3.2 (2026-07-10)
+
+This is a major version update. This release replaces all previous versions.
+The hard fork associated with this version will be triggered by miners at an unknown date.
+Node administrators must upgrade as soon as possible.
+
+This release is mandatory and fixes important reliability- and security-related issues.
+
+To upgrade, pull the latest docker image, or download the binary and
+restart the node with the same configuration file as before.
+
+### Changes
+- Upgrade to Pact 5.4.1
+
+- New Testnet ([#22](https://github.com/kda-community/chainweb-node/pull/22))
+
+- Manage the fork state by ForkNumbers ([#20](https://github.com/kda-community/chainweb-node/pull/20)), continuation of ([#2272](https://github.com/kadena-io/chainweb-node/commit/4aedec3bb04acd328655b17f29d41d6b077f317b))
+
+- Upgrade several upstream libraries ([#25](https://github.com/kda-community/chainweb-node/pull/25)), ([#24](https://github.com/kda-community/chainweb-node/pull/24)), ([#29](https://github.com/kda-community/chainweb-node/pull/29))
+
+- Fix Genesis issue with Devnet ([#28](https://github.com/kda-community/chainweb-node/pull/28))
+
+- Fix some replay issues: ([#33](https://github.com/kda-community/chainweb-node/pull/33))
+
+- Improve resiliency of the network vs. unexpected hard forks and missing blocks ([#3](https://github.com/kda-community/chainweb-node/pull/3))
+
+- Add an option to disable X.509 certificate validation ([#26](https://github.com/kda-community/chainweb-node/pull/26))
+
+- Improve initial gas handling and gas-charge signatures/proofs according to their size and complexity ([#23](https://github.com/kda-community/chainweb-node/pull/23))
+
+- Fix some replay issues related to Pact-4 module cache.   ([#33](https://github.com/kda-community/chainweb-node/pull/33))
+
+- Shrink the SPV validation window to 6 months. Allowing nodes operators and miners to reduce dramatically the size of their blocks Database.
+
 ## 3.1 (2025-11-25)
 
 This is a major version update. This release replaces all previous versions.

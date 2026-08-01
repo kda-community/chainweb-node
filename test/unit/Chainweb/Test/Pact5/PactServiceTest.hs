@@ -78,7 +78,7 @@ import Data.Vector (Vector)
 import Data.Vector qualified as Vector
 import Pact.Core.Capabilities
 import Pact.Core.ChainData hiding (ChainId, _chainId)
-import Pact.Core.Command.Types
+import Pact.Core.Command.Types hiding (ChainId)
 import Pact.Core.DefPacts.Types
 import Pact.Core.Gas.Types
 import Pact.Core.Hash qualified as Pact5

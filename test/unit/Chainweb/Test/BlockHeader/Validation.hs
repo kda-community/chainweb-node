@@ -336,7 +336,7 @@ forkValidation =
 
     -- after skipFeatureFlagValidationGuard is deactivated
     , ( hdr & h . blockForkNumber %~ (+1)
-      , [IncorrectHash, IncorrectPow, IncorrectForkNumber, UnknownForkNumber]
+      , [IncorrectHash, IncorrectPow, IncorrectForkNumber]
       )
     , ( hdr & h . blockForkVotes %~ addVote
       , [IncorrectHash, IncorrectPow]
@@ -369,13 +369,13 @@ forkValidation =
       , [IncorrectHash, IncorrectPow, InvalidForkVotes, InvalidForkVotes]
       )
     , ( hdr
-        & p . blockForkNumber .~ 10
-        & h . blockForkNumber .~ 10
+        & p . blockForkNumber .~ 250 -- I suppose, we will never reach 250...
+        & h . blockForkNumber .~ 250 --- assume that 250 will always be a Unknown Fork Number
       , [IncorrectHash, IncorrectPow, UnknownForkNumber]
       )
     , ( hdr
-        & p . blockForkNumber .~ 10
-        & h . blockForkNumber .~ 10 - 1
+        & p . blockForkNumber .~ 250
+        & h . blockForkNumber .~ 250 - 1
       , [IncorrectHash, IncorrectPow, IncorrectForkNumber, UnknownForkNumber]
       )
 
@@ -462,7 +462,7 @@ forkValidation =
         & p . blockForkVotes .~ int (forkEpochLength (_chainwebVersion hdr2)) * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
-      , [IncorrectHash, IncorrectPow, UnknownForkNumber]
+      , [IncorrectHash, IncorrectPow]
       )
     -- Test 25
     , ( hdr2
@@ -475,13 +475,13 @@ forkValidation =
         & p . blockForkVotes .~ (voteLength * 2 `quot` 3 - 1) * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
-      , [IncorrectHash, IncorrectPow, IncorrectForkNumber, UnknownForkNumber]
+      , [IncorrectHash, IncorrectPow, IncorrectForkNumber]
       )
     , ( hdr2
         & p . blockForkVotes .~ (voteLength * 2 `quot` 3 + 1) * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
-      , [IncorrectHash, IncorrectPow, UnknownForkNumber]
+      , [IncorrectHash, IncorrectPow]
       )
     , ( hdr2
         & p . blockForkVotes .~ (voteLength * 2 `quot` 3 + 1) * voteStep

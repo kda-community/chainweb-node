@@ -143,7 +143,6 @@ import qualified Pact.Core.Errors as Pact5
 import Chainweb.Pact.Backend.Types
 import qualified Chainweb.Pact.PactService.Checkpointer as Checkpointer
 import Chainweb.Pact.PactService.Checkpointer (SomeBlockM(..))
-import qualified Pact.Core.StableEncoding as Pact5
 import Control.Monad.Cont (evalContT)
 import qualified Data.List.NonEmpty as NonEmpty
 
