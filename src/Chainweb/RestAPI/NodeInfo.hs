@@ -39,11 +39,9 @@ import Chainweb.RestAPI.Utils
 import Chainweb.Utils
 import Chainweb.Utils.Rule
 import Chainweb.Version
+import Chainweb.ForkState (ForkNumber)
 
 type NodeInfoApi = "info" :> Get '[JSON] NodeInfo
-
-someNodeInfoApi :: SomeApi
-someNodeInfoApi = SomeApi (Proxy @NodeInfoApi)
 
 someNodeInfoServer :: ChainwebVersion -> CutDb tbl -> SomeServer
 someNodeInfoServer v c =
@@ -63,8 +61,8 @@ data NodeInfo = NodeInfo
   , nodeGraphHistory :: [(BlockHeight, [(Int, [Int])])]
     -- ^ List of chain graphs and the block height they took effect. Sorted
     -- descending by height so the current chain graph is at the beginning.
-  , nodeLatestBehaviorHeight :: BlockHeight
-    -- ^ Height at which the latest behavior of the node is activated. See
+  , nodeLatestBehaviorHeight :: ForkHeight
+    -- ^ Height or ForkuNumber at which the latest behavior of the node is activated. See
     -- `Chainweb.Version.latestBehaviorAt`.
   , nodeGenesisHeights :: [(Text, BlockHeight)]
     -- ^ Genesis heights of each chain.
@@ -72,9 +70,11 @@ data NodeInfo = NodeInfo
     -- ^ All graph upgrades
   , nodeBlockDelay :: BlockDelay
     -- ^ The PoW block delay of the node (microseconds)
+  , nodeForkNumber :: ForkNumber
+    -- ^ The ForkNumber of the given version of the node
   }
   deriving (Show, Eq, Generic)
-  deriving anyclass (ToJSON, FromJSON)
+  deriving anyclass (ToJSON)
 
 nodeInfoHandler :: ChainwebVersion -> SomeCutDb tbl -> Server NodeInfoApi
 nodeInfoHandler v (SomeCutDb (CutDbT db :: CutDbT cas v)) = do
@@ -95,6 +95,7 @@ nodeInfoHandler v (SomeCutDb (CutDbT db :: CutDbT cas v)) = do
       , nodeGenesisHeights = map (\c -> (chainIdToText c, genesisHeight v c)) $ HS.toList (chainIds v)
       , nodeHistoricalChains = ruleElems $ fmap (HM.toList . HM.map HS.toList . toAdjacencySets) $ _versionGraphs v
       , nodeBlockDelay = _versionBlockDelay v
+      , nodeForkNumber = _versionForkNumber v
       }
 
 -- | Converts chainwebGraphs to a simpler structure that has invertible JSON

@@ -371,6 +371,12 @@ instance Ord ForkHeight where
 
 makePrisms ''ForkHeight
 
+instance ToJSON ForkHeight where
+    toJSON (ForkAtForkNumber n )= object ["forkNumber" .= n]
+    toJSON (ForkAtBlockHeight h) = object ["blockHeight" .= h]
+    toJSON ForkAtGenesis= String "genesis"
+    toJSON ForkNever = String "never"
+
 succByHeight :: ForkHeight -> ForkHeight
 succByHeight (ForkAtBlockHeight x) = ForkAtBlockHeight $ succ x
 succByHeight ForkNever = ForkNever
@@ -845,14 +851,20 @@ indexByForkHeights v = OnChains . foldl' go (HM.empty <$ HS.toMap (chainIds v))
 
 -- | The block height at all chains at which the latest known behavior changes
 -- will have taken effect: forks, upgrade transactions, or graph changes.
-latestBehaviorAt :: ChainwebVersion -> BlockHeight
-latestBehaviorAt v = foldlOf' behaviorChanges max 0 v + 1
+latestBehaviorAt :: ChainwebVersion -> ForkHeight
+latestBehaviorAt v = foldlOf' behaviorChanges max' ForkAtGenesis v
     where
     behaviorChanges = fold
-        [ versionForks . folded . folded . _ForkAtBlockHeight
-        , versionUpgrades . folded . ifolded . asIndex
-        , versionGraphs . to ruleHead . _1
+        [ versionForks . folded . folded
+        , versionUpgrades . folded . ifolded . asIndex . to ForkAtBlockHeight
+        , versionGraphs . to ruleHead . _1 . to ForkAtBlockHeight
         ]
+
+    -- A special max function that ignores ForkNever
+    max' :: ForkHeight -> ForkHeight -> ForkHeight
+    max' x ForkNever = x
+    max' ForkNever x = x
+    max' x y = max x y
 
 -- | Easy construction of a `ChainMap` with entries for every chain
 -- in a `ChainwebVersion`.
