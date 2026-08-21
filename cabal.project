@@ -99,8 +99,8 @@ source-repository-package
 
 source-repository-package
     type: git
-    location: https://github.com/kda-community/pact-5-special-fix
-    tag: eee1d0a59a8e098e88a23b4a5eb9dc6c7d7b8444
+    location: https://github.com/kda-community/pact-5
+    tag: 72f427605406df61be8284091922f1fe1af7541b
 
 source-repository-package
     type: git

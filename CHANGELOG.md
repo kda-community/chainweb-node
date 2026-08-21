@@ -1,3 +1,11 @@
+## 3.2.1 (2026-08-10)
+
+This update fixes compilation issues with 3.2.
+Upgrading from 3.2 is not mandatory, and not strictly necessary
+
+### Changes
+- Build against Pact-5 official repository
+
 ## 3.2 (2026-07-10)
 
 This is a major version update. This release replaces all previous versions.
