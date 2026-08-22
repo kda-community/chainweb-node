@@ -518,10 +518,11 @@ fastForwardCutDb cutDb = do
 --
 stopCutDb :: CutDb tbl -> IO ()
 stopCutDb db = do
+    cancelWith (_cutDbAsync db) CutDbStopped
+
     currentCut <- readTVarIO (_cutDbCut db)
     unless (_cutDbReadOnly db) $
         casInsert (_cutDbCutStore db) (cutToCutHashes Nothing currentCut)
-    cancelWith (_cutDbAsync db) CutDbStopped
 
 -- | Lookup the BlockHeaders for a CutHashes structure. Throws an exception if
 -- the lookup for some BlockHash in the input CutHashes.
