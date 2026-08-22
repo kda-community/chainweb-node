@@ -398,6 +398,7 @@ compactLiveNodeTest logLevel v n rocksDb srcPactDir targetPactDir step = do
   (compactTime, nodeTime) <- concurrently compactAll run
 
   assertGe "node runs beyond compaction" (Actual nodeTime) (Expected compactTime)
+  threadDelay 60_000_000
 
 -- | This test is essentially just calling pact-calc followed by pact-import,
 --   and making sure that works end to end.
@@ -585,6 +586,7 @@ compactAndResumeTest logLevel v n srcRocksDb targetRocksDb srcPactDir targetPact
     -- We ensure that we've gotten to at least 1.5x the previous block count
     assertGe "average block count post-compaction" (Actual $ _statBlockCount stats2) (Expected (3 * _statBlockCount stats1 `div` 2))
     logFun $ sshow stats2
+    threadDelay 60_000_000
 
 replayTest
     :: LogLevel
@@ -662,6 +664,7 @@ replayTest loglevel v n rdb pactDbDir step = do
                 _ -> error "replayTest: not a replay"
         assertEqual "second replay completion" True =<< readIORef secondReplayCompleteRef
         tastylog "done."
+        threadDelay 60_000_000
 
 -- -------------------------------------------------------------------------- --
 -- Test that block production is efficient. The block delay in this test is
