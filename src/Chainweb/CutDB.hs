@@ -92,6 +92,7 @@ module Chainweb.CutDB
 ) where
 
 import Control.Applicative
+import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM.TVar
 import Control.DeepSeq
@@ -127,7 +128,7 @@ import qualified Streaming.Prelude as S
 
 import System.LogLevel
 import qualified System.Random.MWC as Prob
-import System.Timeout
+--import System.Timeout
 
 -- internal modules
 
@@ -776,8 +777,8 @@ cutHashesToBlockHeaderMap
         -- a 'Cut'.
 cutHashesToBlockHeaderMap conf logfun headerStore payloadStore hs =
     trace logfun "Chainweb.CutDB.cutHashesToBlockHeaderMap" hsid 1 $ do
-        timeout (_cutDbParamsFetchTimeout conf) go >>= \case
-            Nothing -> do
+        race (threadDelay (_cutDbParamsFetchTimeout conf)) go >>= \case
+            Left _-> do
                 let cutOriginText = case _cutHashesLocalPayload hs of
                         Nothing -> "from " <> maybe "unknown origin" (\p -> "origin " <> toText p) origin
                         Just _ -> "which was locally mined - the mining loop will stall until unstuck by another miner"
@@ -788,10 +789,10 @@ cutHashesToBlockHeaderMap conf logfun headerStore payloadStore hs =
                         <> " at height " <> sshow (_cutHashesHeight hs)
                         <> " from origin " <> cutOriginText
                 return Nothing
-            Just (Left missing) -> do
+            Right (Left missing) -> do
                 loggCutId logfun Warn hs $ "Failed to get prerequisites for some blocks. Missing: " <> encodeToText missing
                 return Nothing
-            Just (Right headers) -> do
+            Right (Right headers) -> do
                 return (Just headers)
   where
     hsid = _cutId hs
