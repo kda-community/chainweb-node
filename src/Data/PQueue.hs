@@ -21,6 +21,7 @@ module Data.PQueue
 , pQueueIsEmpty
 , pQueueSize
 , pQueueEnd
+, pQueueEndNice
 ) where
 
 import Control.Concurrent.STM
@@ -83,8 +84,13 @@ pQueueIsEmpty (PQueue mv _ _ _ _) = M.null <$!> readTVarIO mv
 pQueueSize :: PQueue a -> IO Natural
 pQueueSize (PQueue mv _ _ _ _) = fromIntegral . M.size <$!> readTVarIO mv
 
+-- End the queue by pushing a top priority EOF
 pQueueEnd :: PQueue a -> IO ()
 pQueueEnd (PQueue mv _ _ _ _) = atomically $ modifyTVar mv $ M.insert (Down maxBound, minBound) PQueueEOF
+
+-- End the queue by pushing a Lowest priority EOF
+pQueueEndNice :: PQueue a -> IO ()
+pQueueEndNice (PQueue mv _ _ _ _) = atomically $ modifyTVar mv $ M.insert (Down minBound, maxBound) PQueueEOF
 
 -- | If the queue is empty it blocks and races for new items
 --

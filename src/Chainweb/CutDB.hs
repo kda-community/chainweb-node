@@ -518,7 +518,7 @@ fastForwardCutDb cutDb = do
 --
 stopCutDb :: CutDb tbl -> IO ()
 stopCutDb db = do
-    pQueueEnd (_cutDbQueue db)
+    pQueueEndNice (_cutDbQueue db)
     void $ waitCatch (_cutDbAsync db)
 
     currentCut <- readTVarIO (_cutDbCut db)
