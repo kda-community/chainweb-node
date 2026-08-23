@@ -331,8 +331,11 @@ runNodesForSeconds
     -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
 runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir inner = do
-    void $ timeout (int seconds * 1_000_000)
-        $ runNodes loglevel write v confBuilders rdb pactDbDir inner
+    runNodes loglevel write v confBuilders rdb pactDbDir innerTimeout
+
+    where
+        innerTimeout:: NodeId -> StartedChainweb a -> IO()
+        innerTimeout nid cw = void $ timeout (int seconds * 1_000_000) $ inner nid cw
 
 -- | Ensure that we can compact a live node(s).
 --
