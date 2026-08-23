@@ -518,7 +518,8 @@ fastForwardCutDb cutDb = do
 --
 stopCutDb :: CutDb tbl -> IO ()
 stopCutDb db = do
-    cancelWith (_cutDbAsync db) CutDbStopped
+    pQueueEnd (_cutDbQueue db)
+    wait (_cutDbAsync db)
 
     currentCut <- readTVarIO (_cutDbCut db)
     unless (_cutDbReadOnly db) $
