@@ -775,7 +775,7 @@ cutHashesToBlockHeaderMap
     -> IO (Maybe (HM.HashMap ChainId BlockHeader))
         -- ^ The 'Left' value holds missing hashes, the 'Right' value holds
         -- a 'Cut'.
-cutHashesToBlockHeaderMap conf logfun headerStore payloadStore hs =
+cutHashesToBlockHeaderMap _ logfun headerStore payloadStore hs =
     trace logfun "Chainweb.CutDB.cutHashesToBlockHeaderMap" hsid 1 $ do
         race (threadDelay 30000000) go >>= \case
             Left _-> do
