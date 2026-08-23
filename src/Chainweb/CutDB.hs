@@ -777,7 +777,7 @@ cutHashesToBlockHeaderMap
         -- a 'Cut'.
 cutHashesToBlockHeaderMap conf logfun headerStore payloadStore hs =
     trace logfun "Chainweb.CutDB.cutHashesToBlockHeaderMap" hsid 1 $ do
-        race (threadDelay (_cutDbParamsFetchTimeout conf)) go >>= \case
+        race (threadDelay 30000000) go >>= \case
             Left _-> do
                 let cutOriginText = case _cutHashesLocalPayload hs of
                         Nothing -> "from " <> maybe "unknown origin" (\p -> "origin " <> toText p) origin
