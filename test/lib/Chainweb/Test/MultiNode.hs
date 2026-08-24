@@ -88,7 +88,7 @@ import System.Directory (createDirectoryIfMissing)
 import System.FilePath
 import System.IO.Temp
 import System.LogLevel
-import System.Timeout
+--import System.Timeout
 
 import Test.Tasty.HUnit
 
@@ -246,17 +246,22 @@ harvestConsensusState _ _ _ (Replayed _ _) =
     error "harvestConsensusState: doesn't work when replaying, replays don't do consensus"
 harvestConsensusState logger stateVar nid (StartedChainweb cw) = do
     runChainweb cw (\_ -> return ()) `finally` do
-        logFunctionText logger Info "Node terminated"
-        -- Wait a little bit to allow ongoing process  to settle
-        threadDelay 2_000_000
+        logFunctionText logg Warn "Node main threads ended"
+        --  But at this point, Warp server is still active and wait for the P2P listening socket to be closed
+        -- (see Warp doc)
+        -- Otherwise, other peers will continue to send us Cuts
 
-        logFunctionText logger Info "write sample data"
+        -- Warp as a graceful shutdown duration of 1 second.. Take a 1 second more margin to be sure the Cut queue
+        -- is fully flushed
+        logFunctionText logg Warn "write sample data"
         modifyMVar_ stateVar $
             sampleConsensusState
                 nid
                 (view (chainwebCutResources . cutsCutDb . cutDbWebBlockHeaderDb) cw)
                 (view (chainwebCutResources . cutsCutDb) cw)
-        logFunctionText logger Info "shutdown node"
+        logFunctionText logg Warn "shutdown node"
+    where
+        logg = addLabel ("node", toText nid) logger
 
 multiNode
     :: LogLevel
@@ -340,7 +345,12 @@ runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir
 
     where
         innerTimeout:: NodeId -> StartedChainweb a -> IO()
-        innerTimeout nid cw = void $ timeout (int seconds * 1_000_000) $ inner nid cw
+        innerTimeout nid cw = withAsync (inner nid cw) $ \_ -> do
+            threadDelay (int seconds * 1_000_000)
+            case cw of
+                StartedChainweb cw' -> SOCK.close (cw' ^. chainwebPeer . peerResSocket) >> threadDelay 2_000_000
+                _ -> return ()
+
 
 -- | Ensure that we can compact a live node(s).
 --

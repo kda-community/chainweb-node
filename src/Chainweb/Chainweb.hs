@@ -812,6 +812,7 @@ runChainweb cw nowServing = do
     serverSettings clientClosedConnectionsCounter =
         peerServerSettings (_peerResPeer $ _chainwebPeer cw)
         & setOnException (logWarpException "P2P API" clientClosedConnectionsCounter)
+        & setGracefulShutdownTimeout (Just 1)
         & setBeforeMainLoop (nowServing (nowServingP2PAPI .~ True))
 
     monitorConnectionsClosedByClient :: Counter.Counter "clientClosedConnections" -> IO ()
