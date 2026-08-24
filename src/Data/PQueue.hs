@@ -1,6 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase #-}
+
 
 -- |
 -- Module: Data.PQueue
@@ -18,10 +20,14 @@ module Data.PQueue
 , pQueueRemove
 , pQueueIsEmpty
 , pQueueSize
+, pQueueEnd
+, pQueueEndNice
 ) where
 
 import Control.Concurrent.STM
+import Control.Concurrent.Async (AsyncCancelled(..))
 import Control.Monad
+import Control.Exception
 
 import Data.Ord
 import qualified Data.Map as M
@@ -38,11 +44,14 @@ import Numeric.Natural
 -- items in the queue. An item of low priority my starve in the queue if higher
 -- priority items are added at a rate at least as high as items are removed.
 --
-data PQueue a =
-    forall p k. (Ord p, Ord k) =>
-    PQueue (TVar (M.Map (Down p, k) a)) (TVar (S.Set k)) (a -> p) (a -> k) (Maybe Natural)
 
-newEmptyPQueue :: (Ord p, Ord k) => (a -> p) -> (a -> k) -> Maybe Natural -> IO (PQueue a)
+data PQueueElement a = PQueueEOF | PQueueData a
+
+data PQueue a =
+    forall p k. (Ord p, Bounded p, Ord k, Bounded k) =>
+    PQueue (TVar (M.Map (Down p, k) (PQueueElement a))) (TVar (S.Set k)) (a -> p) (a -> k) (Maybe Natural)
+
+newEmptyPQueue :: (Ord p, Bounded p, Ord k, Bounded k)  => (a -> p) -> (a -> k) -> Maybe Natural -> IO (PQueue a)
 newEmptyPQueue getPrio getKey maybeMaxLen = PQueue
     <$> newTVarIO mempty
     <*> newTVarIO mempty
@@ -60,7 +69,7 @@ pQueueInsert (PQueue mv sv getPrio getKey maybeMaxLen) a =
         then return ()
         else do
             let s' = S.insert k s
-            let m' = M.insert (Down $ getPrio a, k) a m
+            let m' = M.insert (Down $ getPrio a, k) (PQueueData a) m
             let fixup (maxlen :: Natural) = if M.size m' > fromIntegral (2 * maxlen)
                     then let (keep, dontkeep) = M.splitAt (fromIntegral maxlen) m'
                     in (foldl' (flip (S.delete . snd)) s' (M.keys dontkeep), keep)
@@ -75,10 +84,21 @@ pQueueIsEmpty (PQueue mv _ _ _ _) = M.null <$!> readTVarIO mv
 pQueueSize :: PQueue a -> IO Natural
 pQueueSize (PQueue mv _ _ _ _) = fromIntegral . M.size <$!> readTVarIO mv
 
+-- End the queue by pushing a top priority EOF
+pQueueEnd :: PQueue a -> IO ()
+pQueueEnd (PQueue mv _ _ _ _) = atomically $ modifyTVar mv $ M.insert (Down maxBound, minBound) PQueueEOF
+
+-- End the queue by pushing a Lowest priority EOF
+pQueueEndNice :: PQueue a -> IO ()
+pQueueEndNice (PQueue mv _ _ _ _) = atomically $ modifyTVar mv $ M.insert (Down minBound, maxBound) PQueueEOF
+
 -- | If the queue is empty it blocks and races for new items
 --
 pQueueRemove :: PQueue a -> IO a
-pQueueRemove (PQueue mv sv _getPrio _getKey _) = atomically run
+pQueueRemove (PQueue mv sv _getPrio _getKey _) =
+  atomically run >>= \case
+    PQueueEOF -> throwIO AsyncCancelled
+    PQueueData a -> return a
   where
     run = do
         m <- readTVar mv
