@@ -618,13 +618,13 @@ replayTest loglevel v n rdb pactDbDir step = do
         tastylog $ "phase 3... replaying"
         let replayInitialHeight = 5
         firstReplayCompleteRef <- newIORef False
-        runNodesForSeconds loglevel logFun v
+        runNodes loglevel logFun v
             (replicate n
                 $ multiConfig n
                     & mapped . configCuts . cutInitialBlockHeightLimit
                         .~ Just replayInitialHeight
                     & mapped . configOnlySyncPact .~ True)
-            (Seconds 20) rdb pactDbDir $ \nid cw -> case cw of
+            rdb pactDbDir $ \nid cw -> case cw of
                 Replayed l (Just u) -> do
                     writeIORef firstReplayCompleteRef True
                     _ <- flip HM.traverseWithKey (_cutMap l) $ \cid bh ->
@@ -641,7 +641,7 @@ replayTest loglevel v n rdb pactDbDir step = do
         let fastForwardHeight = 10
         tastylog $ "phase 4... replaying with fast-forward limit"
         secondReplayCompleteRef <- newIORef False
-        runNodesForSeconds loglevel logFun v
+        runNodes loglevel logFun v
             (replicate n
                 $ multiConfig n
                     & mapped . configCuts . cutInitialBlockHeightLimit
@@ -650,7 +650,7 @@ replayTest loglevel v n rdb pactDbDir step = do
                         .~ Just fastForwardHeight
                     & mapped . configOnlySyncPact .~ True
                 )
-            (Seconds 20) rdb pactDbDir $ \_ cw -> case cw of
+            rdb pactDbDir $ \_ cw -> case cw of
                 Replayed l (Just u) -> do
                     writeIORef secondReplayCompleteRef True
                     _ <- flip HM.traverseWithKey (_cutMap l) $ \cid bh ->
