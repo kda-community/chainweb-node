@@ -408,7 +408,7 @@ withCutDb
 withCutDb config logfun headerStore payloadStore cutHashesStore a
     = bracket
         (startCutDb config logfun headerStore payloadStore cutHashesStore)
-        stopCutDb a
+        stopCutDb  a
 
 -- | Start a CutDB. This loads the initial cut from the database (falling back
 -- to the configured initial cut loading fails) and starts the cut validation
@@ -517,9 +517,9 @@ fastForwardCutDb cutDb = do
 
 -- | Stop the cut validation pipeline.
 --
-stopCutDb :: CutDb tbl -> IO ()
-stopCutDb db = do
-    pQueueEndNice (_cutDbQueue db)
+stopCutDb :: CutDb tbl ->  IO ()
+stopCutDb  db = do
+    pQueueEnd (_cutDbQueue db)
     void $ waitCatch (_cutDbAsync db)
 
     currentCut <- readTVarIO (_cutDbCut db)

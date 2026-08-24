@@ -82,7 +82,7 @@ import GHC.Generics
 import Numeric.Natural
 
 import qualified Streaming.Prelude as S
-import qualified Network.Socket as SOCK
+--import qualified Network.Socket as SOCK
 import Prelude hiding (log)
 
 import System.Directory (createDirectoryIfMissing)
@@ -248,12 +248,7 @@ harvestConsensusState _ _ _ (Replayed _ _) =
 harvestConsensusState logger stateVar nid (StartedChainweb cw) = do
     runChainweb cw (\_ -> return ()) `finally` do
         logFunctionText logg Warn "Node main threads ended"
-        --  But at this point, Warp server is still active and wait for the P2P listening socket to be closed
-        -- (see Warp doc)
-        -- Otherwise, other peers will continue to send us Cuts
-
-        -- Warp as a graceful shutdown duration of 1 second.. Take a 1 second more margin to be sure the Cut queue
-        -- is fully flushed
+        stopCutDb (cw ^. chainwebCutResources . cutsCutDb)
         logFunctionText logg Warn "write sample data"
         modifyMVar_ stateVar $
             sampleConsensusState
@@ -346,11 +341,12 @@ runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir
 
     where
         innerTimeout:: NodeId -> StartedChainweb a -> IO()
-        innerTimeout nid cw = withAsync (inner nid cw) $ \_ -> do
-            threadDelay (int seconds * 1_000_000)
-            case cw of
-                StartedChainweb cw' -> SOCK.close (cw' ^. chainwebPeer . peerResSocket) >> threadDelay 2_000_000
-                _ -> return ()
+        innerTimeout nid cw = void $ race (inner nid cw) $ threadDelay (int seconds * 1_000_000)
+        --innerTimeout nid cw = withAsync (inner nid cw) $ \_ -> do
+        --    threadDelay (int seconds * 1_000_000)
+        --    case cw of
+        --        StartedChainweb cw' -> SOCK.close (cw' ^. chainwebPeer . peerResSocket) >> threadDelay 2_000_000
+        --        _ -> return ()
 
 
 -- | Ensure that we can compact a live node(s).
