@@ -82,6 +82,7 @@ import GHC.Generics
 import Numeric.Natural
 
 import qualified Streaming.Prelude as S
+import qualified Network.Socket as SOCK
 import Prelude hiding (log)
 
 import System.Directory (createDirectoryIfMissing)
