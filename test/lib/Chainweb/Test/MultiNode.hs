@@ -63,6 +63,7 @@ import Data.ByteString.Base16 qualified as Base16
 import Chainweb.Pact.Backend.PactState.EmbeddedSnapshot (Snapshot(..))
 import Data.Aeson (ToJSON)
 import Data.Foldable
+import Data.Maybe
 import Data.Hashable
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
@@ -256,7 +257,7 @@ harvestConsensusState logger stateVar nid (StartedChainweb cw) = do
 multiNode
     :: LogLevel
     -> (T.Text -> IO ())
-    -> MVar PeerInfo
+    -> MVar (Maybe PeerInfo)
     -> ChainwebConfiguration
     -> RocksDb
     -> FilePath
@@ -269,9 +270,9 @@ multiNode loglevel write bootstrapPeerInfoVar conf rdb pactDbDir nid inner = do
             withChainweb conf logger namespacedNodeRocksDb (pactDbDir </> show nid) backupTmpDir False $ \cw -> do
                 case cw of
                     StartedChainweb cw' ->
-                        when (nid == bootstrapNodeId) $ putMVar bootstrapPeerInfoVar
+                        when (nid == bootstrapNodeId) $ putMVar bootstrapPeerInfoVar $ Just
                             $ view (chainwebPeer . peerResPeer . peerInfo) cw'
-                    Replayed _ _ -> return ()
+                    Replayed _ _ -> when (nid == bootstrapNodeId) $ putMVar bootstrapPeerInfoVar Nothing
                 inner nid cw
   where
     logger :: GenericLogger
@@ -313,7 +314,7 @@ runNodes loglevel write v confBuilders rdb pactDbDir inner = do
             | i == 0 ->
                 return $ multiBootstrapConfig baseConf
             | otherwise ->
-                setBootstrapPeerInfo <$> readMVar bootstrapPortVar <*> pure baseConf
+                maybe baseConf (`setBootstrapPeerInfo` baseConf) <$> readMVar bootstrapPortVar
 
         multiNode loglevel write bootstrapPortVar (confBuilder conf) rdb pactDbDir (NodeId i) inner
 
