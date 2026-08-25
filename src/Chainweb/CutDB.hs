@@ -241,15 +241,6 @@ cutHashesTable rdb = Casify $ newTable rdb valueCodec keyCodec ["CutHashes"]
         (runGetS $ (,,) <$> decodeCutHeightBe <*> decodeBlockWeightBe <*> decodeCutId)
     valueCodec = Codec encodeToByteString decodeStrictOrThrow'
 
--- -------------------------------------------------------------------------- --
--- Exceptions
-
-data CutDbStopped = CutDbStopped
-    deriving (Eq, Show, Generic)
-
-instance Exception CutDbStopped where
-  fromException = asyncExceptionFromException
-  toException = asyncExceptionToException
 
 -- -------------------------------------------------------------------------- --
 -- Cut DB
