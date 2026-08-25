@@ -245,13 +245,24 @@ harvestConsensusState _ _ _ (Replayed _ _) =
     error "harvestConsensusState: doesn't work when replaying, replays don't do consensus"
 harvestConsensusState logger stateVar nid (StartedChainweb cw) = do
     runChainweb cw (\_ -> return ()) `finally` do
-        logFunctionText logger Info "write sample data"
+        logFunctionText logger' Info "Node main threads ended"
+
+        -- At this point, Warp/Servant server is supposed to be closed.
+        -- But Warp doesn't kill existing connections. As such, other nodes
+        -- can continue to push new Cuts, despite we would like to freeze a final Cut.
+
+        -- A workaround is to  stop the CutDB right now, earlier as it is supposed to be?
+        stopCutDb (cw ^. chainwebCutResources . cutsCutDb)
+
+        logFunctionText logger' Info "write sample data"
         modifyMVar_ stateVar $
             sampleConsensusState
                 nid
                 (view (chainwebCutResources . cutsCutDb . cutDbWebBlockHeaderDb) cw)
                 (view (chainwebCutResources . cutsCutDb) cw)
-        logFunctionText logger Info "shutdown node"
+        logFunctionText logger' Info "shutdown node"
+    where
+        logger' = addLabel ("node", toText nid) logger
 
 multiNode
     :: LogLevel
@@ -630,8 +641,7 @@ replayTest loglevel v n rdb pactDbDir step = do
                     writeIORef firstReplayCompleteRef True
                     _ <- flip HM.traverseWithKey (_cutMap l) $ \cid bh ->
                         assertEqual ("lower chain " <> sshow cid) replayInitialHeight (view blockHeight bh)
-                    -- TODO: this is flaky, presumably because a node's cutdb
-                    -- is not being cancelled synchronously enough
+
                     assertEqual "upper cut" (_stateCutMap state2 HM.! nid) u
                     _ <- flip HM.traverseWithKey (_cutMap u) $ \cid bh ->
                         assertGe ("upper chain " <> sshow cid) (Actual $ view blockHeight bh) (Expected replayInitialHeight)
