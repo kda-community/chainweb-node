@@ -88,7 +88,6 @@ import System.Directory (createDirectoryIfMissing)
 import System.FilePath
 import System.IO.Temp
 import System.LogLevel
-import System.Timeout
 
 import Test.Tasty.HUnit
 
@@ -331,9 +330,11 @@ runNodesForSeconds
     -> FilePath
     -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
-runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir inner = do
-    void $ timeout (int seconds * 1_000_000)
-        $ runNodes loglevel write v confBuilders rdb pactDbDir inner
+runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir inner =
+    runNodes loglevel write v confBuilders rdb pactDbDir innerWithTimeout
+    where
+        innerWithTimeout:: NodeId -> StartedChainweb a -> IO()
+        innerWithTimeout nid cw = void $ race (inner nid cw) $ threadDelay (int seconds * 1_000_000)
 
 -- | Ensure that we can compact a live node(s).
 --
