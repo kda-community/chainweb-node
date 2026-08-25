@@ -241,15 +241,6 @@ cutHashesTable rdb = Casify $ newTable rdb valueCodec keyCodec ["CutHashes"]
         (runGetS $ (,,) <$> decodeCutHeightBe <*> decodeBlockWeightBe <*> decodeCutId)
     valueCodec = Codec encodeToByteString decodeStrictOrThrow'
 
--- -------------------------------------------------------------------------- --
--- Exceptions
-
-data CutDbStopped = CutDbStopped
-    deriving (Eq, Show, Generic)
-
-instance Exception CutDbStopped where
-  fromException = asyncExceptionFromException
-  toException = asyncExceptionToException
 
 -- -------------------------------------------------------------------------- --
 -- Cut DB
@@ -518,10 +509,12 @@ fastForwardCutDb cutDb = do
 --
 stopCutDb :: CutDb tbl -> IO ()
 stopCutDb db = do
+    pQueueEnd (_cutDbQueue db)
+    void $ waitCatch (_cutDbAsync db)
+
     currentCut <- readTVarIO (_cutDbCut db)
     unless (_cutDbReadOnly db) $
         casInsert (_cutDbCutStore db) (cutToCutHashes Nothing currentCut)
-    cancelWith (_cutDbAsync db) CutDbStopped
 
 -- | Lookup the BlockHeaders for a CutHashes structure. Throws an exception if
 -- the lookup for some BlockHash in the input CutHashes.

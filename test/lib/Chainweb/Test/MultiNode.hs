@@ -63,6 +63,7 @@ import Data.ByteString.Base16 qualified as Base16
 import Chainweb.Pact.Backend.PactState.EmbeddedSnapshot (Snapshot(..))
 import Data.Aeson (ToJSON)
 import Data.Foldable
+import Data.Maybe
 import Data.Hashable
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
@@ -87,7 +88,6 @@ import System.Directory (createDirectoryIfMissing)
 import System.FilePath
 import System.IO.Temp
 import System.LogLevel
-import System.Timeout
 
 import Test.Tasty.HUnit
 
@@ -245,18 +245,30 @@ harvestConsensusState _ _ _ (Replayed _ _) =
     error "harvestConsensusState: doesn't work when replaying, replays don't do consensus"
 harvestConsensusState logger stateVar nid (StartedChainweb cw) = do
     runChainweb cw (\_ -> return ()) `finally` do
-        logFunctionText logger Info "write sample data"
+        logFunctionText logger' Info "Node main threads ended"
+
+        -- At this point, Warp/Servant server is supposed to be closed.
+        -- But Warp doesn't kill existing connections. As such, other nodes
+        -- can continue to push new Cuts, despite we would like to freeze a final Cut.
+
+        -- A workaround is to early stop the CutDB, and not wait for the node to do it
+        -- naturally during unwinding.
+        stopCutDb (cw ^. chainwebCutResources . cutsCutDb)
+
+        logFunctionText logger' Info "write sample data"
         modifyMVar_ stateVar $
             sampleConsensusState
                 nid
                 (view (chainwebCutResources . cutsCutDb . cutDbWebBlockHeaderDb) cw)
                 (view (chainwebCutResources . cutsCutDb) cw)
-        logFunctionText logger Info "shutdown node"
+        logFunctionText logger' Info "shutdown node"
+    where
+        logger' = addLabel ("node", toText nid) logger
 
 multiNode
     :: LogLevel
     -> (T.Text -> IO ())
-    -> MVar PeerInfo
+    -> MVar (Maybe PeerInfo)
     -> ChainwebConfiguration
     -> RocksDb
     -> FilePath
@@ -269,9 +281,9 @@ multiNode loglevel write bootstrapPeerInfoVar conf rdb pactDbDir nid inner = do
             withChainweb conf logger namespacedNodeRocksDb (pactDbDir </> show nid) backupTmpDir False $ \cw -> do
                 case cw of
                     StartedChainweb cw' ->
-                        when (nid == bootstrapNodeId) $ putMVar bootstrapPeerInfoVar
+                        when (nid == bootstrapNodeId) $ putMVar bootstrapPeerInfoVar $ Just
                             $ view (chainwebPeer . peerResPeer . peerInfo) cw'
-                    Replayed _ _ -> return ()
+                    Replayed _ _ -> when (nid == bootstrapNodeId) $ putMVar bootstrapPeerInfoVar Nothing
                 inner nid cw
   where
     logger :: GenericLogger
@@ -313,7 +325,7 @@ runNodes loglevel write v confBuilders rdb pactDbDir inner = do
             | i == 0 ->
                 return $ multiBootstrapConfig baseConf
             | otherwise ->
-                setBootstrapPeerInfo <$> readMVar bootstrapPortVar <*> pure baseConf
+                maybe baseConf (`setBootstrapPeerInfo` baseConf) <$> readMVar bootstrapPortVar
 
         multiNode loglevel write bootstrapPortVar (confBuilder conf) rdb pactDbDir (NodeId i) inner
 
@@ -330,9 +342,11 @@ runNodesForSeconds
     -> FilePath
     -> (forall logger. NodeId -> StartedChainweb logger -> IO ())
     -> IO ()
-runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir inner = do
-    void $ timeout (int seconds * 1_000_000)
-        $ runNodes loglevel write v confBuilders rdb pactDbDir inner
+runNodesForSeconds loglevel write v confBuilders (Seconds seconds) rdb pactDbDir inner =
+    runNodes loglevel write v confBuilders rdb pactDbDir innerWithTimeout
+    where
+        innerWithTimeout:: NodeId -> StartedChainweb a -> IO()
+        innerWithTimeout nid cw = void $ race (inner nid cw) $ threadDelay (int seconds * 1_000_000)
 
 -- | Ensure that we can compact a live node(s).
 --
@@ -617,19 +631,18 @@ replayTest loglevel v n rdb pactDbDir step = do
         tastylog $ "phase 3... replaying"
         let replayInitialHeight = 5
         firstReplayCompleteRef <- newIORef False
-        runNodesForSeconds loglevel logFun v
+        runNodes loglevel logFun v
             (replicate n
                 $ multiConfig n
                     & mapped . configCuts . cutInitialBlockHeightLimit
                         .~ Just replayInitialHeight
                     & mapped . configOnlySyncPact .~ True)
-            (Seconds 20) rdb pactDbDir $ \nid cw -> case cw of
+            rdb pactDbDir $ \nid cw -> case cw of
                 Replayed l (Just u) -> do
                     writeIORef firstReplayCompleteRef True
                     _ <- flip HM.traverseWithKey (_cutMap l) $ \cid bh ->
                         assertEqual ("lower chain " <> sshow cid) replayInitialHeight (view blockHeight bh)
-                    -- TODO: this is flaky, presumably because a node's cutdb
-                    -- is not being cancelled synchronously enough
+
                     assertEqual "upper cut" (_stateCutMap state2 HM.! nid) u
                     _ <- flip HM.traverseWithKey (_cutMap u) $ \cid bh ->
                         assertGe ("upper chain " <> sshow cid) (Actual $ view blockHeight bh) (Expected replayInitialHeight)
@@ -640,7 +653,7 @@ replayTest loglevel v n rdb pactDbDir step = do
         let fastForwardHeight = 10
         tastylog $ "phase 4... replaying with fast-forward limit"
         secondReplayCompleteRef <- newIORef False
-        runNodesForSeconds loglevel logFun v
+        runNodes loglevel logFun v
             (replicate n
                 $ multiConfig n
                     & mapped . configCuts . cutInitialBlockHeightLimit
@@ -649,7 +662,7 @@ replayTest loglevel v n rdb pactDbDir step = do
                         .~ Just fastForwardHeight
                     & mapped . configOnlySyncPact .~ True
                 )
-            (Seconds 20) rdb pactDbDir $ \_ cw -> case cw of
+            rdb pactDbDir $ \_ cw -> case cw of
                 Replayed l (Just u) -> do
                     writeIORef secondReplayCompleteRef True
                     _ <- flip HM.traverseWithKey (_cutMap l) $ \cid bh ->

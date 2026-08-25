@@ -57,7 +57,7 @@ newtype BlockWeight = BlockWeight HashDifficulty
         ( Hashable
         , ToJSON, FromJSON, ToJSONKey, FromJSONKey
         , AdditiveSemigroup, AdditiveAbelianSemigroup
-        , Num
+        , Num, Bounded
         )
 
 instance MerkleHashAlgorithm a => IsMerkleLogEntry a ChainwebHashTag BlockWeight where
