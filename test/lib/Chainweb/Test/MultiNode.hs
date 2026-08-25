@@ -251,7 +251,8 @@ harvestConsensusState logger stateVar nid (StartedChainweb cw) = do
         -- But Warp doesn't kill existing connections. As such, other nodes
         -- can continue to push new Cuts, despite we would like to freeze a final Cut.
 
-        -- A workaround is to  stop the CutDB right now, earlier as it is supposed to be?
+        -- A workaround is to early stop the CutDB, and not wait for the node to do it
+        -- naturally during unwinding.
         stopCutDb (cw ^. chainwebCutResources . cutsCutDb)
 
         logFunctionText logger' Info "write sample data"
