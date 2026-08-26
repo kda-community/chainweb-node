@@ -1018,7 +1018,9 @@ withNodesAtLatestBehavior
     -> ResourceT IO ChainwebNetwork
 withNodesAtLatestBehavior v conf dbDirs = do
     net <- withNodes v conf dbDirs
-    liftIO $ awaitBlockHeight v (_getServiceClientEnv net) (latestBehaviorAt v)
+    liftIO $ case latestBehaviorAt v of
+                ForkAtBlockHeight h -> awaitBlockHeight v (_getServiceClientEnv net) h
+                _ -> assertFailure "Only ForkHeight supported for tests versions"
     return net
 
 -- | Network initialization takes some time. Within my ghci session it took

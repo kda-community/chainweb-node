@@ -1294,8 +1294,10 @@ chainweb223Test = do
 compactAndSyncTest :: PactTestM ()
 compactAndSyncTest = do
   -- start with all forks on.
-  let start = latestBehaviorAt testVersion
-  runToHeight start
+  start <- case latestBehaviorAt testVersion of
+              ForkAtBlockHeight height -> runToHeight height >> return height
+              _ -> liftIO $ assertFailure "Only ForkHeight supported for tests versions"
+
   -- we want to run a transaction but it doesn't matter what it does, as long
   -- as it gets on-chain and thus affects the Pact state.
   -- note that this is a decimal because we're parsing the CommandResult out of the payload, and
@@ -1309,8 +1311,10 @@ compactAndSyncTest = do
 
 compactionCompactsUnmodifiedTables :: PactTestM ()
 compactionCompactsUnmodifiedTables = do
-  let start = latestBehaviorAt testVersion
-  runToHeight start
+  start <- case latestBehaviorAt testVersion of
+              ForkAtBlockHeight height -> runToHeight height >> return height
+              _ -> liftIO $ assertFailure "Only ForkHeight supported for tests versions"
+
   runBlockTest
     -- create table
     [ PactTxTest

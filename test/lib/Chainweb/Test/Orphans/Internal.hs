@@ -301,6 +301,7 @@ instance Arbitrary NodeInfo where
             , nodeGenesisHeights = map (\c -> (chainIdToText c, genesisHeight v c)) $ HS.toList $ chainIds v
             , nodeHistoricalChains = ruleElems $ HM.toList . HM.map HS.toList . toAdjacencySets <$> _versionGraphs v
             , nodeBlockDelay = _versionBlockDelay v
+            , nodeForkNumber = _versionForkNumber v
             }
 
 -- -------------------------------------------------------------------------- --
