@@ -8,6 +8,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- |
 -- Module: Chainweb.Chainweb.MinerResources
@@ -35,15 +36,16 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar
+import Control.Exception (finally)
 import Control.Lens
 import Control.Monad
 
 import Data.HashMap.Strict (HashMap)
+import Data.Coerce (coerce)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 import qualified Data.Map.Strict as M
-import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -54,14 +56,14 @@ import qualified System.Random.MWC as MWC
 
 import Chainweb.BlockHeader
 import Chainweb.ChainId
+import Chainweb.BlockHash
 import Chainweb.Chainweb.ChainResources
-import Chainweb.Cut (_cutMap)
-import Chainweb.CutDB (CutDb, awaitNewBlock, cutDbPactService, _cut)
+import Chainweb.CutDB (CutDb, awaitNewBlock, cutDbPactService)
 import Chainweb.Logger
 import Chainweb.Miner.Config
 import Chainweb.Miner.Coordinator
 import Chainweb.Miner.Miners
-import Chainweb.Miner.Pact (Miner(..), minerId)
+import Chainweb.Miner.Pact (Miner(..), minerId, MinerId(..))
 import Chainweb.Pact.Types
 import Chainweb.Pact.Utils
 import Chainweb.Payload
@@ -80,6 +82,31 @@ import Numeric.AffineSpace
 -- -------------------------------------------------------------------------- --
 -- Miner
 
+data MinerLastSeen = NeverExpire | LastSeen (Time Micros)
+                   --    ^              ^-- For Dynamic miners
+                   --     \ For static mineres
+    deriving (Eq)
+
+data ActiveMiner = ActiveMiner
+    { _lastSeen :: MinerLastSeen
+    , _handles  :: [Async ()]
+    }
+
+makeLenses ''ActiveMiner
+
+isMinerExpired:: Time Micros -> ActiveMiner -> Bool
+isMinerExpired exp_t miner = case (miner ^. lastSeen) of
+                                NeverExpire -> False
+                                LastSeen t | t < exp_t -> True
+                                LastSeen _ -> False
+
+
+type ActiveMiners = HM.HashMap MinerId ActiveMiner
+
+-- Return all Handles from an ActiveMiners HashMap
+allHandles :: ActiveMiners -> [Async ()]
+allHandles = mconcat . fmap (^. handles) . HM.elems
+
 withMiningCoordination
     :: Logger logger
     => logger
@@ -90,25 +117,21 @@ withMiningCoordination
 withMiningCoordination logger conf cdb inner
     | not (_coordinationEnabled coordConf) = inner Nothing
     | otherwise = do
-        cut <- _cut cdb
-        t <- newTVarIO mempty
-        initialPw <- fmap (PrimedWork . HM.fromList) $
-            forM miners $ \miner ->
-                let mid = view minerId miner
-                in fmap ((mid,) . HM.fromList) $
-                    forM cids $ \cid -> do
-                        let bh = fromMaybe (genesisBlockHeader v cid) (HM.lookup cid (_cutMap cut))
-                        newBlock <- throwIfNoHistory =<< getPayload cid miner (ParentHeader bh)
-                        return (cid, WorkReady newBlock)
 
-        m <- newTVarIO initialPw
+        t <- newTVarIO mempty
+        tpw <- newTVarIO (PrimedWork HM.empty)
+        tam <- newTVarIO HM.empty
+
+        let miners = S.toList (_coordinationMiners coordConf)
+                     <> [ _nodeMiner inNodeConf | _nodeMiningEnabled inNodeConf ]
+
+        forM_ miners $ initMiner tam tpw
+
         c503 <- newIORef 0
         c403 <- newIORef 0
         l <- newIORef (_coordinationUpdateStreamLimit coordConf)
-        fmap thd . runConcurrently $ (,,)
-            <$> Concurrently (prune t m c503 c403)
-            <*> Concurrently (mapConcurrently_ (primeWork m) cids)
-            <*> Concurrently (inner . Just $ MiningCoordination
+        withAsync (prune t tam tpw c503 c403) $ \_ -> do
+            inner (Just $ MiningCoordination
                 { _coordLogger = logger
                 , _coordCutDb = cdb
                 , _coordState = t
@@ -117,12 +140,17 @@ withMiningCoordination logger conf cdb inner
                 , _coord403s = c403
                 , _coordConf = coordConf
                 , _coordUpdateStreamCount = l
-                , _coordPrimedWork = m
+                , _coordRefreshMiner = updateDynamicMiner tam tpw
+                , _coordPrimedWork = tpw
                 , _coordTargetFork =
                     if _coordinationTargetForkOverride coordConf
                     then pred $ max 1 (_versionForkNumber v)
                     else _versionForkNumber v
                 })
+
+            `finally` do
+                am <- readTVarIO tam
+                cancelMany $ allHandles am
   where
     coordConf = _miningCoordination conf
     inNodeConf = _miningInNode conf
@@ -131,10 +159,63 @@ withMiningCoordination logger conf cdb inner
     cids :: [ChainId]
     cids = HS.toList (chainIds v)
 
-    !miners = S.toList (_coordinationMiners coordConf)
-        <> [ _nodeMiner inNodeConf | _nodeMiningEnabled inNodeConf ]
-
     chainLogger cid = addLabel ("chain", toText cid)
+
+    minerIdLogger:: Logger l => MinerId -> (l -> l)
+    minerIdLogger mid = addLabel ("miner", _minerId mid)
+
+    updateDynamicMiner :: TVar ActiveMiners ->  TVar PrimedWork -> Miner -> IO (Either String ())
+    updateDynamicMiner tam tpm m = do
+        let mid = view minerId m
+        ct <- getCurrentTimeIntegral
+        isNewMiner <- atomically $ do
+            am <- readTVar tam
+            case HM.lookup mid am of
+                -- Static Miner
+                Just currentMiner | currentMiner ^. lastSeen == NeverExpire -> return (Right False)
+
+                -- Dynamic miner already registered, update the time
+                Just _ -> do
+                    modifyTVar tam (HM.adjust (lastSeen .~ LastSeen ct) mid)
+                    return (Right False)
+
+                -- Dynamic miners no atllowed
+                Nothing | not (_coordinationDynamicMinersEnabled coordConf) -> return ( Left "Unknown miners not allowed")
+
+                -- Miner doesn't exist but we are full
+                Nothing | HM.size am > (_coordinationMinersLimit coordConf) -> return ( Left "Miners Pool Full")
+
+                -- Miner doesn't exist but there is some room for it
+                Nothing -> do
+                    -- Insert into active miners list
+                    modifyTVar tam $ HM.insert mid $ ActiveMiner (LastSeen ct) []
+                    -- And prepare a PrimeWork structure with evrything Stale, and let updatePrimeWork take care of it
+                    modifyTVar tpm $ coerce $ HM.insert mid staleWorkSet
+                    return $ Right True
+
+        -- In case the miner is new => Start the updatePrimeWork threads
+        forM isNewMiner $ \isNew ->
+            when isNew $ do
+                logFunctionText (minerIdLogger mid logger) Info "Added"
+                -- Create the threads
+                newHandles <- mapM (async . updatePrimeWork tpm m) cids
+                -- And store their handles to cancel them in case the miner stops.
+                atomically $ modifyTVar tam $ HM.adjust (handles .~ newHandles) mid
+
+    -- Only used for static miners
+    -- A smplified version of updateDynamic miner
+    initMiner :: TVar ActiveMiners ->  TVar PrimedWork -> Miner -> IO()
+    initMiner tam tpm m = do
+        let mid = view minerId m
+        atomically $ do
+            modifyTVar tam $ HM.insert mid $ ActiveMiner NeverExpire []
+            modifyTVar tpm $ coerce $ HM.insert mid staleWorkSet
+
+        newHandles <- mapM (async . updatePrimeWork tpm m) cids
+        atomically $ modifyTVar tam $ HM.adjust (handles .~ newHandles) mid
+
+    -- A complete stale workset
+    staleWorkSet = HM.fromList $ fmap (\c -> (c, WorkStale)) cids
 
     -- we assume that this path always exists in PrimedWork and never delete it.
     workForMiner :: Miner -> ChainId -> Traversal' PrimedWork WorkState
@@ -182,23 +263,25 @@ withMiningCoordination logger conf cdb inner
     -- that when they request new work, the block can be instantly constructed
     -- without interacting with the Pact Queue.
     --
-    primeWork :: TVar PrimedWork -> ChainId -> IO ()
-    primeWork tpw cid =
-        forConcurrently_ miners $ \miner ->
-            runForever (logFunction (chainLogger cid logger)) "primeWork" (go miner)
+    updatePrimeWork :: TVar PrimedWork -> Miner -> ChainId -> IO ()
+    updatePrimeWork tpw miner cid =  runForever (logFunction (chainLogger cid logger)) "primeWork" go
         where
-        go :: Miner -> IO ()
-        go miner = do
-            pw <- readTVarIO tpw
-            let
-                -- we assume that this path always exists in PrimedWork and never delete it.
-                ourMiner :: Traversal' PrimedWork WorkState
+        go :: IO ()
+        go = do
+            let ourMiner :: Traversal' PrimedWork WorkState
                 ourMiner = workForMiner miner cid
-            let !outdatedPayload = fromJuste $ pw ^? ourMiner
-            let outdatedParentHash = case outdatedPayload of
-                    WorkReady outdatedBlock -> view _1 (newBlockParent outdatedBlock)
-                    WorkAlreadyMined outdatedBlockHash -> outdatedBlockHash
-                    WorkStale -> error "primeWork loop: Invariant Violation: Stale work should be an impossibility"
+
+            pw <- readTVarIO tpw
+
+            outdatedParentHash <- case pw ^? ourMiner of
+                    Just (WorkReady outdatedBlock) -> return $ view _1 (newBlockParent outdatedBlock)
+                    Just (WorkAlreadyMined outdatedBlockHash) -> return outdatedBlockHash
+                    -- Stale here is not an usual state (newly registered miners, or failure during previous iteration)
+                    -- => using nullBlockHash will uncondionally trigger awaitNewBlock
+                    Just WorkStale -> return nullBlockHash
+                    -- Having no primerwork data is not normal. It could only happen in a race condition when the thread is going to be cancelled
+                    -- Better we can do is to wait for our death, it should happen very soon.
+                    Nothing -> forever (threadDelay 10_000_000) >> return nullBlockHash
 
             newParent <- either ParentHeader id <$> race
                 -- wait for a block different from what we've got primed work for
@@ -216,7 +299,6 @@ withMiningCoordination logger conf cdb inner
                     logFunctionText (addLabel ("chain", toText cid) logger) Warn
                         "current block is not in the checkpointer; halting primed work loop temporarily"
                     approximateThreadDelay 1_000_000
-                    atomically $ modifyTVar' tpw (ourMiner .~ outdatedPayload)
                 Historical newBlock ->
                     atomically $ modifyTVar' tpw (ourMiner .~ WorkReady newBlock)
 
@@ -241,8 +323,8 @@ withMiningCoordination logger conf cdb inner
     -- | THREAD: Periodically clear out the cached payloads kept for Mining
     -- Coordination.
     --
-    prune :: TVar MiningState -> TVar PrimedWork -> IORef Int -> IORef Int -> IO ()
-    prune t tpw c503 c403 = runForever (logFunction logger) "MinerResources.prune" $ do
+    prune :: TVar MiningState -> TVar ActiveMiners -> TVar PrimedWork -> IORef Int -> IORef Int -> IO ()
+    prune t tam tpw c503 c403 = runForever (logFunction logger) "MinerResources.prune" $ do
         let !d = 30_000_000  -- 30 seconds
         let !maxAge = (5 :: Int) `scaleTimeSpan` minute -- 5 minutes
         threadDelay d
@@ -251,6 +333,20 @@ withMiningCoordination logger conf cdb inner
             ms <- readTVar t
             modifyTVar' t . over miningState $ M.filter (f ago)
             pure ms
+
+        -- Remove dynamic miners not seen since more than 5 minutes
+        removedMiners <- atomically $ do
+            am <- readTVar tam
+            let expiredMiners = HM.filter (isMinerExpired ago) am
+            forM_ (HM.keys expiredMiners) $ \mid -> do
+                modifyTVar tam $ HM.delete mid
+                modifyTVar tpw $ coerce $ PrimedWork . HM.delete mid
+            return expiredMiners
+
+        cancelMany $ allHandles removedMiners
+
+        forM_ (HM.keys removedMiners) $ \mid -> logFunctionText (minerIdLogger mid logger) Info "Not seen since a while => Removed"
+
         count503 <- readIORef c503
         count403 <- readIORef c403
         PrimedWork pw <- readTVarIO tpw
