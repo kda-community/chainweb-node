@@ -188,9 +188,9 @@ withMiningCoordination logger conf cdb inner
                 -- Miner doesn't exist but there is some room for it
                 Nothing -> do
                     -- Insert into active miners list
-                    modifyTVar tam (HM.insert mid (ActiveMiner (LastSeen ct) []))
+                    modifyTVar tam $ HM.insert mid $ ActiveMiner (LastSeen ct) []
                     -- And prepare a PrimeWork structure with evrything Stale, and let updatePrimeWork take care of it
-                    modifyTVar tpm  $ coerce $ HM.insert mid (HM.fromList $ fmap (\c -> (c, WorkStale)) cids)
+                    modifyTVar tpm $ coerce $ HM.insert mid staleWorkSet
                     return $ Right True
 
         -- In case the miner is new => Start the updatePrimeWork threads
@@ -198,9 +198,9 @@ withMiningCoordination logger conf cdb inner
             when isNew $ do
                 logFunctionText (minerIdLogger mid logger) Info "Added"
                 -- Create the threads
-                h <- mapM (async . updatePrimeWork tpm m) cids
+                newHandles <- mapM (async . updatePrimeWork tpm m) cids
                 -- And store their handles to cancel them in case the miner stops.
-                atomically $ modifyTVar tam (HM.adjust (handles .~ h) mid)
+                atomically $ modifyTVar tam $ HM.adjust (handles .~ newHandles) mid
 
     -- Only used for static miners
     -- A smplified version of updateDynamic miner
@@ -208,11 +208,14 @@ withMiningCoordination logger conf cdb inner
     initMiner tam tpm m = do
         let mid = view minerId m
         atomically $ do
-            modifyTVar tam (HM.insert mid (ActiveMiner NeverExpire []))
-            modifyTVar tpm  $ coerce $ HM.insert mid (HM.fromList $ fmap (\c -> (c, WorkStale)) cids)
+            modifyTVar tam $ HM.insert mid $ ActiveMiner NeverExpire []
+            modifyTVar tpm $ coerce $ HM.insert mid staleWorkSet
 
-        h <- mapM (async . updatePrimeWork tpm m) cids
-        atomically $ modifyTVar tam (HM.adjust (handles .~ h) mid)
+        newHandles <- mapM (async . updatePrimeWork tpm m) cids
+        atomically $ modifyTVar tam $ HM.adjust (handles .~ newHandles) mid
+
+    -- A complete stale workset
+    staleWorkSet = HM.fromList $ fmap (\c -> (c, WorkStale)) cids
 
     -- we assume that this path always exists in PrimedWork and never delete it.
     workForMiner :: Miner -> ChainId -> Traversal' PrimedWork WorkState
@@ -342,7 +345,7 @@ withMiningCoordination logger conf cdb inner
 
         cancelMany $ allHandles removedMiners
 
-        forM_ (HM.keys removedMiners) $ \mid -> logFunctionText (minerIdLogger mid logger) Info "Nos seen since a while => Removed"
+        forM_ (HM.keys removedMiners) $ \mid -> logFunctionText (minerIdLogger mid logger) Info "Not seen since a while => Removed"
 
         count503 <- readIORef c503
         count403 <- readIORef c403
