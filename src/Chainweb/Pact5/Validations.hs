@@ -34,6 +34,7 @@ module Chainweb.Pact5.Validations
 ) where
 
 import Control.Lens
+import Control.Monad
 
 import Data.Decimal (decimalPlaces)
 import Data.Maybe
@@ -62,6 +63,7 @@ import qualified Pact.Parse as Pact4
 import Chainweb.Pact5.Types
 import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils (ebool_)
+import Chainweb.Version.Guards (isValidPPKScheme)
 
 
 -- | Check whether a local Api request has valid metadata
@@ -79,6 +81,7 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
     let P.PublicMeta pcid _ gl gp _ _ = P._pMeta pay
         nid = P._pNetworkId pay
         signers = P._pSigners pay
+        isValidScheme = isValidPPKScheme v cid (ctxParentForkNumber txCtx) (ctxCurrentBlockHeight txCtx) . SchemeV5
 
     let errs = catMaybes
           [ eUnless "Chain id mismatch" $ assertChainId cid pcid
@@ -88,7 +91,7 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
           , eUnless "Gas price decimal precision too high" $ assertGasPrice gp
           , eUnless "Network id mismatch" $ assertNetworkId v nid
           , eUnless "Signature list size too big" $ assertSigSize sigs
-          , eUnless "Invalid transaction signatures" $ sigValidate signers
+          , eUnless "Invalid transaction signatures" $ sigValidate isValidScheme signers
           , eUnless "Tx time outside of valid range" $ assertTxTimeRelativeToParent pct cmd
           ]
 
@@ -96,9 +99,9 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
       Nothing -> Right ()
       Just vs -> Left vs
   where
-    sigValidate signers
+    sigValidate isValidScheme signers
       | Just NoVerify <- sigVerify = True
-      | otherwise = isRight $ assertValidateSigs hsh signers sigs
+      | otherwise = isRight $ assertValidateSigs isValidScheme hsh signers sigs
 
     pct = ParentCreationTime
       . view blockCreationTime
@@ -153,11 +156,12 @@ assertTxSize initialGas gasLimit = P.GasLimit initialGas < gasLimit
 -- transaction hash.
 --
 assertValidateSigs :: ()
-  => P.Hash
+  => (P.PPKScheme -> Bool)
+  -> P.Hash
   -> [P.Signer]
   -> [P.UserSig]
   -> Either AssertValidateSigsError ()
-assertValidateSigs hsh signers sigs = do
+assertValidateSigs isValidScheme hsh signers sigs = do
   let signersLength = length signers
   let sigsLength = length sigs
   ebool_
@@ -168,6 +172,10 @@ assertValidateSigs hsh signers sigs = do
     (signersLength == sigsLength)
 
   iforM_ (zip sigs signers) $ \pos (sig, signer) -> do
+    ebool_
+      (InvalidSignerScheme pos)
+      (isValidScheme $ fromMaybe P.ED25519 $ P._siScheme signer)
+
     case P.verifyUserSig hsh sig signer of
       Left errMsg -> Left (InvalidUserSig pos (Text.pack errMsg))
       Right () -> Right ()
@@ -209,10 +217,10 @@ assertTxNotInFuture (ParentCreationTime (BlockCreationTime txValidationTime)) tx
 
 -- | Assert that the command hash matches its payload and
 -- its signatures are valid, without parsing the payload.
-assertCommand :: Pact5.Transaction -> Either AssertCommandError ()
-assertCommand cmd = do
-  _ <- assertHash & _Left .~ InvalidPayloadHash
-  assertValidateSigs hsh signers (P._cmdSigs cmd) & _Left %~ AssertValidateSigsError
+assertCommand :: Pact5.Transaction -> (P.PPKScheme -> Bool) -> Either AssertCommandError ()
+assertCommand cmd isValidScheme = do
+  void $ assertHash & _Left .~ InvalidPayloadHash
+  assertValidateSigs isValidScheme hsh signers (P._cmdSigs cmd) & _Left %~ AssertValidateSigsError
   where
     hsh = P._cmdHash cmd
     pwt = P._cmdPayload cmd

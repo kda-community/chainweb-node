@@ -59,7 +59,7 @@ module Chainweb.Version.Guards
     , maxBlockGasLimit
     , minimumBlockHeaderHistory
     , activeInitialGasModel
-    , validPPKSchemes
+    , isValidPPKScheme
     , isWebAuthnPrefixLegal
     , validKeyFormats
     , pact5Serialiser
@@ -80,12 +80,12 @@ import Chainweb.Version
 import Chainweb.Pact5.InitialGasModel
 import Control.Lens
 import Data.Word (Word64)
+import qualified Data.Set as S
 import Numeric.Natural
 import Pact.Core.Builtin qualified as Pact5
 import Pact.Core.Info qualified as Pact5
 import Pact.Core.Serialise qualified as Pact5
 import Pact.Types.KeySet (PublicKeyText, ed25519HexFormat, webAuthnFormat)
-import Pact.Types.Scheme (PPKScheme(ED25519, WebAuthn))
 
 -- Gets the height which the fork is associated with.
 -- This may not be the first height at which the associated guard is `True`
@@ -361,13 +361,14 @@ activeInitialGasModel v cid fn bh = snd $ ruleZipperHere $ snd
     where
         searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
--- | Different versions of Chainweb allow different PPKSchemes.
+-- | Different versions of Chainweb allow different PPKSchemes depending on rules
 --
-validPPKSchemes :: ChainwebVersion -> ChainId -> BlockHeight -> [PPKScheme]
-validPPKSchemes v cid bh =
-  if chainweb221Pact v cid bh
-  then [ED25519, WebAuthn]
-  else [ED25519]
+isValidPPKScheme :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> GenericPPPKScheme -> Bool
+isValidPPKScheme v cid fn bh = flip S.member schemesSet
+    where
+        schemesSet = snd $ ruleZipperHere $ snd $ ruleSeek (\h _ -> searchKey >= h)
+                         $ v ^?! versionAllowedSignatureSchemes . atChain cid
+        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
 isWebAuthnPrefixLegal :: ChainwebVersion -> ChainId -> BlockHeight -> Pact4.IsWebAuthnPrefixLegal
 isWebAuthnPrefixLegal v cid bh =

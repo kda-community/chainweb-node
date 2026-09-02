@@ -68,7 +68,9 @@ newBlockToPayloadWithOutputs (NewBlockPayload _ pwo)
     = pwo
 
 newBlockParent :: NewBlock -> (BlockHash, BlockHeight, BlockCreationTime)
-newBlockParent (NewBlockInProgress (ForSomePactVersion _ bip)) = blockInProgressParent bip
+newBlockParent (NewBlockInProgress (ForSomePactVersion _ bip)) = (hs, bh, bct)
+    where
+        (hs, _ , bh, bct) = blockInProgressParent bip
 newBlockParent (NewBlockPayload (ParentHeader ph) _) =
     (view blockHash ph, view blockHeight ph, view blockCreationTime ph)
 

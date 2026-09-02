@@ -328,7 +328,7 @@ checkTxSigs
   -> f ()
 checkTxSigs logger v cid bh t = do
   liftIO $ logFunctionText logger Debug $ "Pact4.checkTxSigs: " <> sshow (Pact4._cmdHash t)
-  case Pact4.assertValidateSigs validSchemes webAuthnPrefixLegal hsh signers sigs of
+  case Pact4.assertValidateSigs isValidScheme webAuthnPrefixLegal hsh signers sigs of
       Right _ -> do
           pure ()
       Left err -> do
@@ -337,7 +337,7 @@ checkTxSigs logger v cid bh t = do
     hsh = Pact4._cmdHash t
     sigs = Pact4._cmdSigs t
     signers = Pact4._pSigners $ Pact4.payloadObj $ Pact4._cmdPayload t
-    validSchemes = validPPKSchemes v cid bh
+    isValidScheme = isValidPPKScheme v cid pact4ForkNumber bh . SchemeV4
     webAuthnPrefixLegal = isWebAuthnPrefixLegal v cid bh
 
 checkCompile
