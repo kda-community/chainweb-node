@@ -590,6 +590,10 @@ execExistingBlock currHeader payload = do
   db <- view psBlockDbEnv
   isGenesis <- view psIsGenesis
   blockHandlePreCoinbase <- use pbBlockHandle
+
+  when (V.length txs /= (S.size . S.fromList . fmap Pact5._cmdHash . V.toList) txs) $
+    throwM (BlockValidationFailure $ BlockValidationFailureMsg "Invalid Block content")
+
   let
     txValidationTime = ParentCreationTime (parentBlockHeader ^. blockCreationTime)
   errors <- liftIO $ flip foldMap txs $ \tx -> do
