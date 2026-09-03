@@ -82,7 +82,7 @@ bench :: RocksDb -> C.Benchmark
 bench rdb = do
     C.bgroup "PactService"
         [ C.bgroup "Pact4"
-            [ C.bench "1 tx" $ oneBlock pact4Version rdb 1
+           $ (const []) [ C.bench "1 tx" $ oneBlock pact4Version rdb 1  -- Temporaily disabled
             , C.bench "10 txs" $ oneBlock pact4Version rdb 10
             , C.bench "20 txs" $ oneBlock pact4Version rdb 20
             , C.bench "30 txs" $ oneBlock pact4Version rdb 30

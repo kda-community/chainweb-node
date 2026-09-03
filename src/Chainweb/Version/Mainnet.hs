@@ -7,7 +7,6 @@
 
 module Chainweb.Version.Mainnet(mainnet, pattern Mainnet01) where
 
-import Control.Lens
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 
@@ -25,6 +24,8 @@ import P2P.BootstrapNodes
 
 import Pact.Types.Runtime (Gas(..))
 import Pact.Types.Verifier
+import qualified Pact.Types.Scheme as Pact4 (PPKScheme(..))
+import qualified Pact.Core.Scheme as Pact5 (PPKScheme(..))
 
 import qualified Chainweb.BlockHeader.Genesis.Mainnet0Payload as MN0
 import qualified Chainweb.BlockHeader.Genesis.Mainnet1Payload as MN1
@@ -160,23 +161,40 @@ mainnet = ChainwebVersion
         Chainweb32-> AllChains (ForkAtForkNumber 1)
 
     , _versionGraphs =
-        (to20ChainsMainnet, twentyChainGraph) `Above`
+        (to20ChainsMainnet, twentyChainGraph)
+            `Above`
         Bottom (minBound, petersenChainGraph)
     , _versionBlockDelay = BlockDelay 30_000_000
     , _versionWindow = WindowWidth 120
     , _versionHeaderBaseSizeBytes = 318 - 110
+    , _versionAllowedSignatureSchemes = AllChains $
+        (afterFork mainnet Pact5Fork, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn])
+            `Above`
+        (afterFork mainnet Chainweb221Pact, Set.fromList $ SchemeV4 <$> [Pact4.ED25519, Pact4.WebAuthn])
+            `Above`
+        Bottom (minBound, Set.singleton $ SchemeV4 Pact4.ED25519)
+
     , _versionMaxBlockGasLimit =
-        (succByHeight $ mainnet ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0), Just 180_000) `Above`
+        (succByHeight $ afterFork mainnet Chainweb216Pact, Just 180_000)
+            `Above`
         Bottom (minBound, Nothing)
+
     , _versionInitialGasModel = AllChains $
-        (mainnet ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), post32GasModel) `Above`
-        (succByHeight $ mainnet ^?! versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0), post31GasModel) `Above`
+        (afterFork mainnet Chainweb32, post32GasModel)
+            `Above`
+        (succByHeight $ afterFork mainnet Chainweb31, post31GasModel)
+            `Above`
         Bottom (minBound, pre31GasModel)
+
     , _versionSpvProofRootValidWindow =
-        (mainnet ^?! versionForks . at Chainweb32 . _Just . atChain (unsafeChainId 0), Just 525_600) `Above`
-        (succByHeight $ mainnet ^?! versionForks . at Chainweb31 . _Just . atChain (unsafeChainId 0), Nothing) `Above`
-        (succByHeight $ mainnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) , Just 20_000) `Above`
+        (afterFork mainnet Chainweb32, Just 525_600)
+            `Above`
+        (succByHeight $ afterFork mainnet Chainweb31, Nothing)
+            `Above`
+        (succByHeight $ afterFork mainnet Chainweb231Pact, Just 20_000)
+            `Above`
         Bottom (minBound, Nothing)
+
     , _versionBootstraps = domainAddr2PeerInfo mainnetBootstrapHosts
     , _versionGenesis = VersionGenesis
         { _genesisBlockTarget = OnChains $ HM.fromList $ concat

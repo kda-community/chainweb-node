@@ -9,7 +9,6 @@ module Chainweb.Version.RecapDevelopment(recapDevnet, pattern RecapDevelopment) 
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
-import Control.Lens
 
 import Chainweb.BlockCreationTime
 import Chainweb.BlockHeight
@@ -23,6 +22,8 @@ import Chainweb.Utils.Rule
 import Chainweb.Version
 
 import Pact.Types.Verifier
+import qualified Pact.Types.Scheme as Pact4 (PPKScheme(..))
+import qualified Pact.Core.Scheme as Pact5 (PPKScheme(..))
 
 import qualified Chainweb.BlockHeader.Genesis.RecapDevelopment0Payload as RDN0
 import qualified Chainweb.BlockHeader.Genesis.RecapDevelopment1to9Payload as RDNN
@@ -95,7 +96,8 @@ recapDevnet = ChainwebVersion
         ]
 
     , _versionGraphs =
-        (to20ChainsHeight, twentyChainGraph) `Above`
+        (to20ChainsHeight, twentyChainGraph)
+            `Above`
         Bottom (minBound, petersenChainGraph)
 
     , _versionBlockDelay = BlockDelay 30_000_000
@@ -117,9 +119,18 @@ recapDevnet = ChainwebVersion
 
     , _versionMaxBlockGasLimit = Bottom (minBound, Just 180_000)
     , _versionInitialGasModel = AllChains $
-        (ForkNever, post32GasModel) `Above`
-        (succByHeight $ recapDevnet ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0), post31GasModel) `Above`
+        (ForkNever, post32GasModel)
+            `Above`
+        (succByHeight $ afterFork recapDevnet Chainweb231Pact, post31GasModel)
+            `Above`
         Bottom (minBound, pre31GasModel)
+
+    , _versionAllowedSignatureSchemes = AllChains $
+        (afterFork recapDevnet Pact5Fork, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn])
+            `Above`
+        (afterFork recapDevnet Chainweb221Pact, Set.fromList $ SchemeV4 <$> [Pact4.ED25519, Pact4.WebAuthn])
+            `Above`
+        Bottom (minBound, Set.singleton $ SchemeV4 Pact4.ED25519)
 
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
     , _versionCheats = VersionCheats
@@ -132,7 +143,8 @@ recapDevnet = ChainwebVersion
         , _disableMempoolSync = False
         }
     , _versionVerifierPluginNames = AllChains $
-        (ForkAtBlockHeight $ BlockHeight 600, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"]) `Above`
+        (ForkAtBlockHeight $ BlockHeight 600, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"])
+            `Above`
         Bottom (minBound, mempty)
     , _versionQuirks = noQuirks
     , _versionForkNumber = 0

@@ -9,7 +9,6 @@
 
 module Chainweb.Version.Testnet04(testnet04, pattern Testnet04) where
 
-import Control.Lens
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 
@@ -27,6 +26,8 @@ import P2P.BootstrapNodes
 
 import Pact.Types.Runtime (Gas(..))
 import Pact.Types.Verifier
+import qualified Pact.Types.Scheme as Pact4 (PPKScheme(..))
+import qualified Pact.Core.Scheme as Pact5 (PPKScheme(..))
 
 import qualified Chainweb.Pact.Transactions.CoinV3Transactions as CoinV3
 import qualified Chainweb.Pact.Transactions.CoinV4Transactions as CoinV4
@@ -140,22 +141,26 @@ testnet04 = ChainwebVersion
         Chainweb31 -> AllChains ForkNever
         Chainweb32 -> AllChains ForkNever
         MigratePlatformShare -> AllChains ForkNever
-        
     , _versionGraphs =
-        (to20ChainsTestnet, twentyChainGraph) `Above`
+        (to20ChainsTestnet, twentyChainGraph)
+            `Above`
         Bottom (minBound, petersenChainGraph)
     , _versionBlockDelay = BlockDelay 30_000_000
     , _versionWindow = WindowWidth 120
     , _versionHeaderBaseSizeBytes = 318 - 110
     , _versionMaxBlockGasLimit =
-        (succByHeight $ testnet04 ^?! versionForks . at Chainweb216Pact . _Just . atChain (unsafeChainId 0) , Just 180_000) `Above`
+        (succByHeight $ afterFork testnet04 Chainweb216Pact, Just 180_000)
+            `Above`
         Bottom (minBound, Nothing)
     , _versionInitialGasModel = AllChains $
-        (ForkNever, post32GasModel) `Above`
-        (succByHeight $ testnet04 ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0), post31GasModel) `Above`
+        (ForkNever, post32GasModel)
+            `Above`
+        (succByHeight $ afterFork testnet04 Chainweb231Pact, post31GasModel)
+            `Above`
         Bottom (minBound, pre31GasModel)
     , _versionSpvProofRootValidWindow =
-        (succByHeight $ testnet04 ^?! versionForks . at Chainweb231Pact . _Just . atChain (unsafeChainId 0) , Just 20_000) `Above`
+        (succByHeight $ afterFork testnet04 Chainweb231Pact, Just 20_000)
+            `Above`
         Bottom (minBound, Nothing)
     , _versionBootstraps = domainAddr2PeerInfo testnet04BootstrapHosts
     , _versionGenesis = VersionGenesis
@@ -198,8 +203,18 @@ testnet04 = ChainwebVersion
         { _disablePeerValidation = False
         , _disableMempoolSync = False
         }
-    , _versionVerifierPluginNames = AllChains $ (ForkAtBlockHeight $ BlockHeight $ 4_100_681, Set.fromList [VerifierName "hyperlane_v3_message"]) `Above`
+    , _versionVerifierPluginNames = AllChains $
+        (ForkAtBlockHeight $ BlockHeight $ 4_100_681, Set.fromList [VerifierName "hyperlane_v3_message"])
+            `Above`
         Bottom (minBound, mempty)
+
+    , _versionAllowedSignatureSchemes = AllChains $
+        (afterFork testnet04 Pact5Fork, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn])
+            `Above`
+        (afterFork testnet04 Chainweb221Pact, Set.fromList $ SchemeV4 <$> [Pact4.ED25519, Pact4.WebAuthn])
+            `Above`
+        Bottom (minBound, Set.singleton $ SchemeV4 Pact4.ED25519)
+
     , _versionQuirks = VersionQuirks
         { _quirkGasFees = onChains
             [ (unsafeChainId 1, HM.fromList [((BlockHeight 4104500, TxBlockIdx 0), Gas 66_239)])

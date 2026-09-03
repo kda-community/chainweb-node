@@ -35,7 +35,8 @@
 module Chainweb.Version
     (
     -- * Properties of Chainweb Version
-      Fork(..)
+      GenericPPKScheme(..)
+    , Fork(..)
     , ForkHeight(..)
     , succByHeight
     , _ForkAtBlockHeight
@@ -78,6 +79,7 @@ module Chainweb.Version
     , versionVerifierPluginNames
     , versionQuirks
     , versionForkNumber
+    , versionAllowedSignatureSchemes
     , versionForkVoteCastingLength
     , genesisBlockPayload
     , genesisBlockPayloadHash
@@ -149,7 +151,7 @@ module Chainweb.Version
     , latestBehaviorAt
     , onAllChains
     , domainAddr2PeerInfo
-
+    , afterFork
     -- * Internal. Don't use. Exported only for testing
     -- , headerSizes
     -- , headerBaseSizeBytes
@@ -185,6 +187,9 @@ import Chainweb.MerkleUniverse
 import Chainweb.Payload
 import Chainweb.Pact4.Transaction qualified as Pact4
 import Chainweb.Pact5.Transaction qualified as Pact5
+import qualified Pact.Types.Scheme as Pact4 (PPKScheme(..))
+import qualified Pact.Core.Scheme as Pact5 (PPKScheme(..))
+
 import Chainweb.Pact5.InitialGasModel
 import Chainweb.ForkState
 import Chainweb.Utils
@@ -498,6 +503,12 @@ noQuirks = VersionQuirks
     { _quirkGasFees = AllChains HM.empty
     }
 
+-- -------------------------------------------------------------------------- --
+--  Schemes
+data GenericPPKScheme = SchemeV4 Pact4.PPKScheme | SchemeV5 Pact5.PPKScheme
+    deriving stock (Eq, Ord, Generic)
+    deriving anyclass (NFData)
+
 -- | Chainweb versions are sets of properties that must remain consistent among
 -- all nodes on the same network. For examples see `Chainweb.Version.Mainnet`,
 -- `Chainweb.Version.Testnet`, `Chainweb.Version.RecapDevelopment`, and
@@ -546,6 +557,8 @@ data ChainwebVersion
         -- retain in its history at all times.
     , _versionInitialGasModel :: ChainMap (Rule ForkHeight (InitialGasModel))
         -- ^ The initial gas model used for Pact 5 transactions processing
+    , _versionAllowedSignatureSchemes :: ChainMap (Rule ForkHeight (Set GenericPPKScheme))
+        -- ^ Allowed schemes for this version
     , _versionBootstraps :: [PeerInfo]
         -- ^ The locations of the bootstrap peers.
     , _versionGenesis :: VersionGenesis
@@ -861,3 +874,8 @@ onAllChains v f = OnChains <$>
     HM.traverseWithKey
         (\cid () -> f cid)
         (HS.toMap (chainIds v))
+
+-- | Util function to get the ForkHeight of a given Fork.
+-- Assuming that all chains are synchronized with chain 0
+afterFork:: ChainwebVersion -> Fork -> ForkHeight
+afterFork v fork = v ^?! versionForks . at fork . _Just . atChain (unsafeChainId 0)
