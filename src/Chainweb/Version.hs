@@ -35,7 +35,7 @@
 module Chainweb.Version
     (
     -- * Properties of Chainweb Version
-      GenericPPPKScheme(..)
+      GenericPPKScheme(..)
     , Fork(..)
     , ForkHeight(..)
     , succByHeight
@@ -505,7 +505,7 @@ noQuirks = VersionQuirks
 
 -- -------------------------------------------------------------------------- --
 --  Schemes
-data GenericPPPKScheme = SchemeV4 Pact4.PPKScheme | SchemeV5 Pact5.PPKScheme
+data GenericPPKScheme = SchemeV4 Pact4.PPKScheme | SchemeV5 Pact5.PPKScheme
     deriving stock (Eq, Ord, Generic)
     deriving anyclass (NFData)
 
@@ -557,7 +557,7 @@ data ChainwebVersion
         -- retain in its history at all times.
     , _versionInitialGasModel :: ChainMap (Rule ForkHeight (InitialGasModel))
         -- ^ The initial gas model used for Pact 5 transactions processing
-    , _versionAllowedSignatureSchemes :: ChainMap (Rule ForkHeight (Set GenericPPPKScheme))
+    , _versionAllowedSignatureSchemes :: ChainMap (Rule ForkHeight (Set GenericPPKScheme))
         -- ^ Allowed schemes for this version
     , _versionBootstraps :: [PeerInfo]
         -- ^ The locations of the bootstrap peers.

@@ -363,7 +363,7 @@ activeInitialGasModel v cid fn bh = snd $ ruleZipperHere $ snd
 
 -- | Different versions of Chainweb allow different PPKSchemes depending on rules
 --
-isValidPPKScheme :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> GenericPPPKScheme -> Bool
+isValidPPKScheme :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> GenericPPKScheme -> Bool
 isValidPPKScheme v cid fn bh = flip S.member schemesSet
     where
         schemesSet = snd $ ruleZipperHere $ snd $ ruleSeek (\h _ -> searchKey >= h)
