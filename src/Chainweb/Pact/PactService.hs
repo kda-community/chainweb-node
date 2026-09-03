@@ -1180,13 +1180,14 @@ execPreInsertCheckReq txs = pactLabel "execPreInsertCheckReq" $ do
                 let
                     parentTime = ParentCreationTime (view blockCreationTime $ _parentHeader ph)
                     currHeight = succ $ view blockHeight $ _parentHeader ph
+                    pForkNumber = (view blockForkNumber $ _parentHeader ph)
                     isGenesis = False
                 forM txs $ \tx ->
                     fmap (either Just (\_ -> Nothing)) $ runExceptT $ do
                         -- it's safe to use initialBlockHandle here because it's
                         -- only used to check for duplicate pending txs in a block
                         pact5Tx <- mapExceptT liftIO $ Pact5.validateRawChainwebTx
-                            logger v cid db initialBlockHandle parentTime currHeight isGenesis tx
+                            logger v cid db initialBlockHandle parentTime currHeight pForkNumber isGenesis tx
                         let logger' = addLabel ("transaction", "attemptBuyGas") logger
                         ExceptT $ Pact5.pactTransaction Nothing $ \pactDb -> runExceptT $ do
                             let txCtx = Pact5.TxContext ph noMiner
