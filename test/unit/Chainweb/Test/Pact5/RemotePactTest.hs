@@ -474,7 +474,7 @@ sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
                         {
                         -- This is an invalid ED25519 signature,
                         -- but length signers == length signatures is checked first
-                        _cmdSigs = [ED25519Sig "fakeSig"]
+                        _cmdSigs = [PlainSig "fakeSig"]
                         }
                 send fx v cid [cmdSignersSigsLengthMismatch2]
                     & P.throws ? P.match _FailureResponse ? P.fun responseBody ? textContains
@@ -609,7 +609,7 @@ sendInvalidTxsTest rdb = withResourceT (mkFixture v rdb) $ \fx ->
 
     validationFailed i cmd msg = "Transaction " <> sshow (_cmdHash cmd) <> " at index " <> sshow @Int i <> " failed with: " <> msg
 
-    mkCmdInvalidUserSig = mkCmdGood <&> set cmdSigs [ED25519Sig "fakeSig"]
+    mkCmdInvalidUserSig = mkCmdGood <&> set cmdSigs [PlainSig "fakeSig"]
 
     mkCmdGood = buildTextCmd v
         $ set cbRPC (mkExec "(+ 1 2)" (mkKeySetData "sender00" [sender00]))
@@ -1102,7 +1102,7 @@ localTests baseRdb = let
                 goodCmdHash <- _cmdHash <$> buildTextCmd v buildSender00Cmd
                 sender01KeyPair <- either error return $ importEd25519KeyPair Nothing
                     (PrivBS $ either error id $ B16.decode $ T.encodeUtf8 $ snd sender01)
-                let sender01Sig = ED25519Sig $ T.decodeUtf8 $ B16.encode $ exportEd25519Signature $
+                let sender01Sig = PlainSig $ T.decodeUtf8 $ B16.encode $ exportEd25519Signature $
                         signEd25519 (fst sender01KeyPair) (snd sender01KeyPair) goodCmdHash
 
                 buildTextCmd v buildSender00Cmd

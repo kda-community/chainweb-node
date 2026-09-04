@@ -320,6 +320,7 @@ applyLocal logger maybeGasLogger coreDb txCtx spvSupport cmd = do
     , guardDisablePact52And53Flags
     , guardDisablePact54Flags
     , guardDisablePact54FixFlags
+    , guardDisablePostQuantum
     ]
 
 -- | The main entry point to executing transactions. From here,
@@ -360,6 +361,7 @@ applyCmd logger maybeGasLogger db txCtx txIdxInBlock spv initialGas cmd = do
         , guardDisablePact52And53Flags
         , guardDisablePact54Flags
         , guardDisablePact54FixFlags
+        , guardDisablePostQuantum
         ]
 
   let gasLogsEnabled = maybe GasLogsDisabled (const GasLogsEnabled) maybeGasLogger
@@ -1064,3 +1066,8 @@ guardDisablePact54FixFlags :: TxContext -> Set ExecutionFlag
 guardDisablePact54FixFlags txCtx
   | guardCtx' chainweb32 txCtx = Set.empty
   | otherwise = Set.singleton FlagDisablePact54Fix
+
+guardDisablePostQuantum :: TxContext -> Set ExecutionFlag
+guardDisablePostQuantum txCtx
+  | guardCtx' chainweb33 txCtx = Set.empty
+  | otherwise = Set.singleton FlagDisableSlhDsaSignatures

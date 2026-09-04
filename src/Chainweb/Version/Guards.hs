@@ -52,6 +52,7 @@ module Chainweb.Version.Guards
     , chainweb231Pact
     , chainweb31
     , chainweb32
+    , chainweb33
     , migratePlatformShare
     , pact5
     , pact44NewTrans
@@ -328,6 +329,10 @@ chainweb31 = checkFork atOrAfter Chainweb31
 -- | Pact 5.4.1
 chainweb32 :: ChainwebVersion -> ChainId -> ForkNumber -> Bool
 chainweb32 = checkFork' atOrAfter Chainweb32
+
+-- | Pact Post-Quantum
+chainweb33 :: ChainwebVersion -> ChainId -> ForkNumber -> Bool
+chainweb33 = checkFork' atOrAfter Chainweb33
 
 migratePlatformShare :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
 migratePlatformShare = checkFork atNotGenesis MigratePlatformShare
