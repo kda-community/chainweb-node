@@ -54,7 +54,7 @@ devnet = ChainwebVersion
     -- defaultChainwebConfiguration._configBlockGasLimit
     , _versionMaxBlockGasLimit = Bottom (minBound, Nothing)
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
-    , _versionInitialGasModel = AllChains $  Bottom (minBound, post32GasModel)
+    , _versionInitialGasModel = AllChains $  Bottom (minBound, post33GasModel)
     , _versionCheats = VersionCheats
         { _disablePow = True
         , _fakeFirstEpochStart = True
