@@ -25,7 +25,7 @@ import Chainweb.Utils.Rule
 import Chainweb.Version
 import P2P.BootstrapNodes
 
-import Pact.Types.Runtime (Gas(..))
+import Pact.Core.Gas
 import Pact.Types.Verifier
 
 import qualified Chainweb.Pact.Transactions.CoinV3Transactions as CoinV3
@@ -140,7 +140,7 @@ testnet04 = ChainwebVersion
         Chainweb31 -> AllChains ForkNever
         Chainweb32 -> AllChains ForkNever
         MigratePlatformShare -> AllChains ForkNever
-        
+
     , _versionGraphs =
         (to20ChainsTestnet, twentyChainGraph) `Above`
         Bottom (minBound, petersenChainGraph)

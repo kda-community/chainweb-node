@@ -2,7 +2,9 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Chainweb.Pact.Conversion
-  ( fromLegacyQualifiedName
+  ( toLegacyKeyset
+  , toLegacyGas
+  , fromLegacyQualifiedName
   , fromLegacyPactValue)
   where
 
@@ -16,8 +18,15 @@ import Pact.Core.ModRefs
 import Pact.Core.Literal
 import Pact.Core.Names
 import Pact.Core.Guards
+import Pact.Core.Gas
 import Pact.Core.PactValue
 
+
+toLegacyKeyset :: KeySet -> Legacy.KeySet
+toLegacyKeyset (KeySet pks prd) = Legacy.mkKeySet (fmap (Legacy.PublicKeyText . _pubKey) $ S.toList pks)
+                                                   (predicateToText prd)
+toLegacyGas :: Gas -> Legacy.Gas
+toLegacyGas = Legacy.Gas . fromIntegral . _gas
 
 fromLegacyQualifiedName
   :: Legacy.QualifiedName

@@ -173,7 +173,6 @@ import Data.Word
 import GHC.Generics(Generic)
 import GHC.TypeLits
 import GHC.Stack
-import Pact.Types.Runtime (Gas)
 import Chainweb.BlockCreationTime
 import Chainweb.BlockHeight
 import Chainweb.ChainId
@@ -193,6 +192,7 @@ import Chainweb.Utils.Serialization
 import Data.Singletons
 import P2P.Peer
 import Pact.Types.Verifier
+import Pact.Core.Gas
 
 -- | Data type representing changes to block validation, whether in the payload
 -- or in the header. Always add new forks at the end, not in the middle of the

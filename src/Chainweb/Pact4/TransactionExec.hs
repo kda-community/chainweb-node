@@ -115,6 +115,7 @@ import qualified System.LogLevel as L
 -- internal Pact modules
 
 import Chainweb.Counter
+import Chainweb.Pact.Conversion
 import Pact.Eval (eval, liftTerm)
 import Pact.Gas (freeGasEnv)
 import Pact.Interpreter
@@ -345,7 +346,7 @@ applyCmd v logger gasLogger txFailuresCounter pdbenv miner gasModel txCtx txIdxI
       | chainweb217Pact' = gasModel
       | otherwise = _geGasModel freeGasEnv
     txst = TransactionState mcache0 mempty 0 Nothing stGasModel mempty
-    quirkGasFee = v ^? versionQuirks . quirkGasFees . ixg cid . ix (ctxCurrentBlockHeight txCtx, txIdxInBlock)
+    quirkGasFee = toLegacyGas <$> v ^? versionQuirks . quirkGasFees . ixg cid . ix (ctxCurrentBlockHeight txCtx, txIdxInBlock)
 
     executionConfigNoHistory = ExecutionConfig
       $ S.singleton FlagDisableHistoryInTransactionalMode
@@ -570,7 +571,7 @@ applyCoinbase v logger dbEnv reward@(ParsedDecimal d) txCtx
     when chainweb213Pact' $ enforceKeyFormats
         (\k -> throwM $ CoinbaseFailure $ Pact4CoinbaseFailure $ "Invalid miner key: " <> sshow k)
         (validKeyFormats v (ctxChainId txCtx) (ctxCurrentBlockHeight txCtx))
-        mk
+        (toLegacyKeyset mk)
     let (cterm, cexec) = mkCoinbaseTerm mid mks reward
         interp = Interpreter $ \_ -> do put initState; fmap pure (eval cterm)
 

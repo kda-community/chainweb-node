@@ -23,7 +23,7 @@ import Chainweb.Utils.Rule
 import Chainweb.Version
 import P2P.BootstrapNodes
 
-import Pact.Types.Runtime (Gas(..))
+import Pact.Core.Gas
 import Pact.Types.Verifier
 
 import qualified Chainweb.BlockHeader.Genesis.Mainnet0Payload as MN0
