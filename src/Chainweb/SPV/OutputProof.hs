@@ -46,8 +46,8 @@ import GHC.Stack
 
 import Numeric.Natural
 
-import Pact.Types.Command
-import Pact.Types.Runtime hiding (ChainId)
+import Pact.Core.Command.Types
+import Pact.Core.Errors
 
 -- internal modules
 
@@ -79,7 +79,7 @@ findTxIdx
 findTxIdx p reqKey = do
     -- get request keys
     reqKeys <- forM (_payloadWithOutputsTransactions p) $ \(_, o) -> do
-        result <- decodeStrictOrThrow @_ @(CommandResult Hash) $ _transactionOutputBytes o
+        result <- decodeStrictOrThrow @_ @(CommandResult Hash PactOnChainError) $ _transactionOutputBytes o
         return (_crReqKey result)
     -- find tx index
     case V.findIndex (== reqKey) reqKeys of
@@ -100,7 +100,7 @@ getRequestKey
 getRequestKey p txIdx = case _payloadWithOutputsTransactions p V.!? txIdx of
     Nothing -> throwM $ TxIndexOutOfBoundsException txIdx
     Just (_, o) -> _crReqKey
-        <$> decodeStrictOrThrow @_ @(CommandResult Hash) (_transactionOutputBytes o)
+        <$> decodeStrictOrThrow @_ @(CommandResult Hash PactOnChainError) (_transactionOutputBytes o)
 
 -- -------------------------------------------------------------------------- --
 -- Transaction Output Proofs By Index

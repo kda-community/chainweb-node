@@ -39,7 +39,7 @@ import Chainweb.Logger
 import Chainweb.Mempool.CurrentTxs
 import Chainweb.Mempool.InMemTypes
 import Chainweb.Mempool.Mempool
-import Chainweb.Pact4.Validations (defaultMaxTTL, defaultMaxCoinDecimalPlaces)
+import Chainweb.Pact5.Validations (defaultMaxTTLSeconds, defaultMaxCoinDecimalPlaces)
 import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Version (ChainwebVersion)
@@ -72,8 +72,6 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Vector.Algorithms.Tim qualified as TimSort
 import Numeric.AffineSpace
-import Pact.Parse
-import Pact.Types.ChainMeta qualified as P
 import Prelude hiding (init, lookup, pred)
 import System.LogLevel
 import System.Random
@@ -266,8 +264,7 @@ addToBadListInMem lock txs = withMVarMasked lock $ \mdata -> do
     let !pnd' = foldl' (flip HashMap.delete) pnd txs
     -- we don't have the expiry time here, so just use maxTTL
     now <- getCurrentTimeIntegral
-    let P.TTLSeconds (ParsedInteger mt) = defaultMaxTTL
-    let !endTime = add (secondsToTimeSpan $ fromIntegral mt) now
+    let !endTime = add (secondsToTimeSpan $ fromIntegral defaultMaxTTLSeconds) now
     let !bad' = foldl' (\h tx -> HashMap.insert tx endTime h) bad txs
     writeIORef (_inmemPending mdata) pnd'
     writeIORef (_inmemBadMap mdata) bad'
@@ -348,7 +345,7 @@ insertCheckVerboseInMem logger cfg lock txs
       now <- getCurrentTimeIntegral
       badmap <- withMVarMasked lock $ readIORef . _inmemBadMap
       curTxIdx <- withMVarMasked lock $ readIORef . _inmemCurrentTxs
-      
+
       withHashesAndPositions :: (HashMap TransactionHash (Int, InsertError), HashMap TransactionHash (Int, t)) <- do
         pos <- flip V.imapM txs $ \i tx -> do
           let !h = hasher tx
@@ -446,7 +443,7 @@ validateOne cfg badmap curTxIdx now t h =
     gasPriceRoundingCheck =
         ebool_ (InsertErrorOther msg) (f (txGasPrice txcfg t))
       where
-        f (GasPrice (ParsedDecimal d)) = decimalPlaces d <= defaultMaxCoinDecimalPlaces
+        f (GasPrice d) = decimalPlaces d <= defaultMaxCoinDecimalPlaces
         msg = T.unwords
             [ "This transaction's gas price:"
             , sshow (txGasPrice txcfg t)

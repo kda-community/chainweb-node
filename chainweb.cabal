@@ -251,6 +251,7 @@ library
         , Chainweb.SPV.RestAPI.Client
         , Chainweb.Sync.WebBlockHeaderStore
         , Chainweb.Time
+        , Chainweb.TransactionHash
         , Chainweb.Pact4.Transaction
         , Chainweb.Pact5.Transaction
         , Chainweb.TreeDB

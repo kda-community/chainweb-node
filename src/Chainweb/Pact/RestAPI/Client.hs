@@ -34,10 +34,6 @@ module Chainweb.Pact.RestAPI.Client
 
 import qualified Data.Text as T
 
-import Pact.Types.API
-import Pact.Types.Command
-import Pact.Types.Hash
-
 import Servant.Client
 
 -- internal modules
@@ -50,6 +46,8 @@ import Chainweb.Pact.Types
 import Chainweb.SPV.PayloadProof
 import Chainweb.Version
 import qualified Pact.Core.Command.Server as Pact5
+import qualified Pact.Core.Command.Client as Pact5
+import qualified Pact.Core.Command.Types as Pact5
 
 -- -------------------------------------------------------------------------- --
 -- Pact Spv Transaction Output Proof Client
@@ -138,15 +136,15 @@ pactLocalApiClient_
     :: forall (v :: ChainwebVersionT) (c :: ChainIdT)
     . KnownChainwebVersionSymbol v
     => KnownChainIdSymbol c
-    => Command T.Text
-    -> ClientM (CommandResult Hash)
+    => Pact5.Command T.Text
+    -> ClientM LocalResult
 pactLocalApiClient_ = client (pactLocalApi @v @c)
 
 pactLocalApiClient
     :: ChainwebVersion
     -> ChainId
-    -> Command T.Text
-    -> ClientM (CommandResult Hash)
+    -> Pact5.Command T.Text
+    -> ClientM LocalResult
 pactLocalApiClient
     (FromSingChainwebVersion (SChainwebVersion :: Sing v))
     (FromSingChainId (SChainId :: Sing c))
@@ -159,7 +157,7 @@ pactLocalWithQueryApiClient_
     => Maybe LocalPreflightSimulation
     -> Maybe LocalSignatureVerification
     -> Maybe RewindDepth
-    -> Command T.Text
+    -> Pact5.Command T.Text
     -> ClientM LocalResult
 pactLocalWithQueryApiClient_ = client (pactLocalWithQueryApi @v @c)
 
@@ -169,7 +167,7 @@ pactLocalWithQueryApiClient
     -> Maybe LocalPreflightSimulation
     -> Maybe LocalSignatureVerification
     -> Maybe RewindDepth
-    -> Command T.Text
+    -> Pact5.Command T.Text
     -> ClientM LocalResult
 pactLocalWithQueryApiClient
     (FromSingChainwebVersion (SChainwebVersion :: Sing v))
@@ -204,15 +202,15 @@ pactSendApiClient_
     :: forall (v :: ChainwebVersionT) (c :: ChainIdT)
     . KnownChainwebVersionSymbol v
     => KnownChainIdSymbol c
-    => SubmitBatch
-    -> ClientM RequestKeys
+    => Pact5.SubmitBatch
+    -> ClientM Pact5.RequestKeys
 pactSendApiClient_ = client (pactSendApi @v @c)
 
 pactSendApiClient
     :: ChainwebVersion
     -> ChainId
-    -> SubmitBatch
-    -> ClientM RequestKeys
+    -> Pact5.SubmitBatch
+    -> ClientM Pact5.RequestKeys
 pactSendApiClient
     (FromSingChainwebVersion (SChainwebVersion :: Sing v))
     (FromSingChainId (SChainId :: Sing c))

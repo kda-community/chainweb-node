@@ -39,7 +39,7 @@ import Chainweb.Pact.Service.PactQueue
 import Chainweb.Pact.Types
 import Chainweb.Pact.Utils
 import Chainweb.Payload
-import qualified Chainweb.Pact4.Transaction as Pact4
+import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils
 
 import qualified Pact.Core.Persistence as Pact5
@@ -48,8 +48,7 @@ import Data.ByteString.Short (ShortByteString)
 import qualified Pact.Core.Names as Pact5
 import qualified Pact.Core.Builtin as Pact5
 import qualified Pact.Core.Evaluate as Pact5
-import qualified Pact.Types.Command as Pact4
-import qualified Pact.Types.ChainMeta as Pact4
+import qualified Pact.Core.Command.Types as Pact5
 import Data.Text (Text)
 import Chainweb.BlockCreationTime (BlockCreationTime)
 
@@ -108,7 +107,7 @@ data PactExecutionService = PactExecutionService
         Maybe LocalPreflightSimulation ->
         Maybe LocalSignatureVerification ->
         Maybe RewindDepth ->
-        Pact4.UnparsedTransaction ->
+        Pact5.UnparsedTransaction ->
         IO LocalResult)
     -- ^ Directly execute a single transaction in "local" mode (all DB interactions rolled back).
     -- Corresponds to `local` HTTP endpoint.
@@ -129,7 +128,7 @@ data PactExecutionService = PactExecutionService
     -- ^ Lookup pact hashes as of a block header to detect duplicates
     , _pactPreInsertCheck :: !(
         ChainId
-        -> Vector (Pact4.Command (Pact4.PayloadWithText Pact4.PublicMeta Text))
+        -> Vector (Pact5.Command (Pact5.PayloadWithText Pact5.PublicMeta Text))
         -> IO (Vector (Maybe InsertError)))
     -- ^ Run speculative checks to find bad transactions (ie gas buy failures, etc)
     , _pactBlockTxHistory :: !(

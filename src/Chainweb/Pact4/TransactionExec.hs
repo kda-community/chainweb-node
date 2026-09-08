@@ -147,7 +147,6 @@ import Chainweb.BlockHeight
 import Chainweb.ForkState (pact4ForkNumber)
 import Chainweb.Logger
 import qualified Chainweb.ChainId as Chainweb
-import Chainweb.Mempool.Mempool (pact4RequestKeyToTransactionHash)
 import Chainweb.Miner.Pact
 import Chainweb.Pact4.Templates
 import Chainweb.Pact.Types
@@ -387,7 +386,7 @@ applyCmd v logger gasLogger txFailuresCounter pdbenv miner gasModel txCtx txIdxI
     applyBuyGas =
       catchesPactError logger (onChainErrorPrintingFor txCtx) (buyGas txCtx cmd miner) >>= \case
         Left e -> view txRequestKey >>= \rk ->
-          throwM $ Pact4BuyGasFailure $ Pact4GasPurchaseFailure (pact4RequestKeyToTransactionHash rk) e
+          throwM $ Pact4BuyGasFailure $ Pact4GasPurchaseFailure (requestKeyToTransactionHash rk) e
         Right _ -> checkTooBigTx initialGas gasLimit applyVerifiers redeemAllGas
 
     displayPactError e = do

@@ -56,8 +56,6 @@ module Chainweb.Pact.RestAPI
 
 import Data.Text (Text)
 
-import qualified Pact.Types.Command as Pact
-import qualified Pact.Server.API as Pact4
 import Pact.Utils.Servant
 
 import Servant
@@ -71,17 +69,19 @@ import Chainweb.Pact.Types
 import Chainweb.RestAPI.Utils
 import Chainweb.SPV.PayloadProof
 import Chainweb.Version
+import qualified Pact.Core.Command.Client as Pact5
 import qualified Pact.Core.Command.Server as Pact5
+import qualified Pact.Core.Command.Types as Pact5
 
 -- -------------------------------------------------------------------------- --
 -- @POST /chainweb/<ApiVersion>/<ChainwebVersion>/chain/<ChainId>/pact/@
 
--- TODO unify with Pact versioning
+
 type PactApi_
     = "pact"
     :> "api"
     :> "v1"
-    :> ( Pact4.ApiSend
+    :> ( ApiSend
        :<|> PactPollWithQueryApi_
        :<|> ApiListen
        :<|> PactLocalWithQueryApi_
@@ -106,11 +106,23 @@ type PactV1ApiEndpoint (v :: ChainwebVersionT) (c :: ChainIdT) api
     :> "v1"
     :> api
 
-type PactLocalApi v c = PactV1ApiEndpoint v c Pact4.ApiLocal
-type PactSendApi v c = PactV1ApiEndpoint v c Pact4.ApiSend
+type PactLocalApi v c = PactV1ApiEndpoint v c ApiLocal
+type PactSendApi v c = PactV1ApiEndpoint v c ApiSend
 type PactListenApi v c = PactV1ApiEndpoint v c ApiListen
 
-type ApiListen = ("listen" :> ReqBody '[PactJson] Pact5.ListenRequest :> Post '[PactJson] Pact5.ListenResponse)
+
+type ApiLocal = "local"
+  :> ReqBody '[PactJson] (Pact5.Command Text)
+  :> Post '[PactJson] LocalResult
+
+type ApiSend = "send"
+  :> ReqBody '[PactJson] Pact5.SubmitBatch
+  :> Post '[PactJson]  Pact5.RequestKeys
+
+type ApiListen = "listen"
+  :> ReqBody '[PactJson] Pact5.ListenRequest
+  :> Post '[PactJson] Pact5.ListenResponse
+
 
 pactLocalApi
     :: forall (v :: ChainwebVersionT) (c :: ChainIdT)
@@ -135,7 +147,7 @@ type PactLocalWithQueryApi_
     :> QueryParam "preflight" LocalPreflightSimulation
     :> QueryParam "signatureVerification" LocalSignatureVerification
     :> QueryParam "rewindDepth" RewindDepth
-    :> ReqBody '[PactJson] (Pact.Command Text)
+    :> ReqBody '[PactJson] (Pact5.Command Text)
     :> Post '[PactJson] LocalResult
 
 type PactLocalWithQueryApi v c = PactV1ApiEndpoint v c PactLocalWithQueryApi_
