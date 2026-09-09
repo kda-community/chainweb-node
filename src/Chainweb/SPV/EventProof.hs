@@ -97,7 +97,6 @@ module Chainweb.SPV.EventProof
 ) where
 
 import Chainweb.Crypto.MerkleLog
-
 import Control.DeepSeq
 import Control.Exception (throw)
 import Control.Lens (view)
@@ -128,6 +127,9 @@ import Pact.Types.Command
 import Pact.Types.PactValue
 import Pact.Types.Pretty
 import Pact.Types.Runtime hiding (fromText)
+
+import qualified Pact.Core.Command.Types as Pact5
+import qualified Pact.Core.Hash as Pact5
 
 -- internal modules
 
@@ -528,14 +530,14 @@ eventsMerkleProof
     . MonadThrow m
     => MerkleHashAlgorithm a
     => PayloadWithOutputs_ h
-    -> RequestKey
+    -> Pact5.RequestKey
         -- ^ RequestKey of the transaction
     -> m (MerkleProof a)
 eventsMerkleProof p reqKey = do
     events <- getBlockEvents @_ @a p
 
     -- the pact events of the tx output with @reqKey@ within the block
-    i <- case V.findIndex ((== reqKey) . _outputEventsRequestKey) (_blockEventsEvents events) of
+    i <- case V.findIndex ((== pact4reqKey) . _outputEventsRequestKey) (_blockEventsEvents events) of
         Nothing -> throwM $ RequestKeyNotFoundException reqKey
         Just x -> return x
 
@@ -543,11 +545,14 @@ eventsMerkleProof p reqKey = do
     let (!subj, !pos, !t) = bodyTree events i
     merkleProof subj pos t
 
+    where
+        pact4reqKey = RequestKey $ Hash $ Pact5.unHash $ Pact5.unRequestKey reqKey
+
 createEventsProof_
     :: forall a
     . MerkleHashAlgorithm a
     => PayloadWithOutputs
-    -> RequestKey
+    -> Pact5.RequestKey
         -- ^ RequestKey of the transaction
     -> IO (PayloadProof a)
 createEventsProof_ payload reqKey = do
@@ -559,14 +564,14 @@ createEventsProof_ payload reqKey = do
 
 createEventsProof
     :: PayloadWithOutputs
-    -> RequestKey
+    -> Pact5.RequestKey
         -- ^ RequestKey of the transaction
     -> IO (PayloadProof ChainwebMerkleHashAlgorithm)
 createEventsProof = createEventsProof_
 
 createEventsProofKeccak256
     :: PayloadWithOutputs
-    -> RequestKey
+    -> Pact5.RequestKey
         -- ^ RequestKey of the transaction
     -> IO (PayloadProof Keccak_256)
 createEventsProofKeccak256 = createEventsProof_
@@ -585,7 +590,7 @@ createEventsProofDb_
         -- header of the chain has depth 0.
     -> BlockHash
         -- ^ the target header of the proof
-    -> RequestKey
+    -> Pact5.RequestKey
         -- ^ RequestKey of the transaction
     -> IO (PayloadProof a)
 createEventsProofDb_ headerDb payloadDb d h reqKey = do
@@ -614,7 +619,7 @@ createEventsProofDb
         -- header of the chain has depth 0.
     -> BlockHash
         -- ^ the target header of the proof
-    -> RequestKey
+    -> Pact5.RequestKey
         -- ^ RequestKey of the transaction
     -> IO (PayloadProof ChainwebMerkleHashAlgorithm)
 createEventsProofDb = createEventsProofDb_
@@ -628,7 +633,7 @@ createEventsProofDbKeccak256
         -- header of the chain has depth 0.
     -> BlockHash
         -- ^ the target header of the proof
-    -> RequestKey
+    -> Pact5.RequestKey
         -- ^ RequestKey of the transaction
     -> IO (PayloadProof Keccak_256)
 createEventsProofDbKeccak256 = createEventsProofDb_

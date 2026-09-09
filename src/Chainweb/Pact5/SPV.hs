@@ -4,29 +4,36 @@
   , OverloadedStrings
   , ScopedTypeVariables
   , TypeApplications
+  , BangPatterns
+  , FlexibleContexts
 #-}
 
-module Chainweb.Pact5.SPV (pactSPV) where
-
-import Chainweb.BlockHeader (BlockHeader, blockHeight)
+module Chainweb.Pact5.SPV (pactSPV, getTxIdx) where
+import Control.Lens hiding (index)
+import Chainweb.BlockHeader (BlockHeader, blockHeight, blockPayloadHash)
+import Chainweb.BlockHeight
 import Chainweb.BlockHeaderDB (BlockHeaderDb)
 import Chainweb.BlockHeaderDB.HeaderOracle qualified as Oracle
-import Chainweb.Payload (TransactionOutput(..))
+import Chainweb.Payload (TransactionOutput(..), Transaction(..), PayloadWithOutputs_(..))
+import Chainweb.Payload.PayloadStore
+import Chainweb.TreeDB
+import Control.Error
 import Chainweb.SPV (SpvException(..), TransactionOutputProof(..), outputProofChainId)
 import Chainweb.SPV.VerifyProof (verifyTransactionOutputProof)
-import Chainweb.Utils (decodeB64UrlNoPaddingText)
+import Chainweb.Utils (decodeB64UrlNoPaddingText, int, decodeStrictOrThrow')
 import Chainweb.Version qualified as CW
 import Chainweb.Version.Guards qualified as CW
-import Control.Lens
 import Control.Monad (when)
-import Control.Monad.Catch (catch, throwM)
-import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.Catch (catch, throwM, MonadThrow)
+import Control.Monad.Except (throwError)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.Hash.Algorithms (SHA512t_256)
 import Data.Aeson qualified as Aeson
 import Data.Text (Text)
+import Numeric.Natural
 import Data.Text.Encoding qualified as Text
-import Pact.Core.Command.Types (CommandResult(..), PactResult(..))
+import Streaming.Prelude qualified as S
+import Pact.Core.Command.Types (CommandResult(..), PactResult(..), Command(..))
 import Pact.Core.DefPacts.Types (DefPactExec(..))
 import Pact.Core.Hash (Hash(..))
 import Pact.Core.PactValue (ObjectData(..), PactValue(..))
@@ -94,7 +101,7 @@ verifySPV bdb bh proofType proof = runExceptT $ do
             oracle <- liftIO $ Oracle.createSpv bdb bh
 
             outputProof <- case pactObjectOutputProof proof of
-                Left err -> throwError err
+                Left e -> throwError e
                 Right u -> return u
 
             when (view outputProofChainId outputProof /= cid) $
@@ -136,3 +143,51 @@ catchAndDisplaySPVError bh eio =
     SpvExceptionVerificationFailed m -> throwError ("spv verification failed: " <> m)
     spvErr -> throwM spvErr
   else eio
+
+
+-- | Look up pact tx hash at some block height in the
+-- payload db, and return the tx index for proof creation.
+--
+-- Note: runs in O(n) - this should be revisited if possible
+--
+getTxIdx
+    :: CanReadablePayloadCas tbl
+    => BlockHeaderDb
+    -> PayloadDb tbl
+    -> BlockHeight
+    -> Hash
+    -> IO (Either Text Int)
+getTxIdx bdb pdb bh th = do
+    -- get BlockPayloadHash
+    m <- maxEntry bdb
+    ph <- seekAncestor bdb m (int bh) >>= \case
+        Just x -> return $ Right $! view blockPayloadHash x
+        Nothing -> return $ Left "unable to find payload associated with transaction hash"
+
+    case ph of
+      (Left !s) -> return $ Left s
+      (Right !a) -> do
+        -- get payload
+        Just payload <- lookupPayloadWithHeight pdb (Just bh) a
+
+        -- Find transaction index
+        r <- S.each (_payloadWithOutputsTransactions payload)
+          & S.map fst
+          & S.mapM toTxHash
+          & sindex (== th)
+
+        r & note "unable to find transaction at the given block height"
+          & fmap int
+          & return
+  where
+    toPactTx :: MonadThrow m => Transaction -> m (Command Text)
+    toPactTx (Transaction b) = decodeStrictOrThrow' b
+
+    toTxHash :: MonadThrow m => Transaction -> m Hash
+    toTxHash = fmap _cmdHash . toPactTx
+
+    sfind :: Monad m => (a -> Bool) -> S.Stream (S.Of a) m () -> m (Maybe a)
+    sfind p = S.head_ . S.dropWhile (not . p)
+
+    sindex :: Monad m => (a -> Bool) -> S.Stream (S.Of a) m () -> m (Maybe Natural)
+    sindex p s = S.zip (S.each [0..]) s & sfind (p . snd) & fmap (fmap fst)

@@ -22,7 +22,7 @@ import Chainweb.Utils
 import Chainweb.Utils.Rule
 import Chainweb.Version
 
-import Pact.Types.Verifier
+import Pact.Core.Names
 
 import qualified Chainweb.BlockHeader.Genesis.RecapDevelopment0Payload as RDN0
 import qualified Chainweb.BlockHeader.Genesis.RecapDevelopment1to9Payload as RDNN

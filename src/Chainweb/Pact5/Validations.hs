@@ -17,6 +17,7 @@ module Chainweb.Pact5.Validations
 ( -- * Local metadata _validation
   assertPreflightMetadata
   -- * Validation checks
+, assertParseChainId
 , assertChainId
 , assertGasPrice
 , assertNetworkId
@@ -51,14 +52,13 @@ import Chainweb.BlockCreationTime (BlockCreationTime(..))
 import Chainweb.Pact.Types
 import Chainweb.Time (Seconds(..), Time(..), secondsToTimeSpan, scaleTimeSpan, second, add)
 import Chainweb.Version
+import Chainweb.Pact.Utils (fromPact5ChainId)
 
 import qualified Pact.Core.Command.Types as P
 import qualified Pact.Core.ChainData as P
-import qualified Pact.Core.Gas.Types as P
 import qualified Pact.Core.Hash as P
 import qualified Chainweb.Pact5.Transaction as P
-import qualified Pact.Types.Gas as Pact4
-import qualified Pact.Parse as Pact4
+import qualified Pact.Core.Gas as P
 import Chainweb.Pact5.Types
 import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils (ebool_)
@@ -74,17 +74,18 @@ assertPreflightMetadata
 assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
     v <- view psVersion
     cid <- view chainId
-    Pact4.GasLimit (Pact4.ParsedInteger bgl) <- view psBlockGasLimit
+    bgl <- view psBlockGasLimit
 
     let P.PublicMeta pcid _ gl gp _ _ = P._pMeta pay
         nid = P._pNetworkId pay
         signers = P._pSigners pay
 
     let errs = catMaybes
-          [ eUnless "Chain id mismatch" $ assertChainId cid pcid
+          [ eUnless "Unparseable transaction chain id" $ assertParseChainId pcid
+          , eUnless "Chain id mismatch" $ assertChainId cid pcid
           -- TODO: use failing conversion
           , eUnless "Transaction Gas limit exceeds block gas limit"
-            $ assertBlockGasLimit (P.GasLimit $ P.Gas (fromIntegral @Integer @P.SatWord bgl)) gl
+            $ assertBlockGasLimit bgl gl
           , eUnless "Gas price decimal precision too high" $ assertGasPrice gp
           , eUnless "Network id mismatch" $ assertNetworkId v nid
           , eUnless "Signature list size too big" $ assertSigSize sigs
@@ -109,6 +110,11 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
     eUnless t assertion
       | assertion = Nothing
       | otherwise = Just t
+
+-- | Check whether a particular Pact chain id is parseable
+--
+assertParseChainId :: P.ChainId -> Bool
+assertParseChainId = isJust . fromPact5ChainId
 
 -- | Check whether the chain id defined in the metadata of a Pact/Chainweb
 -- command payload matches a given chain id.

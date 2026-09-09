@@ -17,10 +17,9 @@
 --  - The codepath for letting users test their transaction via /local
 --
 module Chainweb.Pact4.Validations
-( -- * Local metadata _validation
-  assertPreflightMetadata
-  -- * Validation checks
-, assertParseChainId
+(-- * Validation checks
+  assertParseChainId
+, assertBlockGasLimit
 , assertChainId
 , assertGasPrice
 , assertNetworkId
@@ -46,10 +45,8 @@ import Control.Lens
 
 import Data.Decimal (decimalPlaces)
 import Data.Bifunctor (first)
-import Data.Maybe (isJust, catMaybes, fromMaybe)
+import Data.Maybe (isJust, fromMaybe)
 import Data.Either (isRight)
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
-import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.ByteString.Short as SBS
 import Data.Word (Word8)
@@ -59,11 +56,10 @@ import Data.Word (Word8)
 import Chainweb.BlockHeader
 import Chainweb.BlockCreationTime (BlockCreationTime(..))
 import Chainweb.Pact.Types
-import Chainweb.Pact.Utils (fromPactChainId)
+import Chainweb.Pact.Utils (fromPact4ChainId)
 import Chainweb.Time (Seconds(..), Time(..), secondsToTimeSpan, scaleTimeSpan, second, add)
 import Chainweb.Pact4.Transaction
 import Chainweb.Version
-import Chainweb.Version.Guards (isWebAuthnPrefixLegal, validPPKSchemes)
 
 import qualified Pact.Types.Gas as P
 import qualified Pact.Types.Hash as P
@@ -72,64 +68,13 @@ import qualified Pact.Types.Command as P
 import qualified Pact.Types.ChainMeta as P
 import qualified Pact.Types.KeySet as P
 import qualified Pact.Parse as P
-import Chainweb.Pact4.Types
 import Chainweb.Utils (ebool_)
 
-
--- | Check whether a local Api request has valid metadata
---
-assertPreflightMetadata
-    :: P.Command (P.Payload P.PublicMeta c)
-    -> TxContext
-    -> Maybe LocalSignatureVerification
-    -> PactServiceM logger tbl (Either (NonEmpty Text) ())
-assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
-    v <- view psVersion
-    cid <- view chainId
-    bgl <- view psBlockGasLimit
-
-    let bh = ctxCurrentBlockHeight txCtx
-    let validSchemes = validPPKSchemes v cid bh
-    let webAuthnPrefixLegal = isWebAuthnPrefixLegal v cid bh
-
-    let P.PublicMeta pcid _ gl gp _ _ = P._pMeta pay
-        nid = P._pNetworkId pay
-        signers = P._pSigners pay
-
-    let errs = catMaybes
-          [ eUnless "Unparseable transaction chain id" $ assertParseChainId pcid
-          , eUnless "Chain id mismatch" $ assertChainId cid pcid
-          -- TODO
-          , eUnless "Transaction Gas limit exceeds block gas limit" $ assertBlockGasLimit bgl gl
-          , eUnless "Gas price decimal precision too high" $ assertGasPrice gp
-          , eUnless "Network id mismatch" $ assertNetworkId v nid
-          , eUnless "Signature list size too big" $ assertSigSize sigs
-          , eUnless "Invalid transaction signatures" $ sigValidate validSchemes webAuthnPrefixLegal signers
-          , eUnless "Tx time outside of valid range" $ assertTxTimeRelativeToParent pct cmd
-          ]
-
-    pure $ case nonEmpty errs of
-      Nothing -> Right ()
-      Just vs -> Left vs
-  where
-    sigValidate validSchemes webAuthnPrefixLegal signers
-      | Just NoVerify <- sigVerify = True
-      | otherwise = isRight $ assertValidateSigs validSchemes webAuthnPrefixLegal hsh signers sigs
-
-    pct = ParentCreationTime
-      . view blockCreationTime
-      . _parentHeader
-      . _tcParentHeader
-      $ txCtx
-
-    eUnless t assertion
-      | assertion = Nothing
-      | otherwise = Just t
 
 -- | Check whether a particular Pact chain id is parseable
 --
 assertParseChainId :: P.ChainId -> Bool
-assertParseChainId = isJust . fromPactChainId
+assertParseChainId = isJust . fromPact4ChainId
 
 -- | Check whether the chain id defined in the metadata of a Pact/Chainweb
 -- command payload matches a given chain id.

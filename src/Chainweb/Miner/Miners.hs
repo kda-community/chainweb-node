@@ -66,7 +66,7 @@ import Chainweb.Miner.Coordinator
 import Chainweb.Miner.Core
 import Chainweb.Miner.Pact
 import Chainweb.RestAPI.Orphans ()
-import qualified Chainweb.Pact4.Transaction as Pact4
+import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils
 import Chainweb.Utils.Serialization
 import Chainweb.Version
@@ -123,7 +123,7 @@ localTest lf v coord m cdb gen miners =
 --
 mempoolNoopMiner
     :: LogFunction
-    -> HashMap ChainId (MempoolBackend Pact4.UnparsedTransaction)
+    -> HashMap ChainId (MempoolBackend Pact5.UnparsedTransaction)
     -> IO ()
 mempoolNoopMiner lf chainRes =
     runForever lf "Chainweb.Miner.Miners.mempoolNoopMiner" $ do

@@ -10,9 +10,9 @@ import Data.Aeson
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 
-import Pact.Types.Capability
-import Pact.Types.Exp
-import Pact.Types.PactValue
+import Pact.Core.Literal
+import Pact.Core.PactValue
+import Pact.Core.Signer
 import Pact.Core.Errors (VerifierError(..))
 
 import Chainweb.VerifierPlugin

@@ -26,7 +26,7 @@ module Chainweb.Pact.PactService.Pact5.ExecBlock
 import Chainweb.BlockHeader
 import Chainweb.BlockHeight
 import Chainweb.Logger
-import Chainweb.Mempool.Mempool(BlockFill (..), pact5RequestKeyToTransactionHash, InsertError (..))
+import Chainweb.Mempool.Mempool(BlockFill (..), InsertError (..))
 import Chainweb.MinerReward
 import Chainweb.Miner.Pact
 import Chainweb.Pact5.Backend.ChainwebPactDb (Pact5Db(doPact5DbTransaction))
@@ -70,12 +70,10 @@ import qualified Pact.JSON.Encode as J
 import System.Timeout
 import Utils.Logging.Trace
 import qualified Data.Set as S
-import qualified Pact.Types.Gas as Pact4
 import qualified Pact.Core.Gas as P
 import qualified Data.Text.Encoding as T
 import qualified Data.HashMap.Strict as HashMap
 import qualified Chainweb.Pact5.Backend.ChainwebPactDb as Pact5
-import qualified Chainweb.Pact4.Transaction as Pact4
 import qualified Chainweb.Pact5.Transaction as Pact5
 import qualified Chainweb.Pact5.Validations as Pact5
 import Pact.Core.Pretty qualified as Pact5
@@ -181,7 +179,7 @@ continueBlock mpAccess blockInProgress = do
 
   let startTxs = _transactionPairs (_blockInProgressTransactions blockInProgress)
   let startTxsRequestKeys =
-        foldMap' (S.singleton . pact5RequestKeyToTransactionHash . view Pact5.crReqKey . snd) startTxs
+        foldMap' (S.singleton . Pact5.requestKeyToTransactionHash . view Pact5.crReqKey . snd) startTxs
   let initState = BlockFill
         { _bfTxHashes = startTxsRequestKeys
         , _bfGasLimit = _blockInProgressRemainingGasLimit blockInProgress
@@ -196,7 +194,7 @@ continueBlock mpAccess blockInProgress = do
   finalBlockHandle <- use pbBlockHandle
 
   liftIO $ mpaBadlistTx mpAccess
-    (V.fromList $ fmap pact5RequestKeyToTransactionHash $ concat invalids)
+    (V.fromList $ fmap Pact5.requestKeyToTransactionHash $ concat invalids)
 
   liftPactServiceM $ logDebugPact $ "Order of completed transactions: " <> sshow (map (Pact5.unRequestKey . Pact5._crReqKey . snd) $ concat $ reverse valids)
   let !blockInProgress' = blockInProgress
@@ -249,10 +247,10 @@ continueBlock mpAccess blockInProgress = do
                 , _bfGasLimit = newBlockGasLimit
                 , _bfTxHashes =
                   flip
-                    (foldr (S.insert . pact5RequestKeyToTransactionHash . view (_2 . Pact5.crReqKey)))
+                    (foldr (S.insert . Pact5.requestKeyToTransactionHash . view (_2 . Pact5.crReqKey)))
                     newCompletedTransactions
                   $ flip
-                    (foldr (S.insert . pact5RequestKeyToTransactionHash))
+                    (foldr (S.insert . Pact5.requestKeyToTransactionHash))
                     newInvalidTransactions
                   $ prevTxHashes
                 }
@@ -270,18 +268,17 @@ continueBlock mpAccess blockInProgress = do
 
       execNewTransactions
         :: Miner
-        -> Pact4.GasLimit
+        -> Pact5.GasLimit
         -> Micros
         -> Vector Pact5.Transaction
-        -> PactBlockM logger tbl (CompletedTransactions, InvalidTransactions, Pact4.GasLimit, Bool)
+        -> PactBlockM logger tbl (CompletedTransactions, InvalidTransactions, Pact5.GasLimit, Bool)
       execNewTransactions miner remainingGas timeLimit txs = do
         env <- ask
         startBlockHandle <- use pbBlockHandle
-        let p5RemainingGas = Pact5.GasLimit $ Pact5.Gas $ fromIntegral remainingGas
         logger' <- view (psServiceEnv . psLogger)
         isGenesis <- view psIsGenesis
         ((txResults, timedOut), (finalBlockHandle, Identity finalRemainingGas)) <-
-          liftIO $ flip runStateT (startBlockHandle, Identity p5RemainingGas) $ foldr
+          liftIO $ flip runStateT (startBlockHandle, Identity remainingGas) $ foldr
             (\(txIdxInBlock, tx) rest -> StateT $ \s -> do
               let logger = addLabel ("transactionHash", sshow (Pact5._cmdHash tx)) logger'
               let env' = env & psServiceEnv . psLogger .~ logger
@@ -318,8 +315,7 @@ continueBlock mpAccess blockInProgress = do
               (zip [0..] (V.toList txs))
         pbBlockHandle .= finalBlockHandle
         let (invalidTxHashes, completedTxs) = partitionEithers txResults
-        let p4FinalRemainingGas = fromIntegral @Pact5.SatWord @Pact4.GasLimit $ finalRemainingGas ^. Pact5._GasLimit . to Pact5._gas
-        return (completedTxs, Pact5.RequestKey <$> invalidTxHashes, p4FinalRemainingGas, timedOut)
+        return (completedTxs, Pact5.RequestKey <$> invalidTxHashes, finalRemainingGas, timedOut)
 
   getBlockTxs :: BlockFill -> PactBlockM logger tbl (Vector Pact5.Transaction)
   getBlockTxs blockFillState = do
@@ -563,10 +559,10 @@ validateRawChainwebTx
         -- ^ Current block height
     -> Bool
         -- ^ Genesis?
-    -> Pact4.UnparsedTransaction
+    -> Pact5.UnparsedTransaction
     -> ExceptT InsertError IO Pact5.Transaction
 validateRawChainwebTx logger v cid db blockHandle parentTime bh isGenesis tx = do
-  tx' <- either (throwError . InsertErrorPactParseError . either id Pact5.renderText) return $ Pact5.parsePact4Command tx
+  tx' <- either (throwError . InsertErrorPactParseError . Pact5.renderText) return $ Pact5.parseTransaction tx
   liftIO $ do
     logDebug_ logger $ "validateRawChainwebTx: parse succeeded"
   validateParsedChainwebTx logger v cid db blockHandle parentTime bh isGenesis tx'
