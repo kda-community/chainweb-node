@@ -56,7 +56,6 @@ module Chainweb.Pact4.TransactionExec
 
   , applyCmd
   , applyGenesisCmd
-  , applyLocal
   , applyExec
   , applyExec'
   , applyContinuation
@@ -634,80 +633,6 @@ applyCoinbase v logger dbEnv reward@(ParsedDecimal d) txCtx
               , _crEvents = _erEvents er
               }
             upgradedModuleCache
-
-applyLocal
-    :: (Logger logger)
-    => logger
-      -- ^ Pact logger
-    -> Maybe logger
-      -- ^ Pact gas logger
-    -> PactDbEnv p
-      -- ^ Pact db environment
-    -> GasModel
-      -- ^ Gas model (pact Service config)
-    -> TxContext
-      -- ^ tx metadata and parent header
-    -> SPVSupport
-      -- ^ SPV support (validates cont proofs)
-    -> Transaction
-      -- ^ command with payload to execute
-    -> ModuleCache
-    -> ExecutionConfig
-    -> IO (CommandResult [TxLogJson])
-applyLocal logger gasLogger dbEnv gasModel txCtx spv cmdIn mc execConfig =
-    evalTransactionM tenv txst go
-  where
-    !cmd = payloadObj <$> cmdIn `using` traverse rseq
-    !rk = cmdToRequestKey cmd
-    !nid = networkIdOf cmd
-    !chash = toUntypedHash $ _cmdHash cmd
-    !signers = _pSigners $ _cmdPayload cmd
-    !verifiers = fromMaybe [] $ _pVerifiers $ _cmdPayload cmd
-    !gasPrice = view cmdGasPrice cmd
-    !gasLimit = view cmdGasLimit cmd
-    tenv = TransactionEnv Local dbEnv logger gasLogger (ctxToPublicData txCtx) spv nid gasPrice
-           rk (fromIntegral gasLimit) execConfig Nothing Nothing
-    txst = TransactionState mc mempty 0 Nothing gasModel mempty
-    gas0 = initialGasOf (_cmdPayload cmdIn)
-    currHeight = ctxCurrentBlockHeight txCtx
-    cid = V._chainId txCtx
-    v = _chainwebVersion txCtx
-
-    allVerifiers = verifiersAt v cid pact4ForkNumber currHeight
-    -- Note [Throw out verifier proofs eagerly]
-    !verifiersWithNoProof =
-        (fmap . fmap) (\_ -> ()) verifiers
-        `using` (traverse . traverse) rseq
-
-    applyVerifiers m = do
-      let initGasRemaining = fromIntegral gasLimit - gas0
-      verifierResult <-
-        liftIO $ runVerifierPlugins
-          (v, cid, currHeight) logger allVerifiers initGasRemaining
-          (fromMaybe [] $ cmd ^. cmdPayload . pVerifiers)
-      case verifierResult of
-        Left err -> do
-          let errMsg = "Tx verifier error: " <> _verifierError err
-          failTxWith
-            (PactError TxFailure noInfo [] (pretty errMsg))
-            errMsg
-        Right verifierGasRemaining -> do
-          let gas1 = (initGasRemaining - verifierGasRemaining) + gas0
-          applyPayload gas1 m
-
-    applyPayload gas1 m = do
-      interp <- gasInterpreter gas1
-      cr <- catchesPactError logger PrintsUnexpectedError $! case m of
-        Exec em ->
-          applyExec gas1 interp em signers verifiersWithNoProof chash managedNamespacePolicy
-        Continuation cm ->
-          applyContinuation gas1 interp cm signers chash managedNamespacePolicy
-
-      case cr of
-        Left e -> failTxWith e "applyLocal"
-        Right r -> return $! r { _crMetaData = Just (J.toJsonViaEncode $ ctxToPublicData' txCtx) }
-
-    go = checkTooBigTx gas0 gasLimit (applyVerifiers $ _pPayload $ _cmdPayload cmd) return
 
 readInitModules
     :: forall logger tbl. (Logger logger)
