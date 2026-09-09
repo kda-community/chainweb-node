@@ -59,7 +59,7 @@ import Control.Parallel.Strategies(using, rseq)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Short as SB
-import Data.Coerce (coerce)
+--import Data.Coerce (coerce)
 import Data.Decimal (Decimal, roundTo)
 import Data.IORef
 import qualified Data.Map.Strict as Map
@@ -70,7 +70,7 @@ import qualified Data.Text.Encoding as T
 import qualified System.LogLevel as L
 
 -- internal Pact modules
-import qualified Pact.JSON.Decode as J
+--import qualified Pact.JSON.Decode as J
 import qualified Pact.JSON.Encode as J
 
 
@@ -94,7 +94,7 @@ import Pact.Core.SPV
 import Pact.Core.Serialise.LegacyPact ()
 import Pact.Core.Signer
 import Pact.Core.StableEncoding
-import Pact.Core.Verifiers
+--import Pact.Core.Verifiers
 import Pact.Core.Syntax.ParseTree qualified as Lisp
 import Pact.Core.Gas.Utils qualified as Pact5
 
@@ -123,18 +123,12 @@ import Chainweb.Version.Utils as V
 import Pact.Core.Command.Types
 import Data.ByteString (ByteString)
 import Pact.Core.Command.RPC
-import qualified Pact.Types.Gas as Pact4
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Vector as Vector
 import Data.Set (Set)
 import Data.Void
 import Control.Monad.Except
-import Data.Int
-import qualified Pact.Types.Verifier as Pact4
-import qualified Pact.Types.Capability as Pact4
-import qualified Pact.Types.Names as Pact4
-import qualified Pact.Types.Runtime as Pact4
 import qualified Pact.Core.Errors as Pact5
 
 -- Note [Throw out verifier proofs eagerly]
@@ -191,63 +185,35 @@ runVerifiers txCtx cmd = do
       let v = _chainwebVersion txCtx
       let gasLimit = cmd ^. cmdPayload . pMeta . pmGasLimit
       gasUsed <- liftIO . readIORef . _geGasRef . _txEnvGasEnv =<< ask
-      let initGasRemaining = MilliGas $ case (gasToMilliGas (gasLimit ^. _GasLimit), gasUsed) of
-            (MilliGas gasLimitMilliGasWord, MilliGas gasUsedMilliGasWord) -> gasLimitMilliGasWord - gasUsedMilliGasWord
+      let initGasRemaining = gasToMilliGas $ fromIntegral gasLimit - fromIntegral gasUsed
+
       let allVerifiers = verifiersAt v (_chainId txCtx) (ctxParentForkNumber txCtx) (ctxCurrentBlockHeight txCtx)
-      let toModuleName m =
-            Pact4.ModuleName
-                    { Pact4._mnName = _mnName m
-                    , Pact4._mnNamespace = coerce <$> _mnNamespace m
-                    }
-      let toQualifiedName qn =
-            Pact4.QualifiedName
-                { Pact4._qnQual = toModuleName $ _qnModName qn
-                , Pact4._qnName = _qnName qn
-                , Pact4._qnInfo = Pact4.Info Nothing
-                }
-      -- TODO: correct error handling here? we should probably charge the user
-      let convertPactValue pv = fromJuste $ J.decodeStrict $ encodeStable pv
-      let pact4TxVerifiers =
-            [ Pact4.Verifier
-              { Pact4._verifierName = case _verifierName pact5Verifier of
-                VerifierName n -> Pact4.VerifierName n
-              , Pact4._verifierProof =
-                  -- TODO: correct error handling here? we should probably charge the user
-                  Pact4.ParsedVerifierProof $ fromJuste $
-                    convertPactValue $ coerce @ParsedVerifierProof @PactValue $ _verifierProof pact5Verifier
-              , Pact4._verifierCaps =
-                [ Pact4.SigCapability (toQualifiedName n) (convertPactValue <$> args)
-                | SigCapability (CapToken n args) <- _verifierCaps pact5Verifier
-                ]
-              }
-              | pact5Verifier <- fromMaybe [] $ cmd ^. cmdPayload . pVerifiers
-              ]
+
       verifierResult <- liftIO $ runVerifierPlugins
           (_chainwebVersion txCtx, _chainId txCtx, ctxCurrentBlockHeight txCtx) logger
           allVerifiers
-          (Pact4.Gas $ fromIntegral @SatWord @Int64 $ _gas $ milliGasToGas $ initGasRemaining)
-          pact4TxVerifiers
+          (milliGasToGas initGasRemaining)
+          (fromMaybe [] $ cmd ^. cmdPayload . pVerifiers)
       case verifierResult of
         Left err -> do
           throwError (Pact5.PEVerifierError err noInfo)
-        Right (Pact4.Gas pact4VerifierGasRemaining) -> do
+        Right afterGasRemaining -> do
           -- TODO: crash properly on negative?
-          let verifierGasRemaining = fromIntegral @Int64 @SatWord pact4VerifierGasRemaining
           -- NB: this is not nice.
           -- TODO: better gas info here
           -- Explanation by cases:
           -- Case 1:
-          -- gasToMilliGas verifierGasRemaining is less than initGasRemaining,
+          -- gasToMilliGas afterGasRemaining is less than initGasRemaining,
           -- in which case the verifier charges gas.
           -- In that case we can subtract it from initGasRemaining and charge that safely.
           -- Case 2:
-          -- gasToMilliGas verifierGasRemaining is greater than or equal to initGasRemaining,
+          -- gasToMilliGas afterGasRemaining is greater than or equal to initGasRemaining,
           -- in which case the verifier has not charged gas, or has charged less than
           -- rounding error.
           -- In that case we do not charge gas at all.
           --
-          when (gasToMilliGas (Gas verifierGasRemaining) < initGasRemaining) $
-            chargeGas noInfo $ GAConstant $ MilliGas $ coerce initGasRemaining - coerce (gasToMilliGas (Gas verifierGasRemaining))
+          when (gasToMilliGas afterGasRemaining < initGasRemaining) $
+            chargeGas noInfo $ GAConstant $ initGasRemaining - gasToMilliGas afterGasRemaining
 
 applyLocal
     :: (Logger logger)

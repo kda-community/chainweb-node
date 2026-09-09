@@ -4,21 +4,32 @@
 module Chainweb.Pact.Conversion
   ( toLegacyKeyset
   , toLegacyGas
+  , fromLegacyGas
+  , fromLegacyVerifier
   , fromLegacyQualifiedName
   , fromLegacyPactValue)
   where
 
+import Chainweb.Utils
+
+import qualified Pact.JSON.Encode as J
+
 import qualified Pact.Types.Term as Legacy
 import qualified Pact.Types.Exp as Legacy
 import qualified Pact.Types.PactValue as Legacy
+import qualified Pact.Types.Verifier as Legacy
+
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
+import Control.Monad.Catch
+
 
 import Pact.Core.ModRefs
 import Pact.Core.Literal
 import Pact.Core.Names
 import Pact.Core.Guards
 import Pact.Core.Gas
+import Pact.Core.Verifiers
 import Pact.Core.PactValue
 
 
@@ -27,6 +38,14 @@ toLegacyKeyset (KeySet pks prd) = Legacy.mkKeySet (fmap (Legacy.PublicKeyText . 
                                                    (predicateToText prd)
 toLegacyGas :: Gas -> Legacy.Gas
 toLegacyGas = Legacy.Gas . fromIntegral . _gas
+
+fromLegacyGas :: Legacy.Gas -> Gas
+fromLegacyGas = Gas . fromIntegral
+
+-- I don't like parsing / unparsing , but thats the easiesy and safest way, and it's just
+-- intended to replay few old Pact-4 transactions
+fromLegacyVerifier :: MonadThrow m => Legacy.Verifier Legacy.ParsedVerifierProof -> m (Verifier ParsedVerifierProof)
+fromLegacyVerifier = decodeStrictOrThrow . J.encodeStrict
 
 fromLegacyQualifiedName
   :: Legacy.QualifiedName

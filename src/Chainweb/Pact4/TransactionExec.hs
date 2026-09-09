@@ -403,13 +403,14 @@ applyCmd v logger gasLogger txFailuresCounter pdbenv miner gasModel txCtx txIdxI
     applyVerifiers = do
       if chainweb223Pact'
       then do
+        pact5Verifiers <- mapM fromLegacyVerifier $ fromMaybe [] (cmd ^. cmdPayload . pVerifiers)
         gasUsed <- use txGasUsed
-        let initGasRemaining = fromIntegral gasLimit - gasUsed
+        let initGasRemaining = Gas $ fromIntegral gasLimit - fromIntegral gasUsed
         verifierResult <-
           liftIO $ runVerifierPlugins
             (ctxVersion txCtx, cid, currHeight)
-            logger allVerifiers initGasRemaining
-            (fromMaybe [] (cmd ^. cmdPayload . pVerifiers))
+            logger allVerifiers (fromLegacyGas initGasRemaining)
+            pact5Verifiers
         case verifierResult of
           Left err -> do
             let errMsg = "Tx verifier error: " <> _verifierError err
@@ -418,7 +419,7 @@ applyCmd v logger gasLogger txFailuresCounter pdbenv miner gasModel txCtx txIdxI
               errMsg
             redeemAllGas cmdResult
           Right verifierGasRemaining -> do
-            txGasUsed += initGasRemaining - verifierGasRemaining
+            txGasUsed += initGasRemaining - toLegacyGas verifierGasRemaining
             applyPayload
       else applyPayload
 

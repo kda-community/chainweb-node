@@ -26,7 +26,7 @@ import Chainweb.Version
 import P2P.BootstrapNodes
 
 import Pact.Core.Gas
-import Pact.Types.Verifier
+import Pact.Core.Names
 
 import qualified Chainweb.Pact.Transactions.CoinV3Transactions as CoinV3
 import qualified Chainweb.Pact.Transactions.CoinV4Transactions as CoinV4

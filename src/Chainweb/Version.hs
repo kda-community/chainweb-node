@@ -191,7 +191,7 @@ import Chainweb.Utils.Rule
 import Chainweb.Utils.Serialization
 import Data.Singletons
 import P2P.Peer
-import Pact.Types.Verifier
+import Pact.Core.Names
 import Pact.Core.Gas
 
 -- | Data type representing changes to block validation, whether in the payload

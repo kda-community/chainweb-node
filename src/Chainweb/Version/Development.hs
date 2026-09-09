@@ -19,7 +19,7 @@ import Chainweb.Utils
 import Chainweb.Utils.Rule
 import Chainweb.Version
 
-import Pact.Types.Verifier
+import Pact.Core.Names
 
 import qualified Chainweb.BlockHeader.Genesis.Development0Payload as DN0
 import qualified Chainweb.BlockHeader.Genesis.Development1to19Payload as DNN
