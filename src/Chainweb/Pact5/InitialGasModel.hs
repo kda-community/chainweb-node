@@ -7,6 +7,7 @@ module Chainweb.Pact5.InitialGasModel
   , pre31GasModel
   , post31GasModel
   , post32GasModel
+  , post33GasModel
   -- Lenses
   , feePerByte
   , rawPayloadSizeFactor
@@ -74,4 +75,18 @@ post32GasModel = InitialGasModel
   , _signatureCost = \case
                         ED25519 ->   21.0   -- | Benchmarked at 52 ns
                         WebAuthn -> 526.0   -- | Benchmarked at 1.315 ms (worst case)
+  }
+
+-- | Chainweb 3.3 Post-Quantum Calibrated Gas Model (contributed by not_bob & seal_klub)
+-- Calibrated for NIST FIPS 205 SLH-DSA & FIPS 204 ML-DSA signature weights.
+post33GasModel :: InitialGasModel
+post33GasModel = InitialGasModel
+  { _feePerByte = 0.01
+  , _rawPayloadSizeFactor = 1.0
+  , _proofSizeFactor = 1.0
+  , _signatureSizeFactor = 1.0
+  , _sizePenalty = \x -> (x / 512) ^ (7 :: Integer)
+  , _signatureCost = \case
+                        ED25519 ->   21.0   -- | 52 ns
+                        WebAuthn -> 526.0   -- | 1.315 ms
   }

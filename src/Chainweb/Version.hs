@@ -237,6 +237,7 @@ data Fork
     | Chainweb31
     | Chainweb32
     | MigratePlatformShare
+    | Chainweb33
     -- always add new forks at the end, not in the middle of the constructors.
     deriving stock (Bounded, Generic, Eq, Enum, Ord, Show)
     deriving anyclass (NFData, Hashable)
@@ -279,6 +280,46 @@ instance HasTextRepresentation Fork where
     toText Chainweb31 = "Chainweb31"
     toText Chainweb32 = "Chainweb32"
     toText MigratePlatformShare = "migratePlatformShare"
+    toText Chainweb33 = "Chainweb33"
+
+    fromText "slowEpoch" = return SlowEpoch
+    fromText "vuln797Fix" = return Vuln797Fix
+    fromText "coinV2" = return CoinV2
+    fromText "pactBackCompat_v16" = return PactBackCompat_v16
+    fromText "moduleNameFix" = return ModuleNameFix
+    fromText "skipTxTimingValidation" = return SkipTxTimingValidation
+    fromText "oldTargetGuard" = return OldTargetGuard
+    fromText "skipFeatureFlagValidation" = return SkipFeatureFlagValidation
+    fromText "moduleNameFix2" = return ModuleNameFix2
+    fromText "oldDaGuard" = return OldDAGuard
+    fromText "pactEvents" = return PactEvents
+    fromText "spvBridge" = return SPVBridge
+    fromText "pact4Coin3" = return Pact4Coin3
+    fromText "enforceKeysetFormats" = return EnforceKeysetFormats
+    fromText "Pact42" = return Pact42
+    fromText "checkTxHash" = return CheckTxHash
+    fromText "chainweb213Pact" = return Chainweb213Pact
+    fromText "chainweb214Pact" = return Chainweb214Pact
+    fromText "chainweb215Pact" = return Chainweb215Pact
+    fromText "pact44NewTrans" = return Pact44NewTrans
+    fromText "chainweb216Pact" = return Chainweb216Pact
+    fromText "chainweb217Pact" = return Chainweb217Pact
+    fromText "chainweb218Pact" = return Chainweb218Pact
+    fromText "chainweb219Pact" = return Chainweb219Pact
+    fromText "chainweb220Pact" = return Chainweb220Pact
+    fromText "chainweb221Pact" = return Chainweb221Pact
+    fromText "chainweb222Pact" = return Chainweb222Pact
+    fromText "chainweb223Pact" = return Chainweb223Pact
+    fromText "chainweb224Pact" = return Chainweb224Pact
+    fromText "chainweb225Pact" = return Chainweb225Pact
+    fromText "pact5" = return Pact5Fork
+    fromText "chainweb228Pact" = return Chainweb228Pact
+    fromText "chainweb230Pact" = return Chainweb230Pact
+    fromText "chainweb231Pact" = return Chainweb231Pact
+    fromText "Chainweb31" = return Chainweb31
+    fromText "Chainweb32" = return Chainweb32
+    fromText "migratePlatformShare" = return MigratePlatformShare
+    fromText "Chainweb33" = return Chainweb33
 
     fromText "slowEpoch" = return SlowEpoch
     fromText "vuln797Fix" = return Vuln797Fix

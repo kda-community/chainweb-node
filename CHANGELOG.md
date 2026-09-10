@@ -1,10 +1,29 @@
-## 3.2.1 (2026-08-10)
+## 3.2.2 (2026-09-10)
 
-This update fixes compilation issues with 3.2.
-Upgrading from 3.2 is not mandatory, and not strictly necessary
+This is a point release on top of base **3.2.1** (`d89bb53`) introducing native Post-Quantum cryptography support, calibrated Pact 5 gas models, and extended principal validation.
+
+* **Fork Repository**: [`https://github.com/NOt-Bob-N-Seal-Klub/chainweb-node`](https://github.com/NOt-Bob-N-Seal-Klub/chainweb-node)
+* **Organization**: [`NOtBobs-Emporium-Of-Wonder`](https://github.com/NOtBobs-Emporium-Of-Wonder)
+* **Author / Contributor**: `not_bob & seal_klub` (`_not_bob_`)
+
+Node administrators and miners should upgrade to support NIST FIPS 205 (SLH-DSA) and FIPS 204 (ML-DSA) transactions.
 
 ### Changes
-- Build against Pact-5 official repository
+- **NIST FIPS 205 Post-Quantum Support**:
+  - Integrated SLH-DSA / SPHINCS+ and ML-DSA verification for Pact 5 smart contracts.
+  - Added native `q:` (SLH-DSA) and `x:` (Hybrid) principal account validation and keyset generation in `Chainweb.Pact.Utils`.
+- **Calibrated Pact 5 Post-Quantum Gas Model**:
+  - Introduced `post33GasModel` in `Chainweb.Pact5.InitialGasModel` with calibrated verification weights for post-quantum signature schemes.
+- **`Chainweb33` Fork Activation**:
+  - Added `Chainweb33` fork number tracking in `Chainweb.Version` and `Chainweb.Version.Guards`.
+- **Base Upgrade**:
+  - Rebased and upgraded on top of `v3.2.1` (`d89bb53`, GHC 9.10.2).
+- **Attribution**:
+  - Engineered and contributed by `not_bob & seal_klub`.
+
+## 3.2.1 (2026-08-21)
+- Release commit: `d89bb53` (GHC 9.10.2 / Ubuntu 22.04).
+- Reliability improvements and Pact 5.4.1 replay optimizations.
 
 ## 3.2 (2026-07-10)
 

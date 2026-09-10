@@ -24,6 +24,14 @@ module Chainweb.Pact.Utils
     , generateKeySetFromKAccount
     , validateKAccountKeySet
 
+    -- * q:account helper functions (NIST FIPS 205 SLH-DSA Post-Quantum, contributed by not_bob & seal_klub)
+    , validateQAccount
+    , extractPubKeyFromQAccount
+    , generateQAccountFromPubKey
+    , pubKeyToQAccountKeySet
+    , generateKeySetFromQAccount
+    , validateQAccountKeySet
+
     -- * empty payload
     , emptyPayload
     ) where
@@ -100,6 +108,48 @@ generateKeySetFromKAccount kacct = do
 validateKAccountKeySet :: T.Text -> P.KeySet -> Bool
 validateKAccountKeySet kacct actualKeySet =
   case generateKeySetFromKAccount kacct of
+    Nothing -> False
+    Just expectedKeySet
+      | expectedKeySet == actualKeySet -> True
+      | otherwise -> False
+
+-- =============================================================================
+-- Post-Quantum (NIST FIPS 205 SLH-DSA) q: Account Helpers
+-- Contributed by not_bob & seal_klub
+-- =============================================================================
+
+validateQAccount :: T.Text -> Bool
+validateQAccount acctName =
+  case T.take 2 acctName of
+    "q:" ->
+      let pubKey = T.drop 2 acctName
+      in T.length pubKey >= 64 && T.all (\c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) pubKey
+    _ -> False
+
+extractPubKeyFromQAccount :: T.Text -> Maybe P.PublicKeyText
+extractPubKeyFromQAccount qacct
+  | validateQAccount qacct =
+    Just $ P.PublicKeyText $ T.drop 2 qacct
+  | otherwise = Nothing
+
+generateQAccountFromPubKey :: P.PublicKeyText -> Maybe T.Text
+generateQAccountFromPubKey pubKey =
+  let pubKeyText = P._pubKey pubKey
+  in if T.length pubKeyText >= 64
+     then Just $ "q:" <> pubKeyText
+     else Nothing
+
+pubKeyToQAccountKeySet :: P.PublicKeyText -> P.KeySet
+pubKeyToQAccountKeySet pubKey = P.mkKeySet [pubKey] "keys-all"
+
+generateKeySetFromQAccount :: T.Text -> Maybe P.KeySet
+generateKeySetFromQAccount qacct = do
+  pubKey <- extractPubKeyFromQAccount qacct
+  pure $ pubKeyToQAccountKeySet pubKey
+
+validateQAccountKeySet :: T.Text -> P.KeySet -> Bool
+validateQAccountKeySet qacct actualKeySet =
+  case generateKeySetFromQAccount qacct of
     Nothing -> False
     Just expectedKeySet
       | expectedKeySet == actualKeySet -> True

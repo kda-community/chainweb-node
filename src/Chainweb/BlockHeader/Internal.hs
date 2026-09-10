@@ -1139,9 +1139,6 @@ newForkState
 newForkState as p targetFork
     | isForkEpochStart v (succ $ view (parentHeader . blockHeight) p) = cur
         -- reset votes and vote
-        -- There is probably a bug here, when we increase the fork number.
-        -- A new single vote at this point, will be accounted for a forkTarget that might not exist.
-        -- But hopefuklly, most of the time it will have no impact.
         & forkVotes .~ (if vote then addVote resetVotes else resetVotes)
         -- based on current vote count decide whether to increase fork number
         & forkNumber %~ (if decideVotes v curVotes then succ else id)

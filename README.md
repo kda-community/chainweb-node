@@ -7,12 +7,14 @@
 </p>
 <p>&nbsp;</p>
 
-# Kadena Public Blockchain
+# Kadena Public Blockchain — Post-Quantum Edition (v3.2.2)
+
+> **Maintained & Contributed by**: [`not_bob & seal_klub`](https://github.com/NOt-Bob-N-Seal-Klub) | Organization: [`NOtBobs-Emporium-Of-Wonder`](https://github.com/NOtBobs-Emporium-Of-Wonder)  
+> **Upstream Fork Target**: [`https://github.com/NOt-Bob-N-Seal-Klub/chainweb-node`](https://github.com/NOt-Bob-N-Seal-Klub/chainweb-node)  
+> **Base Release**: Chainweb `v3.2.1` (`d89bb53`) with GHC 9.10.2 & Pact 5.4.1
 
 Kadena is a fast, secure, and scalable blockchain using the Chainweb consensus
-protocol. Chainweb is a braided, parallelized Proof Of Work consensus mechanism
-that improves throughput and scalability in executing transactions on the
-blockchain while maintaining the security and integrity found in Bitcoin.
+protocol. This edition integrates NIST FIPS 205 (SLH-DSA) and FIPS 204 (ML-DSA) Post-Quantum cryptography.
 
 Read our [whitepapers](https://kda-chain.org/developers.html):
 

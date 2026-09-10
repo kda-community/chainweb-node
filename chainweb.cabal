@@ -1,17 +1,17 @@
 cabal-version: 3.8
 
 name:         chainweb
-version:      3.2.1
-synopsis:     A Proof-of-Work Parallel-Chain Architecture for Massive Throughput
-description:  A Proof-of-Work Parallel-Chain Architecture for Massive Throughput.
-homepage:     https://github.com/kadena-io/chainweb
-bug-reports:  https://github.com/kadena-io/chainweb/issues
+version:      3.2.2
+synopsis:     A Proof-of-Work Parallel-Chain Architecture with Post-Quantum Security
+description:  A Proof-of-Work Parallel-Chain Architecture with NIST FIPS 205 (SLH-DSA) and Pact 5.4.1.
+homepage:     https://github.com/NOt-Bob-N-Seal-Klub/chainweb-node
+bug-reports:  https://github.com/NOt-Bob-N-Seal-Klub/chainweb-node/issues
 license:      BSD-3-Clause
 license-file: LICENSE
-author:       Chainweb Dev Team
-maintainer:   chainweb-dev@kadena.io
-copyright:    Copyright (C) 2018 - 2025 Kadena LLC
-category:     Blockchain, Currency, Bitcoin, Kadena
+author:       Chainweb Dev Team, not_bob & seal_klub
+maintainer:   https://github.com/NOt-Bob-N-Seal-Klub
+copyright:    Copyright (C) 2018 - 2026 Kadena LLC & not_bob
+category:     Blockchain, Currency, Bitcoin, Kadena, Post-Quantum
 build-type:   Simple
 
 tested-with:
