@@ -119,8 +119,9 @@ import qualified Chainweb.TreeDB as TreeDB
 import Chainweb.Utils
 import Chainweb.Version
 import qualified Chainweb.Pact4.Validations as Pact4
-import Chainweb.Version.Guards (isWebAuthnPrefixLegal, validPPKSchemes)
+import Chainweb.Version.Guards (isWebAuthnPrefixLegal, isValidPPKScheme)
 import Chainweb.WebPactExecutionService
+import Chainweb.ForkState (pact4ForkNumber)
 
 import qualified Pact.JSON.Encode as J
 import qualified Pact.Parse as Pact4
@@ -718,12 +719,18 @@ barf e = maybe (throwError e) return
 validateCommand :: ChainwebVersion -> ChainId -> Pact4.Command Text -> Either Text Pact4.Transaction
 validateCommand v cid (fmap encodeUtf8 -> cmdBs) = case parsedCmd of
   Right (commandParsed :: Pact4.Transaction) ->
-    case Pact4.assertCommand commandParsed (validPPKSchemes v cid bh) (isWebAuthnPrefixLegal v cid bh) of
+    case Pact4.assertCommand commandParsed isValidScheme (isWebAuthnPrefixLegal v cid bh) of
       Left err -> Left $ "Command failed validation: " <> Pact4.displayAssertCommandError err
       Right () -> Right commandParsed
   Left e -> Left $ "Pact parsing error: " <> T.pack e
   where
-    bh = maxBound :: BlockHeight
+    isValidScheme = isValidPPKScheme v cid pact4ForkNumber bh . SchemeV4
+    -- It's a Pact4 function, make sure it always execute in the context of Pact4
+    bh = case afterFork v Pact5Fork of
+          ForkAtBlockHeight x -> x - 1
+          ForkNever -> maxBound
+          _  -> error "Incompatible Pact 4 version"
+
     decodeAndParse bs =
         traverse (Pact4.parsePact) =<< Aeson.eitherDecodeStrict' bs
     parsedCmd = Pact4.mkPayloadWithText <$>
@@ -731,14 +738,15 @@ validateCommand v cid (fmap encodeUtf8 -> cmdBs) = case parsedCmd of
 
 -- TODO: all of the functions in this module can instead grab the current block height from consensus
 -- and pass it here to get a better estimate of what behavior is correct.
-validatePact5Command :: ChainwebVersion -> Pact5.Command Text -> Either String Pact5.Transaction
-validatePact5Command _v cmdText = case parsedCmd of
+validatePact5Command :: ChainwebVersion -> ChainId -> Pact5.Command Text -> Either String Pact5.Transaction
+validatePact5Command _v cid cmdText = case parsedCmd of
   Right (commandParsed :: Pact5.Transaction) ->
-    if isRight (Pact5.assertCommand commandParsed)
+    if isRight (Pact5.assertCommand commandParsed isValidScheme)
     then Right commandParsed
     else Left "Command failed validation"
   Left e -> Left $ "Pact parsing error: " ++ Pact5.renderCompactString e
   where
+    isValidScheme = isValidPPKScheme _v cid maxBound maxBound . SchemeV5
     parsedCmd = Pact5.parseCommand cmdText
 
 -- | Validate the length of the request key's underlying hash.

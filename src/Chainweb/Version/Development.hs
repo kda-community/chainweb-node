@@ -64,8 +64,10 @@ devnet = ChainwebVersion
         { _disablePeerValidation = True
         , _disableMempoolSync = False
         }
-    , _versionVerifierPluginNames = AllChains $ Bottom
-        (minBound, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"])
+    , _versionAllowedSignatureSchemes = AllChains $
+        Bottom (minBound, Set.fromList $ SchemeV5 <$> [minBound .. maxBound])
+    , _versionVerifierPluginNames = AllChains $
+        Bottom (minBound, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"])
     , _versionQuirks = noQuirks
     , _versionForkNumber = 1
     , _versionForkVoteCastingLength = 120 * 119 -- 5 days

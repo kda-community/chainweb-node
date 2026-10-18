@@ -63,8 +63,8 @@ import Chainweb.Pact.Utils (fromPactChainId)
 import Chainweb.Time (Seconds(..), Time(..), secondsToTimeSpan, scaleTimeSpan, second, add)
 import Chainweb.Pact4.Transaction
 import Chainweb.Version
-import Chainweb.Version.Guards (isWebAuthnPrefixLegal, validPPKSchemes)
-
+import Chainweb.Version.Guards (isWebAuthnPrefixLegal, isValidPPKScheme)
+import Chainweb.ForkState (pact4ForkNumber)
 import qualified Pact.Types.Gas as P
 import qualified Pact.Types.Hash as P
 import qualified Pact.Types.ChainId as P
@@ -89,7 +89,7 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
     bgl <- view psBlockGasLimit
 
     let bh = ctxCurrentBlockHeight txCtx
-    let validSchemes = validPPKSchemes v cid bh
+    let isValidScheme = isValidPPKScheme v cid pact4ForkNumber bh . SchemeV4
     let webAuthnPrefixLegal = isWebAuthnPrefixLegal v cid bh
 
     let P.PublicMeta pcid _ gl gp _ _ = P._pMeta pay
@@ -104,7 +104,7 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
           , eUnless "Gas price decimal precision too high" $ assertGasPrice gp
           , eUnless "Network id mismatch" $ assertNetworkId v nid
           , eUnless "Signature list size too big" $ assertSigSize sigs
-          , eUnless "Invalid transaction signatures" $ sigValidate validSchemes webAuthnPrefixLegal signers
+          , eUnless "Invalid transaction signatures" $ sigValidate isValidScheme webAuthnPrefixLegal signers
           , eUnless "Tx time outside of valid range" $ assertTxTimeRelativeToParent pct cmd
           ]
 
@@ -112,9 +112,9 @@ assertPreflightMetadata cmd@(P.Command pay sigs hsh) txCtx sigVerify = do
       Nothing -> Right ()
       Just vs -> Left vs
   where
-    sigValidate validSchemes webAuthnPrefixLegal signers
+    sigValidate isValidScheme webAuthnPrefixLegal signers
       | Just NoVerify <- sigVerify = True
-      | otherwise = isRight $ assertValidateSigs validSchemes webAuthnPrefixLegal hsh signers sigs
+      | otherwise = isRight $ assertValidateSigs isValidScheme webAuthnPrefixLegal hsh signers sigs
 
     pct = ParentCreationTime
       . view blockCreationTime
@@ -174,13 +174,13 @@ assertTxSize initialGas gasLimit = initialGas < fromIntegral gasLimit
 -- transaction hash.
 --
 assertValidateSigs :: ()
-  => [P.PPKScheme]
+  => (P.PPKScheme -> Bool)
   -> IsWebAuthnPrefixLegal
   -> P.PactHash
   -> [P.Signer]
   -> [P.UserSig]
   -> Either AssertValidateSigsError ()
-assertValidateSigs validSchemes webAuthnPrefixLegal hsh signers sigs = do
+assertValidateSigs isValidScheme webAuthnPrefixLegal hsh signers sigs = do
   let signersLength = length signers
   let sigsLength = length sigs
   ebool_
@@ -193,7 +193,7 @@ assertValidateSigs validSchemes webAuthnPrefixLegal hsh signers sigs = do
   iforM_ (zip sigs signers) $ \pos (sig, signer) -> do
     ebool_
       (InvalidSignerScheme pos)
-      (fromMaybe P.ED25519 (P._siScheme signer) `elem` validSchemes)
+      (isValidScheme $ fromMaybe P.ED25519 $ P._siScheme signer)
     ebool_
       (InvalidSignerWebAuthnPrefix pos)
       (webAuthnPrefixLegal == WebAuthnPrefixLegal || not (P.webAuthnPrefix `Text.isPrefixOf` P._siPubKey signer))
@@ -239,10 +239,10 @@ assertTxNotInFuture (ParentCreationTime (BlockCreationTime txValidationTime)) tx
 
 -- | Assert that the command hash matches its payload and
 -- its signatures are valid, without parsing the payload.
-assertCommand :: P.Command (PayloadWithText m c) -> [P.PPKScheme] -> IsWebAuthnPrefixLegal -> Either AssertCommandError ()
-assertCommand (P.Command pwt sigs hsh) ppkSchemePassList webAuthnPrefixLegal = do
+assertCommand :: P.Command (PayloadWithText m c) -> (P.PPKScheme -> Bool) -> IsWebAuthnPrefixLegal -> Either AssertCommandError ()
+assertCommand (P.Command pwt sigs hsh) isValidScheme webAuthnPrefixLegal = do
   if isRight assertHash
-  then first AssertValidateSigsError $ assertValidateSigs ppkSchemePassList webAuthnPrefixLegal hsh signers sigs
+  then first AssertValidateSigsError $ assertValidateSigs isValidScheme webAuthnPrefixLegal hsh signers sigs
   else Left InvalidPayloadHash
   where
     cmdBS = SBS.fromShort $ payloadBytes pwt

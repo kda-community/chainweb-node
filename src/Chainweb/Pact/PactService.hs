@@ -108,6 +108,7 @@ import Chainweb.Pact.Service.PactQueue (PactQueue, getNextRequest)
 import Chainweb.Pact.Types
 import Chainweb.Pact4.SPV qualified as Pact4
 import Chainweb.Pact5.SPV qualified as Pact5
+import Chainweb.ForkState (pact4ForkNumber)
 import Chainweb.Payload
 import Chainweb.Payload.PayloadStore
 import Chainweb.Time
@@ -817,7 +818,8 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
                             Left err -> earlyReturn $ review _MetadataValidationFailure $ NonEmpty.singleton $ Text.pack err
                             Right _ -> return ()
                     _ -> do
-                        let validated = Pact4.assertCommand pact4Cwtx (validPPKSchemes v cid bh) (isWebAuthnPrefixLegal v cid bh)
+                        let isValidScheme = isValidPPKScheme v cid pact4ForkNumber bh . SchemeV4
+                        let validated = Pact4.assertCommand pact4Cwtx isValidScheme (isWebAuthnPrefixLegal v cid bh)
                         case validated of
                             Left err -> earlyReturn $ review _MetadataValidationFailure (pure $ displayAssertCommandError err)
                             Right () -> return ()
@@ -859,7 +861,12 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
 
     let localPact5 = do
             ph <- view psParentHeader
-            let pact5RequestKey = Pact5.RequestKey (Pact5.Hash $ Pact4.unHash $ Pact4.toUntypedHash $ Pact4._cmdHash cwtx)
+            let txCtx = Pact5.TxContext ph noMiner
+                bh = Pact5.ctxCurrentBlockHeight txCtx
+                fn = Pact5.ctxParentForkNumber txCtx
+                spvSupport = Pact5.pactSPV bhdb (_parentHeader ph)
+                pact5RequestKey = Pact5.RequestKey (Pact5.Hash $ Pact4.unHash $ Pact4.toUntypedHash $ Pact4._cmdHash cwtx)
+
             evalContT $ withEarlyReturn $ \earlyReturn -> do
                 pact5Cmd <- case Pact5.parsePact4Command cwtx of
                     Left (Left errText) -> do
@@ -902,14 +909,14 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
                                 review _MetadataValidationFailure $ NonEmpty.singleton $ Text.pack err
                             Right _ -> return ()
                     _ -> do
-                        let validated = Pact5.assertCommand pact5Cmd
+                        let isValidScheme = isValidPPKScheme v cid fn bh . SchemeV5
+                            validated = Pact5.assertCommand pact5Cmd isValidScheme
+
                         case validated of
                             Left err -> earlyReturn $
                                 review _MetadataValidationFailure (pure $ displayAssertCommandError err)
                             Right () -> return ()
 
-                let txCtx = Pact5.TxContext ph noMiner
-                let spvSupport = Pact5.pactSPV bhdb (_parentHeader ph)
                 case preflight of
                     Just PreflightSimulation -> do
                         -- preflight needs to do additional checks on the metadata
@@ -1180,13 +1187,14 @@ execPreInsertCheckReq txs = pactLabel "execPreInsertCheckReq" $ do
                 let
                     parentTime = ParentCreationTime (view blockCreationTime $ _parentHeader ph)
                     currHeight = succ $ view blockHeight $ _parentHeader ph
+                    parentForkNumber = view blockForkNumber $ _parentHeader ph
                     isGenesis = False
                 forM txs $ \tx ->
                     fmap (either Just (\_ -> Nothing)) $ runExceptT $ do
                         -- it's safe to use initialBlockHandle here because it's
                         -- only used to check for duplicate pending txs in a block
                         pact5Tx <- mapExceptT liftIO $ Pact5.validateRawChainwebTx
-                            logger v cid db initialBlockHandle parentTime currHeight isGenesis tx
+                            logger v cid db initialBlockHandle parentTime parentForkNumber currHeight isGenesis tx
                         let logger' = addLabel ("transaction", "attemptBuyGas") logger
                         ExceptT $ Pact5.pactTransaction Nothing $ \pactDb -> runExceptT $ do
                             let txCtx = Pact5.TxContext ph noMiner

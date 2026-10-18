@@ -64,6 +64,8 @@ import qualified Pact.Types.Gas as P
 import Chainweb.Test.Pact5.Utils (pactTxFrom4To5)
 
 import Pact.Types.Verifier
+import qualified Pact.Types.Scheme as Pact4 (PPKScheme(..))
+import qualified Pact.Core.Scheme as Pact5 (PPKScheme(..))
 
 import qualified Chainweb.Pact.Transactions.CoinV3Transactions as CoinV3
 import qualified Chainweb.Pact.Transactions.CoinV4Transactions as CoinV4
@@ -168,6 +170,7 @@ testVersionTemplate v = v
     & versionMaxBlockGasLimit .~ Bottom (minBound, Just 2_000_000)
     & versionSpvProofRootValidWindow .~ Bottom (minBound, Just 20)
     & versionInitialGasModel .~ AllChains (Bottom (minBound, pre31GasModel))
+    & versionAllowedSignatureSchemes .~ AllChains (Bottom (minBound, Set.singleton $ SchemeV4 Pact4.ED25519))
     & versionBootstraps .~ [testBootstrapPeerInfos]
     & versionVerifierPluginNames .~ AllChains (Bottom (minBound, mempty))
     & versionForkNumber .~ 0
@@ -248,6 +251,7 @@ pact5CheckpointerTestVersion g1 = buildTestVersion $ \v -> v
     & versionQuirks .~ noQuirks
     & versionUpgrades .~ AllChains HM.empty
     & versionGraphs .~ Bottom (minBound, g1)
+    & versionAllowedSignatureSchemes .~ AllChains (Bottom (minBound, Set.fromList $ SchemeV5 <$> [minBound .. maxBound]))
     & versionCheats .~ VersionCheats
         { _disablePow = True
         , _fakeFirstEpochStart = True
@@ -286,6 +290,13 @@ cpmTestVersion g v = v
         , _genesisBlockTarget = AllChains maxTarget
         , _genesisTime = AllChains $ BlockCreationTime epoch
         }
+    & versionAllowedSignatureSchemes .~ (AllChains $
+        (afterFork v Pact5Fork, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn])
+            `Above`
+        (afterFork v Chainweb221Pact, Set.fromList $ SchemeV4 <$> [Pact4.ED25519, Pact4.WebAuthn])
+            `Above`
+        Bottom (minBound, Set.singleton $ SchemeV4 Pact4.ED25519))
+
     & versionUpgrades .~ chainZip HM.union
         (indexByForkHeights v
             [ (CoinV2, AllChains (pact4Upgrade Other.transactions))
@@ -505,6 +516,7 @@ pact5InstantCpmTestVersion migrate g = buildTestVersion $ \v -> v
         , _genesisTime = AllChains $ BlockCreationTime epoch
         }
     & versionUpgrades .~ AllChains mempty
+    & versionAllowedSignatureSchemes .~ AllChains (Bottom (minBound, Set.fromList $ SchemeV5 <$> [minBound .. maxBound]))
     & versionVerifierPluginNames .~ AllChains
         (Bottom
             ( minBound
@@ -586,6 +598,7 @@ pact5SlowCpmTestVersion g = buildTestVersion $ \v -> v
         _ -> AllChains ForkAtGenesis
         )
     & versionQuirks .~ noQuirks
+    & versionAllowedSignatureSchemes .~ AllChains (Bottom (minBound, Set.fromList $ SchemeV5 <$> [minBound .. maxBound]))
     & versionGenesis .~ VersionGenesis
         { _genesisBlockPayload = onChains $
             (unsafeChainId 0, IN0.payloadBlock) :

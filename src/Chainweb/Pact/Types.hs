@@ -227,6 +227,7 @@ import Chainweb.BlockHeader
 import Chainweb.BlockHeight
 import Chainweb.BlockHeaderDB
 import Chainweb.ChainId
+import Chainweb.ForkState
 import Chainweb.Counter
 import Chainweb.Mempool.Mempool (TransactionHash, BlockFill, MempoolPreBlockCheck, InsertError)
 import Chainweb.Miner.Pact
@@ -264,6 +265,7 @@ import Chainweb.Payload
 import Data.ByteString.Short (ShortByteString)
 import qualified Data.ByteString.Short as SB
 import qualified Data.Vector as V
+--import qualified Pact.Core.Hash as Pact5
 import Data.Maybe
 import Chainweb.BlockCreationTime
 import qualified Data.Aeson as Aeson
@@ -1188,11 +1190,11 @@ instance HasChainId (BlockInProgress pv) where
     _chainId = _blockInProgressChainId
     {-# INLINE _chainId #-}
 
-blockInProgressParent :: BlockInProgress pv -> (BlockHash, BlockHeight, BlockCreationTime)
+blockInProgressParent :: BlockInProgress pv -> (BlockHash, ForkNumber, BlockHeight, BlockCreationTime)
 blockInProgressParent bip =
     maybe
-    (genesisParentBlockHash v cid, genesisHeight v cid, v ^?! versionGenesis . genesisTime . atChain cid)
-    (\bh -> (view blockHash bh, view blockHeight bh, view blockCreationTime bh))
+    (genesisParentBlockHash v cid, genesisForkState ^. forkNumber, genesisHeight v cid, v ^?! versionGenesis . genesisTime . atChain cid)
+    (\bh -> (view blockHash bh, view blockForkNumber bh, view blockHeight bh, view blockCreationTime bh))
     (_parentHeader <$> _blockInProgressParentHeader bip)
     where
     v = _blockInProgressChainwebVersion bip

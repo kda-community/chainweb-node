@@ -186,8 +186,10 @@ defaultCmd cid = CmdBuilder
 -- | Build parsed + verified Pact command
 -- TODO: Use the new `assertPact4Command` function.
 buildCwCmd :: (MonadThrow m, MonadIO m) => ChainwebVersion -> CmdBuilder -> m Pact5.Transaction
-buildCwCmd v cmd = buildTextCmd v cmd >>= \(c :: Command Text) ->
-  case validatePact5Command v c of
+buildCwCmd v cmd = do
+  c <- buildTextCmd v cmd
+  cid <- chainIdFromText $ _cbChainId cmd
+  case validatePact5Command v cid c of
     Left err -> throwM $ userError $ "buildCwCmd failed: " ++ err
     Right cmd' -> return cmd'
 
