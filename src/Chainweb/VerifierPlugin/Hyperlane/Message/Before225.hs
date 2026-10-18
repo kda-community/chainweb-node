@@ -28,9 +28,11 @@ import Data.STRef
 
 import Ethereum.Misc hiding (Word256)
 
-import Pact.Types.Runtime hiding (ChainId)
-import Pact.Types.PactValue
-import Pact.Types.Capability
+import Pact.Core.Gas
+import Pact.Core.Literal
+import Pact.Core.PactValue
+import Pact.Core.Capabilities
+import Pact.Core.Signer
 
 import Chainweb.Utils.Serialization (putRawByteString, runPutS, runGetS, putWord32be)
 
@@ -54,7 +56,7 @@ runPlugin proof caps gasRef = do
     [cap] -> return cap
     _ -> throwError $ VerifierError "Expected one capability."
 
-  (capMessageBody, capRecipient, capSigners) <- case _scArgs of
+  (capMessageBody, capRecipient, capSigners) <- case _ctArgs  _sigCapability of
       [mb, r, sigs] -> return (mb, r, sigs)
       _ -> throwError $ VerifierError $ "Incorrect number of capability arguments. Expected: messageBody, recipient, signers."
 

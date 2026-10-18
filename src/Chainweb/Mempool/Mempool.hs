@@ -74,7 +74,7 @@ module Chainweb.Mempool.Mempool
   , bfTxHashes
   , bfCount
 
-  , pact4TransactionConfig
+  , pact5TransactionConfig
   , mockCodec
   , mockEncode
   , mockBlockGasLimit
@@ -86,8 +86,6 @@ module Chainweb.Mempool.Mempool
   , syncMempools'
   , GasLimit(..)
   , GasPrice(..)
-  , pact4RequestKeyToTransactionHash
-  , pact5RequestKeyToTransactionHash
   ) where
 ------------------------------------------------------------------------------
 
@@ -104,11 +102,9 @@ import Data.Bits (bit, shiftL, shiftR, (.&.))
 import Data.ByteArray (convert)
 import qualified Data.ByteString.Base64.URL as B64
 import Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Short as SB
 import Data.Decimal (Decimal, DecimalRaw(..))
 import Data.Foldable (traverse_)
-import Data.Hashable (Hashable(hashWithSalt))
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Int (Int64)
@@ -130,23 +126,22 @@ import System.LogLevel
 -- internal modules
 
 import qualified Pact.JSON.Encode as J
-import Pact.Parse (ParsedDecimal(..), ParsedInteger(..))
-import Pact.Types.ChainMeta (TTLSeconds(..), TxCreationTime(..))
-import Pact.Types.Command
-import Pact.Types.Gas (GasLimit(..), GasPrice(..))
-import qualified Pact.Types.Hash as Pact4
+import Pact.Core.ChainData (TTLSeconds(..), TxCreationTime(..))
+import Pact.Core.Gas (GasLimit(..), GasPrice(..))
+import qualified Pact.Core.Hash as Pact5
 
 import Chainweb.BlockHash
 import Chainweb.BlockHeight
+import Chainweb.TransactionHash
 import Chainweb.Time (Micros(..), Time(..), TimeSpan(..))
 import qualified Chainweb.Time as Time
-import qualified Chainweb.Pact4.Transaction as Pact4
+import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils
 import Chainweb.Utils.Serialization
 import Data.LogMessage (LogFunctionText)
-import qualified Pact.Types.Command as Pact4
 import qualified Pact.Core.Command.Types as Pact5
-import qualified Pact.Core.Hash as Pact5
+
+import Pact.Core.StableEncoding
 
 ------------------------------------------------------------------------------
 data LookupResult t = Missing
@@ -362,8 +357,8 @@ noopMempool = do
     noopCodec = Codec (const "") (const $ Left "unimplemented")
     noopHasher = const $ chainwebTestHasher "noopMempool"
     noopHashMeta = chainwebTestHashMeta
-    noopGasPrice = const 0
-    noopSize = const 1
+    noopGasPrice = const $ GasPrice 0
+    noopSize = const $ Pact5.toGasLimit (0 :: Int)
     noopMeta = const $ TransactionMetadata Time.minTime Time.maxTime
     txcfg = TransactionConfig noopCodec noopHasher noopHashMeta noopGasPrice noopSize
                               noopMeta
@@ -383,25 +378,23 @@ noopMempool = do
 
 ------------------------------------------------------------------------------
 
-pact4TransactionConfig
-    :: TransactionConfig Pact4.UnparsedTransaction
-pact4TransactionConfig = TransactionConfig
-    { txCodec = Pact4.rawCommandCodec
+pact5TransactionConfig
+    :: TransactionConfig Pact5.UnparsedTransaction
+pact5TransactionConfig = TransactionConfig
+    { txCodec = Pact5.rawCommandCodec
     , txHasher = commandHash
     , txHashMeta = chainwebTestHashMeta
     , txGasPrice = getGasPrice
     , txGasLimit = getGasLimit
     , txMetadata = txmeta
     }
-
-
   where
-    getGasPrice = view Pact4.cmdGasPrice . fmap Pact4.payloadObj
-    getGasLimit = view Pact4.cmdGasLimit . fmap Pact4.payloadObj
-    getTimeToLive = view Pact4.cmdTimeToLive . fmap Pact4.payloadObj
-    getCreationTime = view Pact4.cmdCreationTime . fmap Pact4.payloadObj
-    commandHash c = let (Pact4.Hash !h) = Pact4.toUntypedHash $ _cmdHash c
-                    in TransactionHash h
+    getGasPrice = view Pact5.cmdGasPrice . fmap (view Pact5.payloadObj)
+    getGasLimit = view Pact5.cmdGasLimit . fmap (view Pact5.payloadObj)
+    getTimeToLive = view Pact5.cmdTimeToLive . fmap (view Pact5.payloadObj)
+    getCreationTime = view Pact5.cmdCreationTime . fmap (view Pact5.payloadObj)
+    commandHash = TransactionHash . Pact5.unHash . view Pact5.cmdHash
+
     txmeta t =
         TransactionMetadata
         (toMicros ct)
@@ -584,51 +577,6 @@ syncMempools log us localMempool remoteMempool =
     syncMempools' log us localMempool remoteMempool
 
 ------------------------------------------------------------------------------
--- | Raw/unencoded transaction hashes.
---
--- TODO: production versions of this kind of DB should salt with a
--- runtime-generated constant to avoid collision attacks; see the \"hashing and
--- security\" section of the hashable docs.
-newtype TransactionHash = TransactionHash { unTransactionHash :: SB.ShortByteString }
-  deriving stock (Read, Eq, Ord, Generic)
-  deriving anyclass (NFData)
-
-instance Show TransactionHash where
-    show = T.unpack . encodeToText
-
-instance Hashable TransactionHash where
-  hashWithSalt s (TransactionHash h) = hashWithSalt s (hashCode :: Int)
-    where
-      hashCode = either error id $ runGetEitherS (fromIntegral <$> getWord64le) (B.take 8 $ SB.fromShort h)
-  {-# INLINE hashWithSalt #-}
-
-instance ToJSON TransactionHash where
-  toJSON = toJSON . toText
-  {-# INLINE toJSON #-}
-
-instance J.Encode TransactionHash where
-  build = J.text . toText
-  {-# INLINE build #-}
-
-instance FromJSON TransactionHash where
-  parseJSON = withText "TransactionHash" (either (fail . show) return . p)
-    where
-      p :: Text -> Either SomeException TransactionHash
-      !p = (TransactionHash . SB.toShort <$>) . decodeB64UrlNoPaddingText
-
-instance HasTextRepresentation TransactionHash where
-  toText (TransactionHash th) = encodeB64UrlNoPaddingText $ SB.fromShort th
-  fromText = (TransactionHash . SB.toShort <$>) . decodeB64UrlNoPaddingText
-  {-# INLINE toText #-}
-  {-# INLINE fromText #-}
-
-pact4RequestKeyToTransactionHash :: Pact4.RequestKey -> TransactionHash
-pact4RequestKeyToTransactionHash = TransactionHash . Pact4.unHash . Pact4.unRequestKey
-
-pact5RequestKeyToTransactionHash :: Pact5.RequestKey -> TransactionHash
-pact5RequestKeyToTransactionHash = TransactionHash . Pact5.unHash . Pact5.unRequestKey
-
-------------------------------------------------------------------------------
 --
 data TransactionMetadata = TransactionMetadata
     { txMetaCreationTime :: {-# UNPACK #-} !(Time Micros)
@@ -721,8 +669,8 @@ data MockTx = MockTx {
 instance J.Encode MockTx where
     build o = J.object
         [ "mockNonce" J..= J.Aeson (mockNonce o)
-        , "mockGasPrice" J..= mockGasPrice o
-        , "mockGasLimit" J..= mockGasLimit o
+        , "mockGasPrice" J..= (StableEncoding $ mockGasPrice o)
+        , "mockGasLimit" J..= (StableEncoding $ mockGasLimit o)
         , "mockMeta" J..= mockMeta o
         ]
     {-# INLINE build #-}
@@ -735,13 +683,13 @@ instance ToJSON MockTx where
 instance FromJSON MockTx where
     parseJSON = withObject "MockTx" $ \o -> MockTx
         <$> o .: "mockNonce"
-        <*> o .: "mockGasPrice"
-        <*> o .: "mockGasLimit"
+        <*> (_stableEncoding <$> o .: "mockGasPrice")
+        <*> (_stableEncoding <$> o .: "mockGasLimit")
         <*> o .: "mockMeta"
     {-# INLINE parseJSON #-}
 
 mockBlockGasLimit :: GasLimit
-mockBlockGasLimit = 100_000_000
+mockBlockGasLimit = Pact5.toGasLimit (100_000_000 :: Int)
 
 -- | A codec for transactions when sending them over the wire.
 mockCodec :: Codec MockTx
@@ -749,12 +697,12 @@ mockCodec = Codec mockEncode mockDecode
 
 
 mockEncode :: MockTx -> ByteString
-mockEncode (MockTx nonce (GasPrice (ParsedDecimal price)) limit meta) =
+mockEncode (MockTx nonce (GasPrice price) limit meta) =
   B64.encode $
   runPutS $ do
     putWord64le $ fromIntegral nonce
     putDecimal price
-    putWord64le $ fromIntegral limit
+    putWord64le $ Pact5.fromGasLimit limit
     Time.encodeTime $ txMetaCreationTime meta
     Time.encodeTime $ txMetaExpiryTime meta
 
@@ -796,8 +744,8 @@ mockDecode s = do
     s' <- B64.decode s
     runGetEitherS (MockTx <$> getI64 <*> getPrice <*> getGL <*> getMeta) s'
   where
-    getPrice = GasPrice . ParsedDecimal <$> getDecimal
-    getGL = GasLimit . ParsedInteger . fromIntegral <$> getWord64le
+    getPrice = GasPrice <$> getDecimal
+    getGL = Pact5.toGasLimit <$> getWord64le
     getI64 = fromIntegral <$> getWord64le
     getMeta = TransactionMetadata <$> Time.decodeTime <*> Time.decodeTime
 

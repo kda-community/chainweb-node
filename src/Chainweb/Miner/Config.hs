@@ -56,7 +56,7 @@ import Numeric.Natural (Natural)
 import Options.Applicative
 
 import qualified Pact.JSON.Encode as J
-import Pact.Types.Term (mkKeySet, PublicKeyText(..))
+import Pact.Core.Guards
 
 -- internal modules
 
@@ -252,7 +252,7 @@ pMiner prefix = pkToMiner <$> pPk
   where
     pkToMiner pk = Miner
         (MinerId $ "k:" <> _pubKey pk)
-        (MinerKeys $ mkKeySet [pk] "keys-all")
+        (MinerKeys $ KeySet (S.singleton pk) KeysAll)
     pPk = strOption
         % long (prefix <> "mining-public-key")
         <> help "public key of a miner in hex decimal encoding. The account name is the public key prefix by 'k:'. (This option can be provided multiple times.)"
@@ -306,4 +306,4 @@ defaultNodeMining = NodeMiningConfig
     }
 
 invalidMiner :: Miner
-invalidMiner = Miner "" . MinerKeys $ mkKeySet [] "keys-all"
+invalidMiner = Miner "" . MinerKeys $ KeySet S.empty KeysAll

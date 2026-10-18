@@ -35,10 +35,11 @@ import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.STRef
 
-import Pact.Types.Capability
-import Pact.Types.Gas
-import Pact.Types.PactValue
-import Pact.Types.Verifier
+import Pact.Core.Gas
+import Pact.Core.Names
+import Pact.Core.Signer
+import Pact.Core.PactValue
+import Pact.Core.Verifiers
 
 import Chainweb.Version
 import Chainweb.BlockHeight

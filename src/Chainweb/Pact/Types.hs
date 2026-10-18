@@ -252,6 +252,8 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Pact.Core.Names as Pact5
 import GHC.Stack
 import Streaming
+import Pact.Core.StableEncoding
+import qualified Pact.Core.Gas as Pact5
 import qualified Pact.Core.Command.Types as Pact5
 import qualified Pact.Types.Runtime as Pact4
 import qualified Pact.JSON.Encode as J
@@ -364,7 +366,7 @@ data PactException
   = BlockValidationFailure !BlockValidationFailureMsg
   -- TODO: use this CallStack in the Show instance somehow, or the displayException impl.
   | PactInternalError !CallStack !Text
-  | PactTransactionExecError !Pact4.PactHash !Text
+  | PactTransactionExecError !Pact4.PactHash !Text --Only for Pact 4 Fatal errors
   | CoinbaseFailure !CoinbaseFailure
   | NoBlockValidatedYet
   | Pact4TransactionValidationException !(NonEmpty (Pact4.PactHash, Text))
@@ -385,7 +387,7 @@ data PactException
   | Pact4BuyGasFailure !Pact4GasPurchaseFailure
   | Pact5BuyGasFailure !Pact5GasPurchaseFailure
   | MempoolFillFailure !Text
-  | BlockGasLimitExceeded !Pact4.Gas
+  | BlockGasLimitExceeded !Pact5.Gas
   | FullHistoryRequired
     { _earliestBlockHeight :: !BlockHeight
     , _genesisHeight :: !BlockHeight
@@ -417,7 +419,7 @@ instance J.Encode PactException where
   build (MempoolFillFailure msg) = tagged "MempoolFillFailure" msg
   build (Pact5GenesisCommandFailed hash text) = tagged "BlockGasLimitExceeded" (J.Array $ [sshow @_ @Text hash, text])
   build (Pact5GenesisCommandsInvalid errs) = tagged "BlockGasLimitExceeded" (J.Array $ sshow @_ @Text <$> errs)
-  build (BlockGasLimitExceeded gas) = tagged "BlockGasLimitExceeded" gas
+  build (BlockGasLimitExceeded gas) = tagged "BlockGasLimitExceeded" (StableEncoding $ Pact5.GasLimit gas)
   build o@(FullHistoryRequired{}) = tagged "FullHistoryRequired" $ J.object
     [ "_fullHistoryRequiredEarliestBlockHeight" J..= J.Aeson @Int (fromIntegral $ _earliestBlockHeight o)
     , "_fullHistoryRequiredGenesisHeight" J..= J.Aeson @Int (fromIntegral $ _genesisHeight o)
@@ -468,7 +470,7 @@ newtype RewindLimit = RewindLimit { _rewindLimit :: Word64 }
 data MemPoolAccess = MemPoolAccess
   { mpaGetBlock
         :: !(forall to. BlockFill
-        -> MempoolPreBlockCheck Pact4.UnparsedTransaction to
+        -> MempoolPreBlockCheck Pact5.UnparsedTransaction to
         -> BlockHeight
         -> BlockHash
         -> BlockCreationTime
@@ -503,7 +505,7 @@ data PactServiceEnv logger tbl = PactServiceEnv
     , _psLogger :: !logger
     , _psGasLogger :: !(Maybe logger)
 
-    , _psBlockGasLimit :: !Pact4.GasLimit
+    , _psBlockGasLimit :: !Pact5.GasLimit
 
     , _psEnableLocalTimeout :: !Bool
     , _psTxFailuresCounter :: !(Maybe (Counter "txFailures"))
@@ -548,7 +550,7 @@ data PactServiceConfig = PactServiceConfig
     -- ^ blow away pact dbs
   , _pactUnlimitedInitialRewind :: !Bool
     -- ^ disable initial rewind limit
-  , _pactNewBlockGasLimit :: !Pact4.GasLimit
+  , _pactNewBlockGasLimit :: !Pact5.GasLimit
     -- ^ the gas limit for new block creation, not for validation
   , _pactLogGas :: !Bool
     -- ^ whether to write transaction gas logs at INFO
@@ -590,7 +592,7 @@ testPactServiceConfig = PactServiceConfig
 -- | This default value is only relevant for testing. In a chainweb-node the @GasLimit@
 -- is initialized from the @_configBlockGasLimit@ value of @ChainwebConfiguration@.
 --
-testBlockGasLimit :: Pact4.GasLimit
+testBlockGasLimit :: Pact5.GasLimit
 testBlockGasLimit = 100000
 
 newtype ReorgLimitExceeded = ReorgLimitExceeded Text
@@ -1056,7 +1058,7 @@ data ValidateBlockReq = ValidateBlockReq
     } deriving stock Show
 
 data LocalReq = LocalReq
-    { _localRequest :: !Pact4.UnparsedTransaction
+    { _localRequest :: !Pact5.UnparsedTransaction
     , _localPreflight :: !(Maybe LocalPreflightSimulation)
     , _localSigVerification :: !(Maybe LocalSignatureVerification)
     , _localRewindDepth :: !(Maybe RewindDepth)
@@ -1072,7 +1074,7 @@ instance Show LookupPactTxsReq where
         "LookupPactTxsReq@" ++ show m
 
 data PreInsertCheckReq = PreInsertCheckReq
-    { _preInsCheckTxs :: !(Vector (Pact4.Command (Pact4.PayloadWithText Pact4.PublicMeta Text)))
+    { _preInsCheckTxs :: !(Vector (Pact5.Command (Pact5.PayloadWithText Pact5.PublicMeta Text)))
     }
 instance Show PreInsertCheckReq where
     show (PreInsertCheckReq v) =
@@ -1109,14 +1111,14 @@ data SyncToBlockReq = SyncToBlockReq
 instance Show SyncToBlockReq where show SyncToBlockReq{..} = show _syncToBlockHeader
 
 data SpvRequest = SpvRequest
-    { _spvRequestKey :: !Pact4.RequestKey
-    , _spvTargetChainId :: !Pact4.ChainId
+    { _spvRequestKey :: !Pact5.RequestKey
+    , _spvTargetChainId :: !Pact5.ChainId
     } deriving (Eq, Show, Generic)
 
 instance J.Encode SpvRequest where
   build r = J.object
     [ "requestKey" J..= _spvRequestKey r
-    , "targetChainId" J..= _spvTargetChainId r
+    , "targetChainId" J..= (StableEncoding $ _spvTargetChainId r)
     ]
   {-# INLINE build #-}
 
@@ -1124,7 +1126,7 @@ instance J.Encode SpvRequest where
 instance FromJSON SpvRequest where
   parseJSON = withObject "SpvRequest" $ \o -> SpvRequest
     <$> o .: "requestKey"
-    <*> o .: "targetChainId"
+    <*> (_stableEncoding <$> o .: "targetChainId")
   {-# INLINE parseJSON #-}
 
 newtype TransactionOutputProofB64 = TransactionOutputProofB64 Text
@@ -1156,7 +1158,7 @@ data BlockInProgress pv = BlockInProgress
   , _blockInProgressParentHeader :: !(Maybe ParentHeader)
   , _blockInProgressChainwebVersion :: !ChainwebVersion
   , _blockInProgressChainId :: !ChainId
-  , _blockInProgressRemainingGasLimit :: !Pact4.GasLimit
+  , _blockInProgressRemainingGasLimit :: !Pact5.GasLimit
   , _blockInProgressMiner :: !Miner
   , _blockInProgressTransactions :: !(Transactions pv (CommandResultFor pv))
   , _blockInProgressPactVersion :: !(PactVersionT pv)

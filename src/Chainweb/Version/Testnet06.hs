@@ -23,7 +23,7 @@ import Chainweb.Utils.Rule
 import Chainweb.Version
 import P2P.BootstrapNodes
 
-import Pact.Types.Verifier
+import Pact.Core.Names
 
 import qualified Chainweb.Pact.Transactions.OtherTransactions as CoinV2
 import qualified Chainweb.Pact.Transactions.CoinV3Transactions as CoinV3

@@ -41,16 +41,16 @@ import Chainweb.Miner.Pact
 import Chainweb.Pact.Service.PactQueue
 import Chainweb.Pact.Types
 import Chainweb.Payload
-import qualified Chainweb.Pact4.Transaction as Pact4
+import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils
 import Chainweb.Version
 import Data.ByteString.Short (ShortByteString)
 import qualified Pact.Core.Names as Pact5
 import qualified Pact.Core.Builtin as Pact5
 import qualified Pact.Core.Evaluate as Pact5
-import qualified Pact.Types.ChainMeta as Pact4
+import qualified Pact.Core.ChainData as Pact5
+import qualified Pact.Core.Command.Types as Pact5
 import Data.Text (Text)
-import qualified Pact.Types.Command as Pact4
 
 newBlock :: Miner -> NewBlockFill -> ParentHeader -> PactQueue -> IO (Historical (ForSomePactVersion BlockInProgress))
 newBlock mi fill parent reqQ = do
@@ -83,7 +83,7 @@ local
     :: Maybe LocalPreflightSimulation
     -> Maybe LocalSignatureVerification
     -> Maybe RewindDepth
-    -> Pact4.UnparsedTransaction
+    -> Pact5.UnparsedTransaction
     -> PactQueue
     -> IO LocalResult
 local preflight sigVerify rd ct reqQ = do
@@ -118,7 +118,7 @@ pactReadOnlyReplay l u reqQ = do
     submitRequestAndWait reqQ msg
 
 pactPreInsertCheck
-    :: Vector (Pact4.Command (Pact4.PayloadWithText Pact4.PublicMeta Text))
+    :: Vector (Pact5.Command (Pact5.PayloadWithText Pact5.PublicMeta Text))
     -> PactQueue
     -> IO (Vector (Maybe InsertError))
 pactPreInsertCheck txs reqQ = do

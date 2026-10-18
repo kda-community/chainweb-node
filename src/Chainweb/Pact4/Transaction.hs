@@ -31,6 +31,7 @@ module Chainweb.Pact4.Transaction
   , payloadBytes
   , payloadObj
   , parsePact
+  , requestKeyToTransactionHash
   ) where
 
 import Control.DeepSeq
@@ -55,6 +56,7 @@ import qualified Pact.JSON.Encode as J
 import Pact.JSON.Legacy.Value
 
 import Chainweb.Utils
+import Chainweb.TransactionHash
 import Chainweb.Utils.Serialization
 
 -- | A product type representing a `Payload PublicMeta ParsedCode` coupled with
@@ -188,3 +190,6 @@ cmdTimeToLive = cmdPayload . pMeta . pmTTL
 cmdCreationTime :: Lens' (Command (Payload PublicMeta c)) TxCreationTime
 cmdCreationTime = cmdPayload . pMeta . pmCreationTime
 {-# INLINE cmdCreationTime #-}
+
+requestKeyToTransactionHash :: RequestKey -> TransactionHash
+requestKeyToTransactionHash = TransactionHash . unHash . unRequestKey

@@ -37,6 +37,7 @@ import qualified Data.Vector as V
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Short as SBS
+import qualified Data.Map.Strict as M
 
 import Data.ByteArray (convert)
 import Crypto.Hash (hashWith, SHA3_256(..))
@@ -47,11 +48,11 @@ import Crypto.PubKey.ECC.Types (CurveName(SEC_p256k1), getCurveByName, Point(..)
 import Crypto.Secp256k1 (ecdsaPublicKeyFromCompressed, ecdsaPublicKeyBytes)
 
 import Pact.Core.Errors (VerifierError(..))
-import Pact.Types.PactValue
-import Pact.Types.Capability (SigCapability(..))
-import Pact.Types.Exp (Literal(..))
-import Pact.Types.Term (objectMapToListWith,Gas(..))
-
+import Pact.Core.Signer
+import Pact.Core.Gas
+import Pact.Core.Literal
+import Pact.Core.PactValue
+import Pact.Core.Capabilities
 import Chainweb.VerifierPlugin (VerifierPlugin(..), chargeGas)
 
 import Data.STRef
@@ -90,7 +91,7 @@ data HashList
 parseHashList :: PactValue -> Either T.Text HashList
 parseHashList (PList vec)   = HLList <$> traverse parseHashListNode (V.toList vec)
 parseHashList (PObject om)  =
-  case objectMapToListWith (,) om of
+  case M.toList om  of
     [("0x", PLiteral (LString hexStr))] -> Right $ HLHashHex hexStr
     _ -> Left $ "Malformed binary object at top-level, expected exactly one key '0x'"
 parseHashList _ = Left $ "Expected a list or binary object at the top-level"
@@ -99,7 +100,7 @@ parseHashListNode :: PactValue -> Either T.Text HashListNode
 parseHashListNode = \case
   PLiteral (LString t)   -> Right $ HLNString t
   PLiteral (LDecimal d)  -> Right $ HLNDecimal d
-  PObject om -> case objectMapToListWith (,) om of
+  PObject om -> case M.toList om of
     [("0x", PLiteral (LString hexStr))] -> Right $ HLNHashHex hexStr  -- decoding is in foldHashList
     _ -> Left $ "Malformed binary object, expected exactly one key '0x'"
   PList lst              -> HLNList <$> traverse parseHashListNode (V.toList lst)
@@ -115,7 +116,7 @@ foldHashList
   -> ExceptT VerifierError (ST s) (BS.ByteString, PactValue)
 foldHashList gp gasRef = \case
   -- Top-level precomputed digest provided as hex.
-  
+
   HLHashHex hexTxt -> do
     bs <- decodeHex hexTxt
     pure (bs, PList V.empty)
@@ -165,7 +166,7 @@ plugin = VerifierPlugin $ \_ proof caps gasRef -> do
 
   -- Extract and validate capability arguments
   (capArgs :: [PactValue]) <- case Set.toList caps of
-    [SigCapability{_scArgs = as}] -> pure as
+    [SigCapability{_sigCapability = ct}] -> pure $ _ctArgs ct
     _ -> throwError $ VerifierError "Expected exactly one capability"
 
   (capMsgParts, capPubKeyTxt) <- case capArgs of

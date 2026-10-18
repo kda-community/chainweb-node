@@ -14,6 +14,8 @@ module Chainweb.Pact.Utils
     ( -- * combinators
       aeson
     , fromPactChainId
+    , fromPact4ChainId
+    , fromPact5ChainId
     , toTxCreationTime
 
     -- * k:account helper functions
@@ -30,14 +32,13 @@ module Chainweb.Pact.Utils
 
 import Data.Aeson
 import qualified Data.Text as T
+import qualified Data.Set as S
 
 import Control.Monad.Catch
 
-import Pact.Parse
-import qualified Pact.Types.ChainId as P
-import qualified Pact.Types.Term as P
-import Pact.Types.ChainMeta
-import Pact.Types.KeySet (ed25519HexFormat)
+import qualified Pact.Types.ChainId as Pact4
+import qualified Pact.Core.Guards as Pact5
+import qualified Pact.Core.ChainData as Pact5
 
 import qualified Pact.JSON.Encode as J
 
@@ -48,8 +49,14 @@ import Chainweb.Miner.Pact
 import Chainweb.Payload
 import Chainweb.Time
 
-fromPactChainId :: MonadThrow m => P.ChainId -> m ChainId
-fromPactChainId (P.ChainId t) = chainIdFromText t
+fromPactChainId :: MonadThrow m => Pact5.ChainId -> m ChainId
+fromPactChainId = fromPact5ChainId
+
+fromPact5ChainId :: MonadThrow m => Pact5.ChainId -> m ChainId
+fromPact5ChainId (Pact5.ChainId t) = chainIdFromText t
+
+fromPact4ChainId :: MonadThrow m => Pact4.ChainId -> m ChainId
+fromPact4ChainId (Pact4.ChainId t) = chainIdFromText t
 
 -- | This is the recursion principle of an 'Aeson' 'Result' of type 'a'.
 -- Similar to 'either', 'maybe', or 'bool' combinators
@@ -58,9 +65,9 @@ aeson :: (String -> b) -> (a -> b) -> Result a -> b
 aeson f _ (Error a) = f a
 aeson _ g (Success a) = g a
 
-toTxCreationTime :: Time Micros -> TxCreationTime
+toTxCreationTime :: Time Micros -> Pact5.TxCreationTime
 toTxCreationTime (Time timespan) =
-  TxCreationTime $ ParsedInteger $ fromIntegral $ timeSpanToSeconds timespan
+  Pact5.TxCreationTime $ fromIntegral $ timeSpanToSeconds timespan
 
 
 
@@ -68,20 +75,20 @@ validateKAccount :: T.Text -> Bool
 validateKAccount acctName =
   case T.take 2 acctName of
     "k:" ->
-      let pubKey = P.PublicKeyText $ T.drop 2 acctName
-      in ed25519HexFormat pubKey
+      let pubKey = Pact5.PublicKeyText $ T.drop 2 acctName
+      in Pact5.ed25519HexFormat pubKey
     _ -> False
 
-extractPubKeyFromKAccount :: T.Text -> Maybe P.PublicKeyText
+extractPubKeyFromKAccount :: T.Text -> Maybe Pact5.PublicKeyText
 extractPubKeyFromKAccount kacct
   | validateKAccount kacct =
-    Just $ P.PublicKeyText $ T.drop 2 kacct
+    Just $ Pact5.PublicKeyText $ T.drop 2 kacct
   | otherwise = Nothing
 
-generateKAccountFromPubKey :: P.PublicKeyText -> Maybe T.Text
+generateKAccountFromPubKey :: Pact5.PublicKeyText -> Maybe T.Text
 generateKAccountFromPubKey pubKey
-  | ed25519HexFormat pubKey =
-    let pubKeyText = P._pubKey pubKey
+  | Pact5.ed25519HexFormat pubKey =
+    let pubKeyText = Pact5._pubKey pubKey
     in Just $ "k:" <> pubKeyText
   | otherwise = Nothing
 
@@ -89,15 +96,15 @@ generateKAccountFromPubKey pubKey
 -- Warning: Only use if already certain that PublicKeyText
 -- is valid.
 -- Note: We are assuming the k: account is ED25519.
-pubKeyToKAccountKeySet :: P.PublicKeyText -> P.KeySet
-pubKeyToKAccountKeySet pubKey = P.mkKeySet [pubKey] "keys-all"
+pubKeyToKAccountKeySet :: Pact5.PublicKeyText -> Pact5.KeySet
+pubKeyToKAccountKeySet pubKey = Pact5.KeySet (S.singleton pubKey) Pact5.KeysAll
 
-generateKeySetFromKAccount :: T.Text -> Maybe P.KeySet
+generateKeySetFromKAccount :: T.Text -> Maybe Pact5.KeySet
 generateKeySetFromKAccount kacct = do
   pubKey <- extractPubKeyFromKAccount kacct
   pure $ pubKeyToKAccountKeySet pubKey
 
-validateKAccountKeySet :: T.Text -> P.KeySet -> Bool
+validateKAccountKeySet :: T.Text -> Pact5.KeySet -> Bool
 validateKAccountKeySet kacct actualKeySet =
   case generateKeySetFromKAccount kacct of
     Nothing -> False

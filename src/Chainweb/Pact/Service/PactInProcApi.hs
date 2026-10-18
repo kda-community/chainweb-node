@@ -46,7 +46,7 @@ import Chainweb.Pact.Types
 import qualified Chainweb.Pact.PactService as PS
 import Chainweb.Pact.Service.PactQueue
 import Chainweb.Payload.PayloadStore
-import qualified Chainweb.Pact4.Transaction as Pact4
+import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils
 import Chainweb.Version
 
@@ -133,7 +133,7 @@ pactMemPoolGetBlock
     => MempoolConsensus
     -> logger
     -> BlockFill
-    -> (MempoolPreBlockCheck Pact4.UnparsedTransaction to
+    -> (MempoolPreBlockCheck Pact5.UnparsedTransaction to
             -> BlockHeight
             -> BlockHash
             -> BlockCreationTime

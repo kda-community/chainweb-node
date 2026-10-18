@@ -54,6 +54,7 @@ import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Vector as V
 import Data.Word
+import Data.Set as S
 
 -- internal modules
 
@@ -62,7 +63,8 @@ import Chainweb.Payload
 import Chainweb.Utils
 
 import qualified Pact.JSON.Encode as J
-import qualified Pact.Types.KeySet as Pact4
+import qualified Pact.Core.Guards as Pact5
+import Pact.Core.StableEncoding
 
 -- -------------------------------------------------------------------------- --
 -- Miner data
@@ -77,9 +79,15 @@ newtype MinerId = MinerId { _minerId :: Text }
 -- | `MinerKeys` are a thin wrapper around a Pact `KeySet` to differentiate it
 -- from user keysets.
 --
-newtype MinerKeys = MinerKeys Pact4.KeySet
+newtype MinerKeys = MinerKeys Pact5.KeySet
     deriving stock (Eq, Ord, Generic)
     deriving newtype (Show, NFData)
+
+instance J.Encode MinerKeys where
+    build (MinerKeys ks) = J.build $ StableEncoding ks
+
+instance FromJSON MinerKeys where
+    parseJSON = fmap (MinerKeys . _stableEncoding) . parseJSON
 
 -- | Miner info data consists of a miner id (text), and its keyset (a pact
 -- type).
@@ -97,15 +105,17 @@ data Miner = Miner !MinerId !MinerKeys
 instance J.Encode Miner where
     build (Miner (MinerId m) (MinerKeys ks)) = J.object
         [ "account" J..= m
-        , "predicate" J..= Pact4._ksPredFun ks
-        , "public-keys" J..= J.Array (Pact4._ksKeys ks)
+        , "predicate" J..= (StableEncoding $ Pact5._ksPredFun ks)
+        , "public-keys" J..= J.Array (S.map StableEncoding $ Pact5._ksKeys ks)
         ]
     {-# INLINE build #-}
 
 instance FromJSON Miner where
     parseJSON = withObject "Miner" $ \o -> Miner
         <$> (MinerId <$> o .: "account")
-        <*> (MinerKeys <$> (Pact4.KeySet <$> o .: "public-keys" <*> o .: "predicate"))
+        <*> (MinerKeys <$> (Pact5.KeySet
+                              <$> (S.fromList . fmap _stableEncoding <$> o .: "public-keys")
+                              <*> (_stableEncoding <$> o .: "predicate")))
 
 -- | A lens into the miner id of a miner.
 --
@@ -125,16 +135,16 @@ minerKeys = lens (\(Miner _ k) -> k) (\(Miner i _) b -> Miner i b)
 defaultMiner :: Miner
 defaultMiner = Miner (MinerId "miner")
     $ MinerKeys
-    $ Pact4.mkKeySet
-      ["f880a433d6e2a13a32b6169030f56245efdd8c1b8a5027e9ce98a88e886bef27"]
-      "keys-all"
+    $ Pact5.KeySet
+      (S.singleton $ Pact5.PublicKeyText "f880a433d6e2a13a32b6169030f56245efdd8c1b8a5027e9ce98a88e886bef27")
+      Pact5.KeysAll
 
 {-# NOINLINE defaultMiner #-}
 
 -- | A trivial Miner.
 --
 noMiner :: Miner
-noMiner = Miner (MinerId "NoMiner") (MinerKeys $ Pact4.mkKeySet [] "<")
+noMiner = Miner (MinerId "NoMiner") (MinerKeys $ Pact5.KeySet S.empty Pact5.KeysAll)
 {-# NOINLINE noMiner #-}
 
 -- | Convert from Pact `Miner` to Chainweb `MinerData`.

@@ -23,9 +23,10 @@ import qualified Data.Set as Set
 
 import Ethereum.Misc hiding (Word256)
 
-import Pact.Types.Runtime
-import Pact.Types.PactValue
-import Pact.Types.Capability
+import Pact.Core.Capabilities
+import Pact.Core.Signer
+import Pact.Core.PactValue
+import Pact.Core.Literal
 
 import Chainweb.VerifierPlugin.Hyperlane.Utils
 import Chainweb.Utils.Serialization (putRawByteString, runPutS, putWord32be)
@@ -38,7 +39,7 @@ plugin :: VerifierPlugin
 plugin = VerifierPlugin $ \_ proof caps gasRef -> do
   -- extract capability values
   (capLocation, capSigner, capMailboxAddress) <- case Set.toList caps of
-    [cap] -> case _scArgs cap of
+    [cap] -> case (_ctArgs . _sigCapability) cap of
       [location, sig, mailbox] -> return (location, sig, mailbox)
       _ -> throwError $ VerifierError "Incorrect number of capability arguments. Expected: storageLocation, signer."
     _ -> throwError $ VerifierError "Expected one capability."

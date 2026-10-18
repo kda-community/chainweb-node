@@ -34,9 +34,12 @@ import Data.STRef
 
 import Ethereum.Misc hiding (Word256)
 
-import Pact.Types.Runtime hiding (ChainId)
-import Pact.Types.PactValue
-import Pact.Types.Capability
+import Pact.Core.Gas
+import Pact.Core.Literal
+import Pact.Core.PactValue
+import Pact.Core.Signer
+import Pact.Core.Capabilities
+import Pact.Core.Names
 
 import Chainweb.Utils.Serialization (putRawByteString, runPutS, runGetS, putWord32be)
 
@@ -71,7 +74,7 @@ runPlugin proof caps gasRef = do
           -> return i
         _ -> throwError $ VerifierError $ k <> " is not an integer"
 
-  (capMessageId, capMessage, capSigners, capThreshold) <- case _scArgs of
+  (capMessageId, capMessage, capSigners, capThreshold) <- case  _ctArgs  _sigCapability of
     [mid, mb, PList sigs, PLiteral literalThreshold] -> do
       threshold <- parseInt "Threshold" literalThreshold
       parsedSigners <- forM sigs $ \case
@@ -80,9 +83,9 @@ runPlugin proof caps gasRef = do
 
       parsedObject <-
         case mb of
-          PObject (ObjectMap m) -> do
+          PObject m -> do
             let
-              parseField k = case (m ^? at (FieldKey k) . _Just . _PLiteral) of
+              parseField k = case (m ^? at (Field k) . _Just . _PLiteral) of
                   Just l -> PLiteral . LInteger <$> parseInt k l
                   _ -> throwError $ VerifierError $ k <> " is missing"
 
@@ -91,7 +94,7 @@ runPlugin proof caps gasRef = do
             origin <- parseField "originDomain"
             destination <- parseField "destinationDomain"
 
-            return $ PObject $ ObjectMap $ m
+            return $ PObject $ m
               & at "version" .~ Just version
               & at "nonce" .~ Just nonce
               & at "originDomain" .~ Just origin
@@ -135,7 +138,7 @@ runPlugin proof caps gasRef = do
     hmRecipientPactValue = PLiteral $ LString $ encodeB64UrlNoPaddingText hmRecipient
 
     hmMessageBodyPactValue = PLiteral $ LString $ encodeB64UrlNoPaddingText hmMessageBody
-    hmMessagePactValue = PObject . ObjectMap . M.fromList $
+    hmMessagePactValue = PObject . M.fromList $
       [ ("version", hmVersionPactValue)
       , ("nonce", hmNoncePactValue)
       , ("originDomain", hmOriginDomainPactValue)

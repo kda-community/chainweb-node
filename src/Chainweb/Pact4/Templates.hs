@@ -111,7 +111,7 @@ mkFundTxTerm
   -> Text      -- ^ Address of the sender from the command
   -> GasSupply -- ^ The gas limit total * price
   -> (Term Name,ExecMsg ParsedCode)
-mkFundTxTerm (MinerId mid) (MinerKeys ks) sender total = (populatedTerm, execMsg)
+mkFundTxTerm (MinerId mid) ks sender total = (populatedTerm, execMsg)
   where (term, senderS, minerS) = fundTxTemplate
         populatedTerm = set senderS sender $ set minerS mid term
         execMsg = ExecMsg dummyParsedCode (toLegacyJsonViaEncode buyGasData)
@@ -120,6 +120,7 @@ mkFundTxTerm (MinerId mid) (MinerKeys ks) sender total = (populatedTerm, execMsg
           , "total" J..= total
           ]
 {-# INLINABLE mkFundTxTerm #-}
+
 
 mkBuyGasTerm
   :: Text      -- ^ Address of the sender from the command
@@ -140,7 +141,7 @@ mkRedeemGasTerm
   -> GasSupply -- ^ The gas limit total * price
   -> GasSupply -- ^ The gas used * price
   -> (Term Name,ExecMsg ParsedCode)
-mkRedeemGasTerm (MinerId mid) (MinerKeys ks) sender total fee = (populatedTerm, execMsg)
+mkRedeemGasTerm (MinerId mid) ks sender total fee = (populatedTerm, execMsg)
   where (term, senderS, minerS) = redeemGasTemplate
         populatedTerm = set senderS sender $ set minerS mid term
         execMsg = ExecMsg dummyParsedCode (toLegacyJsonViaEncode redeemGasData)
@@ -163,7 +164,7 @@ coinbaseTemplate =
 {-# NOINLINE coinbaseTemplate #-}
 
 mkCoinbaseTerm :: MinerId -> MinerKeys -> ParsedDecimal -> (Term Name,ExecMsg ParsedCode)
-mkCoinbaseTerm (MinerId mid) (MinerKeys ks) reward = (populatedTerm, execMsg)
+mkCoinbaseTerm (MinerId mid) ks reward = (populatedTerm, execMsg)
   where
     (term, minerS) = coinbaseTemplate
     populatedTerm = set minerS mid term
@@ -177,7 +178,7 @@ mkCoinbaseTerm (MinerId mid) (MinerKeys ks) reward = (populatedTerm, execMsg)
 -- | "Old method" to build a coinbase 'ExecMsg' for back-compat.
 --
 mkCoinbaseCmd :: MinerId -> MinerKeys -> ParsedDecimal -> IO (ExecMsg ParsedCode)
-mkCoinbaseCmd (MinerId mid) (MinerKeys ks) reward =
+mkCoinbaseCmd (MinerId mid) ks reward =
     buildExecParsedCode $ mconcat
       [ "(coin.coinbase"
       , " \"" <> mid <> "\""

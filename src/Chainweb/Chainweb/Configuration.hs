@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -- |
 -- Module: Chainweb.Chainweb.Configuration
 -- Copyright: Copyright © 2021 Kadena LLC.
@@ -124,6 +125,8 @@ import Chainweb.Time
 
 import P2P.Node.Configuration
 import Chainweb.Pact.Backend.DbCache (DbCacheLimitBytes)
+
+import Pact.Core.StableEncoding
 
 -- -------------------------------------------------------------------------- --
 -- Throttling Configuration
@@ -374,6 +377,19 @@ pBackupConfig = id
         <> suffixHelp backup "Directory in which backups will be placed when using the backup API endpoint"
   where
     backup = Just "backup"
+
+instance FromJSON Mempool.GasLimit where
+    parseJSON = fmap _stableEncoding . parseJSON
+
+instance J.Encode Mempool.GasLimit where
+    build = J.build . StableEncoding
+
+instance FromJSON Mempool.GasPrice where
+    parseJSON = fmap _stableEncoding . parseJSON
+
+instance J.Encode Mempool.GasPrice where
+    build =J.build . StableEncoding
+
 
 -- -------------------------------------------------------------------------- --
 -- Chainweb Configuration

@@ -36,9 +36,9 @@ import Pact.Core.Syntax.ParseTree
 import Pact.Core.PactValue
 import qualified Data.Map as Map
 import Chainweb.Utils (decodeOrThrow)
-import Pact.Core.StableEncoding (StableEncoding(_stableEncoding))
+import Pact.Core.StableEncoding
 import Control.Exception.Safe (impureThrow)
-import qualified Pact.Types.KeySet as Pact4
+import qualified Pact.Core.Guards as Pact5
 import Chainweb.Pact5.Types
 
 fundTxTemplate :: Text -> Text -> Expr ()
@@ -95,9 +95,9 @@ mkFundTxTerm (MinerId mid) (MinerKeys ks) sender total =
 
 -- we configure the miner keyset as a Pact4 keyset
 -- TODO: change this?
-convertKeySet :: Pact4.KeySet -> PactValue
+convertKeySet :: Pact5.KeySet -> PactValue
 convertKeySet =
-  either impureThrow _stableEncoding . decodeOrThrow . J.encode
+  either impureThrow _stableEncoding . decodeOrThrow . J.encode . StableEncoding
 {-# INLINABLE mkFundTxTerm #-}
 
 mkBuyGasTerm

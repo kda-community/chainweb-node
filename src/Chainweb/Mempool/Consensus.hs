@@ -47,20 +47,20 @@ import Chainweb.Mempool.Mempool
 import Chainweb.Payload
 import Chainweb.Payload.PayloadStore
 import Chainweb.Time
-import qualified Chainweb.Pact4.Transaction as Pact4
+import qualified Chainweb.Pact5.Transaction as Pact5
+import qualified Pact.Core.ChainData as Pact5
 import Chainweb.TreeDB
 import Chainweb.Utils
 
 import Data.LogMessage (JsonLog(..), LogFunction)
-import qualified Pact.Types.ChainMeta as Pact4
 import Data.Text (Text)
 
 ------------------------------------------------------------------------------
 data MempoolConsensus = MempoolConsensus
-    { mpcMempool :: !(MempoolBackend Pact4.UnparsedTransaction)
+    { mpcMempool :: !(MempoolBackend Pact5.UnparsedTransaction)
     , mpcLastNewBlockParent :: !(IORef (Maybe BlockHeader))
     , mpcProcessFork
-        :: LogFunction -> BlockHeader -> IO (Vector Pact4.UnparsedTransaction, Vector Pact4.UnparsedTransaction)
+        :: LogFunction -> BlockHeader -> IO (Vector Pact5.UnparsedTransaction, Vector Pact5.UnparsedTransaction)
     }
 
 data ReintroducedTxsLog = ReintroducedTxsLog
@@ -81,7 +81,7 @@ instance Exception MempoolException
 ------------------------------------------------------------------------------
 mkMempoolConsensus
     :: CanReadablePayloadCas tbl
-    => MempoolBackend Pact4.UnparsedTransaction
+    => MempoolBackend Pact5.UnparsedTransaction
     -> BlockHeaderDb
     -> Maybe (PayloadDb tbl)
     -> IO MempoolConsensus
@@ -103,23 +103,23 @@ processFork
     -> IORef (Maybe BlockHeader)
     -> LogFunction
     -> BlockHeader
-    -> IO (Vector Pact4.UnparsedTransaction, Vector Pact4.UnparsedTransaction)
+    -> IO (Vector Pact5.UnparsedTransaction, Vector Pact5.UnparsedTransaction)
 processFork blockHeaderDb payloadStore lastHeaderRef logFun newHeader = do
     now <- getCurrentTimeIntegral
     lastHeader <- readIORef lastHeaderRef
     (a, b) <- processFork' logFun blockHeaderDb newHeader lastHeader
                            (payloadLookup payloadStore)
                            (processForkCheckTTL now)
-    return (V.map Pact4.unHashable a, V.map Pact4.unHashable b)
+    return (V.map Pact5.unHashable a, V.map Pact5.unHashable b)
 
 
 ------------------------------------------------------------------------------
 processForkCheckTTL
     :: Time Micros
-    -> Pact4.HashableTrans (Pact4.PayloadWithText Pact4.PublicMeta Text) -> Bool
-processForkCheckTTL now (Pact4.HashableTrans t) =
+    -> Pact5.HashableTrans (Pact5.PayloadWithText Pact5.PublicMeta Text) -> Bool
+processForkCheckTTL now (Pact5.HashableTrans t) =
     either (const False) (const True) $
-    txTTLCheck pact4TransactionConfig now t
+    txTTLCheck pact5TransactionConfig now t
 
 
 ------------------------------------------------------------------------------
@@ -168,7 +168,7 @@ payloadLookup
     :: CanReadablePayloadCas tbl
     => Maybe (PayloadDb tbl)
     -> BlockHeader
-    -> IO (HashSet (Pact4.HashableTrans (Pact4.PayloadWithText Pact4.PublicMeta Text)))
+    -> IO (HashSet (Pact5.HashableTrans (Pact5.PayloadWithText Pact5.PublicMeta Text)))
 payloadLookup payloadStore bh =
     case payloadStore of
         Nothing -> return mempty
@@ -180,7 +180,7 @@ payloadLookup payloadStore bh =
 ------------------------------------------------------------------------------
 chainwebTxsFromPd
     :: PayloadData
-    -> IO (HashSet (Pact4.HashableTrans (Pact4.PayloadWithText Pact4.PublicMeta Text)))
+    -> IO (HashSet (Pact5.HashableTrans (Pact5.PayloadWithText Pact5.PublicMeta Text)))
 chainwebTxsFromPd pd = do
     let transSeq = view payloadDataTransactions pd
     let bytes = _transactionBytes <$> transSeq
@@ -188,6 +188,6 @@ chainwebTxsFromPd pd = do
     -- Note: if any transactions fail to convert, the final validation hash will fail to match
     -- the one computed during newBlock
     let theRights  = rights $ toList eithers
-    return $! HS.fromList $ Pact4.HashableTrans <$!> theRights
+    return $! HS.fromList $ Pact5.HashableTrans <$!> theRights
   where
-    toCWTransaction = codecDecode Pact4.rawCommandCodec
+    toCWTransaction = codecDecode Pact5.rawCommandCodec

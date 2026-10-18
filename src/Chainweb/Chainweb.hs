@@ -72,7 +72,7 @@ module Chainweb.Chainweb
 , NowServing(..)
 
 -- ** Mempool integration
-, Mempool.pact4TransactionConfig
+, Mempool.pact5TransactionConfig
 , validatingMempoolConfig
 
 , withChainweb
@@ -162,12 +162,12 @@ import qualified Chainweb.OpenAPIValidation as OpenAPIValidation
 import Chainweb.Pact.Backend.Types(IntraBlockPersistence(..))
 import Chainweb.Pact.RestAPI.Server (PactServerData(..))
 import Chainweb.Pact.Types (PactServiceConfig(..))
-import Chainweb.Pact4.Validations
+import Chainweb.Pact5.Validations
 import Chainweb.Payload.PayloadStore
 import Chainweb.Payload.PayloadStore.RocksDB
 import Chainweb.RestAPI
 import Chainweb.RestAPI.NetworkID
-import qualified Chainweb.Pact4.Transaction as Pact4
+import qualified Chainweb.Pact5.Transaction as Pact5
 import Chainweb.Utils
 import Chainweb.Utils.RequestLog
 import Chainweb.Version
@@ -183,8 +183,8 @@ import P2P.Node.Configuration
 import P2P.Node.PeerDB (PeerDb)
 import P2P.Peer
 
-import qualified Pact.Types.ChainMeta as P
-import qualified Pact.Types.Command as P
+import qualified Pact.Core.ChainData as P
+import qualified Pact.Core.Command.Types as P
 
 -- -------------------------------------------------------------------------- --
 -- Chainweb Resources
@@ -270,7 +270,7 @@ validatingMempoolConfig
     -> Mempool.GasLimit
     -> Mempool.GasPrice
     -> MVar PactExecutionService
-    -> Mempool.InMemConfig Pact4.UnparsedTransaction
+    -> Mempool.InMemConfig Pact5.UnparsedTransaction
 validatingMempoolConfig cid v gl gp mv = Mempool.InMemConfig
     { Mempool._inmemTxCfg = txcfg
     , Mempool._inmemTxBlockSizeLimit = gl
@@ -281,7 +281,7 @@ validatingMempoolConfig cid v gl gp mv = Mempool.InMemConfig
     , Mempool._inmemCurrentTxsSize = currentTxsSize
     }
   where
-    txcfg = Mempool.pact4TransactionConfig
+    txcfg = Mempool.pact5TransactionConfig
         -- The mempool doesn't provide a chain context to the codec which means
         -- that the latest version of the parser is used.
 
@@ -294,9 +294,9 @@ validatingMempoolConfig cid v gl gp mv = Mempool.InMemConfig
 
     -- | Validation: Is this TX associated with the correct `ChainId`?
     --
-    preInsertSingle :: Pact4.UnparsedTransaction -> Either Mempool.InsertError Pact4.UnparsedTransaction
+    preInsertSingle :: Pact5.UnparsedTransaction -> Either Mempool.InsertError Pact5.UnparsedTransaction
     preInsertSingle tx = do
-        let !pay = Pact4.payloadObj . P._cmdPayload $ tx
+        let !pay = view Pact5.payloadObj . P._cmdPayload $ tx
             pcid = P._pmChainId $ P._pMeta pay
             sigs = P._cmdSigs tx
             ver  = P._pNetworkId pay
@@ -316,9 +316,9 @@ validatingMempoolConfig cid v gl gp mv = Mempool.InMemConfig
     -- is gossiped to us from a peer's mempool.
     --
     preInsertBatch
-        :: V.Vector (T2 Mempool.TransactionHash Pact4.UnparsedTransaction)
+        :: V.Vector (T2 Mempool.TransactionHash Pact5.UnparsedTransaction)
         -> IO (V.Vector (Either (T2 Mempool.TransactionHash Mempool.InsertError)
-                                (T2 Mempool.TransactionHash Pact4.UnparsedTransaction)))
+                                (T2 Mempool.TransactionHash Pact5.UnparsedTransaction)))
     preInsertBatch txs
         | V.null txs = return V.empty
         | otherwise = do
@@ -774,7 +774,7 @@ runChainweb cw nowServing = do
     chainDbsToServe :: [(ChainId, BlockHeaderDb)]
     chainDbsToServe = proj _chainResBlockHeaderDb
 
-    mempoolsToServe :: [(ChainId, Mempool.MempoolBackend Pact4.UnparsedTransaction)]
+    mempoolsToServe :: [(ChainId, Mempool.MempoolBackend Pact5.UnparsedTransaction)]
     mempoolsToServe = proj _chainResMempool
 
     peerDb = _peerResDb (_chainwebPeer cw)
