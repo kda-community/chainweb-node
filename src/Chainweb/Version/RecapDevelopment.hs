@@ -84,6 +84,7 @@ recapDevnet = ChainwebVersion
         MigratePlatformShare -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
         Chainweb31 -> AllChains $ ForkAtBlockHeight $ BlockHeight 710
         Chainweb32 -> AllChains $ ForkAtGenesis
+        Chainweb33 -> AllChains $ ForkAtGenesis -- TODO Something wrong here
 
     , _versionUpgrades = foldr (chainZip HM.union) (AllChains mempty)
         [ indexByForkHeights recapDevnet
@@ -119,13 +120,15 @@ recapDevnet = ChainwebVersion
 
     , _versionMaxBlockGasLimit = Bottom (minBound, Just 180_000)
     , _versionInitialGasModel = AllChains $
-        (ForkNever, post32GasModel)
+        (ForkNever, post33GasModel) -- TODO Something wrong here
             `Above`
         (succByHeight $ afterFork recapDevnet Chainweb231Pact, post31GasModel)
             `Above`
         Bottom (minBound, pre31GasModel)
 
     , _versionAllowedSignatureSchemes = AllChains $
+        (afterFork recapDevnet Chainweb33, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn, Pact5.SlhDsaSha128s, Pact5.SlhDsaSha192s, Pact5.SlhDsaSha256s])
+            `Above`
         (afterFork recapDevnet Pact5Fork, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn])
             `Above`
         (afterFork recapDevnet Chainweb221Pact, Set.fromList $ SchemeV4 <$> [Pact4.ED25519, Pact4.WebAuthn])

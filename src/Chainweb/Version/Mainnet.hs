@@ -159,6 +159,7 @@ mainnet = ChainwebVersion
         MigratePlatformShare -> AllChains (ForkAtBlockHeight $ BlockHeight 6_335_858) -- 2025-11-07 04:00:00+00:00
         Chainweb31 -> AllChains (ForkAtBlockHeight $ BlockHeight 6_510_742) -- 2026-01-08 00:00:00+00:00
         Chainweb32-> AllChains (ForkAtForkNumber 1)
+        Chainweb33-> AllChains (ForkAtForkNumber 2)
 
     , _versionGraphs =
         (to20ChainsMainnet, twentyChainGraph)
@@ -168,6 +169,8 @@ mainnet = ChainwebVersion
     , _versionWindow = WindowWidth 120
     , _versionHeaderBaseSizeBytes = 318 - 110
     , _versionAllowedSignatureSchemes = AllChains $
+        (afterFork mainnet Chainweb33, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn, Pact5.SlhDsaSha128s, Pact5.SlhDsaSha192s, Pact5.SlhDsaSha256s])
+            `Above`
         (afterFork mainnet Pact5Fork, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn])
             `Above`
         (afterFork mainnet Chainweb221Pact, Set.fromList $ SchemeV4 <$> [Pact4.ED25519, Pact4.WebAuthn])
@@ -180,6 +183,8 @@ mainnet = ChainwebVersion
         Bottom (minBound, Nothing)
 
     , _versionInitialGasModel = AllChains $
+        (afterFork mainnet Chainweb33, post33GasModel)
+            `Above`
         (afterFork mainnet Chainweb32, post32GasModel)
             `Above`
         (succByHeight $ afterFork mainnet Chainweb31, post31GasModel)

@@ -262,6 +262,7 @@ mkDynKeyPairs (CmdSigner Signer{..} privKey) =
       privWebAuthn <-
         either diePrivKey return (parseWebAuthnPrivateKey =<< parseB16TextOnly priv)
       return $ (DynWebAuthnKeyPair wasPrefixed pubWebAuthn privWebAuthn, _siCapList)
+    _ -> error "SLH DSA not implemented here for now"
   where
     diePubKey str = error $ "pubkey: " <> str
     diePrivKey str = error $ "privkey: " <> str

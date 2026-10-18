@@ -23,6 +23,7 @@ import Chainweb.Version
 import P2P.BootstrapNodes
 
 import Pact.Types.Verifier
+import qualified Pact.Core.Scheme as Pact5 (PPKScheme(..))
 
 import qualified Chainweb.Pact.Transactions.OtherTransactions as CoinV2
 import qualified Chainweb.Pact.Transactions.CoinV3Transactions as CoinV3
@@ -79,6 +80,7 @@ testnet06 = ChainwebVersion
         Chainweb231Pact -> AllChains $ ForkAtBlockHeight $ BlockHeight 690
         Chainweb31 -> AllChains $ ForkAtBlockHeight $ BlockHeight 700
         Chainweb32-> AllChains (ForkAtForkNumber 1)
+        Chainweb33-> AllChains (ForkAtForkNumber 2)
         MigratePlatformShare -> AllChains $ ForkNever
 
     , _versionUpgrades = foldr (chainZip HM.union) (AllChains mempty)
@@ -107,6 +109,8 @@ testnet06 = ChainwebVersion
             ]
         }
     , _versionInitialGasModel = AllChains $
+        (afterFork testnet06 Chainweb33, post33GasModel)
+            `Above`
         (afterFork testnet06 Chainweb32, post32GasModel)
             `Above`
         Bottom (minBound, post31GasModel)
@@ -125,8 +129,10 @@ testnet06 = ChainwebVersion
         (ForkAtBlockHeight $ BlockHeight 600, Set.fromList $ map VerifierName ["hyperlane_v3_message"])
             `Above`
         Bottom (minBound, mempty)
-    , _versionAllowedSignatureSchemes =
-        AllChains $ Bottom (minBound, Set.empty)
+    , _versionAllowedSignatureSchemes = AllChains $
+        (afterFork testnet06 Chainweb33, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn, Pact5.SlhDsaSha128s, Pact5.SlhDsaSha192s, Pact5.SlhDsaSha256s])
+            `Above`
+        Bottom (minBound, Set.fromList $ SchemeV5 <$> [Pact5.ED25519, Pact5.WebAuthn])
     , _versionQuirks = noQuirks
     , _versionForkNumber = 1
     , _versionForkVoteCastingLength = 120 * 119 -- 5 days
