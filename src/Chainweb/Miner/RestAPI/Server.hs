@@ -27,7 +27,7 @@ module Chainweb.Miner.RestAPI.Server
 import Control.Concurrent.STM.TVar
     (TVar, readTVar, readTVarIO, registerDelay)
 import Control.Lens
-import Control.Monad (when, unless)
+import Control.Monad (when)
 import Control.Monad.Catch (bracket, try, catches)
 import qualified Control.Monad.Catch as E
 import Control.Monad.Except (throwError)
@@ -39,7 +39,6 @@ import qualified Data.HashMap.Strict as HM
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef, writeIORef)
 import qualified Data.Map.Strict as M
 import Data.Proxy (Proxy(..))
-import qualified Data.Set as S
 import qualified Data.Vector as V
 
 import Network.HTTP.Types.Status
@@ -83,11 +82,13 @@ workHandler mr mcid m@(Miner (MinerId mid) _) = do
     when (M.size ms > _coordLimit mr) $ do
         liftIO $ atomicModifyIORef' (_coord503s mr) (\c -> (c + 1, ()))
         throwError $ setErrText "Too many work requests" err503
-    let !conf = _coordConf mr
-        !primed = S.member m $ _coordinationMiners conf
-    unless primed $ do
-        liftIO $ atomicModifyIORef' (_coord403s mr) (\c -> (c + 1, ()))
-        throwError $ setErrText ("Unauthorized Miner: " <> mid) err403
+
+    (liftIO $ _coordRefreshMiner mr m) >>= \case
+        Right _ -> return ()
+        Left x -> do
+            liftIO $ atomicModifyIORef' (_coord403s mr) (\c -> (c + 1, ()))
+            throwError $ setErrText ("Unauthorized Miner/" <> toText x <> ": " <> mid) err403
+
     wh <- liftIO $ work mr mcid m
     return $ WorkBytes $ runPutS $ encodeWorkHeader wh
 

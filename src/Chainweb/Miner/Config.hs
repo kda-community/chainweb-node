@@ -158,6 +158,10 @@ data CoordinationConfig = CoordinationConfig
     , _coordinationReqLimit :: !Int
       -- ^ The number of @/mining/work/@ requests that can be made to this node
       -- in a 5 minute period.
+    , _coordinationDynamicMinersEnabled :: !Bool
+      -- ^ Is it possible to add miners dynamically
+    , _coordinationMinersLimit :: !Int
+      -- ^ The maximum number of miners allowed to mine simultanously
     , _coordinationUpdateStreamLimit :: !Int
         -- ^ the maximum number of concurrent update streams that is supported
     , _coordinationUpdateStreamTimeout :: !Seconds
@@ -193,6 +197,14 @@ coordinationTargetForkOverride :: Lens' CoordinationConfig Bool
 coordinationTargetForkOverride =
     lens _coordinationTargetForkOverride (\m c -> m { _coordinationTargetForkOverride = c })
 
+coordinationDynamicMinersEnabled :: Lens' CoordinationConfig Bool
+coordinationDynamicMinersEnabled =
+    lens _coordinationDynamicMinersEnabled (\m c -> m { _coordinationDynamicMinersEnabled = c })
+
+coordinationMinersLimit :: Lens' CoordinationConfig Int
+coordinationMinersLimit =
+    lens _coordinationMinersLimit (\m c -> m { _coordinationMinersLimit = c })
+
 instance ToJSON CoordinationConfig where
     toJSON o = object
         [ "enabled" .= _coordinationEnabled o
@@ -201,6 +213,8 @@ instance ToJSON CoordinationConfig where
         , "updateStreamLimit" .= _coordinationUpdateStreamLimit o
         , "updateStreamTimeout" .= _coordinationUpdateStreamTimeout o
         , "payloadRefreshDelay" .= _coordinationPayloadRefreshDelay o
+        , "dynamicMinersEnabled" .= _coordinationDynamicMinersEnabled o
+        , "coordinationMinersLimit" .= _coordinationMinersLimit o
         , "targetForkOverride" .= _coordinationTargetForkOverride o
         ]
 
@@ -213,12 +227,16 @@ instance FromJSON (CoordinationConfig -> CoordinationConfig) where
         <*< coordinationUpdateStreamTimeout ..: "updateStreamTimeout" % o
         <*< coordinationPayloadRefreshDelay ..: "payloadRefreshDelay" % o
         <*< coordinationTargetForkOverride ..: "targetForkOverride" % o
+        <*< coordinationDynamicMinersEnabled ..: "dynamicMinersEnabled" % o
+        <*< coordinationMinersLimit ..: "coordinationMinersLimit" % o
 
 defaultCoordination :: CoordinationConfig
 defaultCoordination = CoordinationConfig
     { _coordinationEnabled = False
     , _coordinationMiners = mempty
     , _coordinationReqLimit = 1200
+    , _coordinationDynamicMinersEnabled = False
+    , _coordinationMinersLimit = 10
     , _coordinationUpdateStreamLimit = 2000
     , _coordinationUpdateStreamTimeout = 240
     , _coordinationPayloadRefreshDelay = TimeSpan (Micros 15_000_000)

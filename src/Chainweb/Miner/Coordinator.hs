@@ -129,6 +129,7 @@ data MiningCoordination logger tbl = MiningCoordination
     , _coord503s :: !(IORef Int)
     , _coord403s :: !(IORef Int)
     , _coordConf :: !CoordinationConfig
+    , _coordRefreshMiner :: Miner ->  IO (Either String ())
     , _coordUpdateStreamCount :: !(IORef Int)
     , _coordPrimedWork :: !(TVar PrimedWork)
     , _coordTargetFork :: !ForkNumber
