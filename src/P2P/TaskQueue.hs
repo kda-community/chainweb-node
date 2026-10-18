@@ -91,9 +91,14 @@ newtype TaskId = TaskId T.Text
     deriving (Show, Eq, Ord, Generic)
     deriving newtype (IsString)
 
+instance Bounded TaskId where
+    minBound = TaskId T.empty
+    maxBound = TaskId $ T.singleton maxBound
+
 newtype Priority = Priority Int
     deriving (Show, Eq, Ord, Generic)
     deriving anyclass (NFData, Hashable)
+    deriving newtype (Bounded)
 
 newtype AttemptsCount = AttemptsCount Natural
     deriving (Show, Eq, Ord, Generic)

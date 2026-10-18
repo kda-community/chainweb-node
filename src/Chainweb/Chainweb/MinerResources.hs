@@ -105,24 +105,23 @@ withMiningCoordination logger conf cdb inner
         c503 <- newIORef 0
         c403 <- newIORef 0
         l <- newIORef (_coordinationUpdateStreamLimit coordConf)
-        fmap thd . runConcurrently $ (,,)
-            <$> Concurrently (prune t m c503 c403)
-            <*> Concurrently (mapConcurrently_ (primeWork m) cids)
-            <*> Concurrently (inner . Just $ MiningCoordination
-                { _coordLogger = logger
-                , _coordCutDb = cdb
-                , _coordState = t
-                , _coordLimit = _coordinationReqLimit coordConf
-                , _coord503s = c503
-                , _coord403s = c403
-                , _coordConf = coordConf
-                , _coordUpdateStreamCount = l
-                , _coordPrimedWork = m
-                , _coordTargetFork =
-                    if _coordinationTargetForkOverride coordConf
-                    then pred $ max 1 (_versionForkNumber v)
-                    else _versionForkNumber v
-                })
+        withAsync (prune t m c503 c403) (\_ -> do
+            withAsync (mapConcurrently_ (primeWork m) cids) (\_ -> do
+                inner (Just  MiningCoordination
+                    { _coordLogger = logger
+                    , _coordCutDb = cdb
+                    , _coordState = t
+                    , _coordLimit = _coordinationReqLimit coordConf
+                    , _coord503s = c503
+                    , _coord403s = c403
+                    , _coordConf = coordConf
+                    , _coordUpdateStreamCount = l
+                    , _coordPrimedWork = m
+                    , _coordTargetFork =
+                        if _coordinationTargetForkOverride coordConf
+                        then pred $ max 1 (_versionForkNumber v)
+                        else _versionForkNumber v
+                    })))
   where
     coordConf = _miningCoordination conf
     inNodeConf = _miningInNode conf
