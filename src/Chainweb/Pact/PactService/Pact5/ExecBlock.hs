@@ -25,6 +25,7 @@ module Chainweb.Pact.PactService.Pact5.ExecBlock
 
 import Chainweb.BlockHeader
 import Chainweb.BlockHeight
+import Chainweb.ForkState
 import Chainweb.Logger
 import Chainweb.Mempool.Mempool(BlockFill (..), pact5RequestKeyToTransactionHash, InsertError (..))
 import Chainweb.MinerReward
@@ -328,11 +329,12 @@ continueBlock mpAccess blockInProgress = do
     cid <- view chainId
     logger <- view (psServiceEnv . psLogger)
     dbEnv <- view psBlockDbEnv
+    pForkNumber <- (view blockForkNumber . _parentHeader) <$> view psParentHeader
     let (pHash, pHeight, parentTime) = blockInProgressParent blockInProgress
     isGenesis <- view psIsGenesis
     let validate bhi _bha txs = do
           forM txs $
-            runExceptT . validateRawChainwebTx logger v cid dbEnv (_blockInProgressHandle blockInProgress) (ParentCreationTime parentTime) bhi isGenesis
+            runExceptT . validateRawChainwebTx logger v cid dbEnv (_blockInProgressHandle blockInProgress) (ParentCreationTime parentTime) bhi pForkNumber isGenesis
     liftIO $ mpaGetBlock mpAccess blockFillState validate
       (succ pHeight)
       pHash
@@ -480,11 +482,13 @@ validateParsedChainwebTx
         -- ^ reference time for tx validation.
     -> BlockHeight
         -- ^ Current block height
+    -> ForkNumber
+        -- ^ Current fork number
     -> Bool
         -- ^ Genesis?
     -> Pact5.Transaction
     -> ExceptT InsertError IO ()
-validateParsedChainwebTx _logger v cid db _blockHandle txValidationTime bh isGenesis tx
+validateParsedChainwebTx _logger v cid db _blockHandle txValidationTime bh fn isGenesis tx
   | isGenesis = pure ()
   | otherwise = do
       checkUnique tx
@@ -492,8 +496,16 @@ validateParsedChainwebTx _logger v cid db _blockHandle txValidationTime bh isGen
       checkChain
       checkTxSigs tx
       checkTimes tx
+      checkNetworkId
       return ()
   where
+
+    checkNetworkId :: ExceptT InsertError IO ()
+    checkNetworkId = unless (skipNetworkBlockValidation v cid fn) $
+      unless (Pact5.assertNetworkId v nid) $
+        throwError $ InsertErrorWrongNetworkId (sshow nid)
+        where
+          nid = tx ^. Pact5.cmdPayload . Pact5.payloadObj . Pact5.pNetworkId
 
     checkChain :: ExceptT InsertError IO ()
     checkChain = unless (Pact5.assertChainId cid txCid) $
@@ -561,15 +573,17 @@ validateRawChainwebTx
         -- ^ reference time for tx validation.
     -> BlockHeight
         -- ^ Current block height
+    -> ForkNumber
+        -- ^ Current fork number
     -> Bool
         -- ^ Genesis?
     -> Pact4.UnparsedTransaction
     -> ExceptT InsertError IO Pact5.Transaction
-validateRawChainwebTx logger v cid db blockHandle parentTime bh isGenesis tx = do
+validateRawChainwebTx logger v cid db blockHandle parentTime bh fn isGenesis tx = do
   tx' <- either (throwError . InsertErrorPactParseError . either id Pact5.renderText) return $ Pact5.parsePact4Command tx
   liftIO $ do
     logDebug_ logger $ "validateRawChainwebTx: parse succeeded"
-  validateParsedChainwebTx logger v cid db blockHandle parentTime bh isGenesis tx'
+  validateParsedChainwebTx logger v cid db blockHandle parentTime bh fn isGenesis tx'
   return $! tx'
 
 execExistingBlock
@@ -590,12 +604,20 @@ execExistingBlock currHeader payload = do
   db <- view psBlockDbEnv
   isGenesis <- view psIsGenesis
   blockHandlePreCoinbase <- use pbBlockHandle
+
+  let pForkNumber = parentBlockHeader ^. blockForkNumber
+
+  unless (skipNetworkBlockValidation v cid pForkNumber) $
+    when (V.length txs /= (S.size . S.fromList . fmap Pact5._cmdHash . V.toList) txs) $
+      throwM (BlockValidationFailure $ BlockValidationFailureMsg "Invalid Block content")
+
   let
     txValidationTime = ParentCreationTime (parentBlockHeader ^. blockCreationTime)
   errors <- liftIO $ flip foldMap txs $ \tx -> do
     errorOrSuccess <- runExceptT $
       validateParsedChainwebTx logger v cid db blockHandlePreCoinbase txValidationTime
         (view blockHeight currHeader)
+        pForkNumber
         isGenesis
         tx
     case errorOrSuccess of
