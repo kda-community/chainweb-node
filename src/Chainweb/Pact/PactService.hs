@@ -195,7 +195,7 @@ withPactService ver cid chainwebLogger txFailuresCounter bhDb pdb sqlenv config 
                     , _psLogger = pactServiceLogger
                     , _psGasLogger = gasLogger <$ guard (_pactLogGas config)
                     , _psBlockGasLimit = _pactNewBlockGasLimit config
-                    , _psEnableLocalTimeout = _pactEnableLocalTimeout config
+                    , _psLocalTimeout = _pactLocalTimeout config
                     , _psTxFailuresCounter = txFailuresCounter
                     , _psTxTimeLimit = _pactTxTimeLimit config
                     }
@@ -777,10 +777,6 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
     -- (i.e. setting rewind to 0).
     let rewindDepth = maybe 0 _rewindDepth rdepth
 
-    let timeoutLimit
-            | _psEnableLocalTimeout = Just (2 * 1_000_000)
-            | otherwise = Nothing
-
     let localPact4 = do
             pc <- view psParentHeader
             let spv = Pact4.pactSPV bhdb (_parentHeader pc)
@@ -960,9 +956,9 @@ execLocal cwtx preflight sigVerify rdepth = pactLabel "execLocal" $ do
     let doLocal = Checkpointer.readFromNthParent (fromIntegral rewindDepth)
             $ SomeBlockM $ Pair localPact4 localPact5
 
-    case timeoutLimit of
+    case _psLocalTimeout of
         Nothing -> doLocal
-        Just limit -> withPactState $ \run -> timeoutYield limit (run doLocal) >>= \case
+        Just limit -> withPactState $ \run -> timeoutYield (fromIntegral limit) (run doLocal) >>= \case
             Just r -> pure r
             Nothing -> do
                 logError_ _psLogger $ "Local action timed out for cwtx:\n" <> sshow cwtx

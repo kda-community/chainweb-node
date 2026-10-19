@@ -407,6 +407,8 @@ data ChainwebConfiguration = ChainwebConfiguration
     , _configModuleCacheLimit :: !DbCacheLimitBytes
         -- ^ module cache size limit in bytes
     , _configEnableLocalTimeout :: !Bool
+    , _configLocalTimeout :: !Micros
+        -- ^^ Timeout to prevent long running transactions during /local calls
     } deriving (Show, Eq, Generic)
 
 makeLenses ''ChainwebConfiguration
@@ -467,6 +469,7 @@ defaultChainwebConfiguration v = ChainwebConfiguration
     , _configBackup = defaultBackupConfig
     , _configModuleCacheLimit = defaultModuleCacheLimit
     , _configEnableLocalTimeout = False
+    , _configLocalTimeout = 2_000_000
     }
 
 instance ToJSON ChainwebConfiguration where
@@ -494,6 +497,7 @@ instance ToJSON ChainwebConfiguration where
         , "backup" .= _configBackup o
         , "moduleCacheLimit" .= _configModuleCacheLimit o
         , "enableLocalTimeout" .= _configEnableLocalTimeout o
+        , "localTimeout" .= _configLocalTimeout o
         ]
 
 instance FromJSON ChainwebConfiguration where
@@ -525,6 +529,7 @@ instance FromJSON (ChainwebConfiguration -> ChainwebConfiguration) where
         <*< configBackup %.: "backup" % o
         <*< configModuleCacheLimit ..: "moduleCacheLimit" % o
         <*< configEnableLocalTimeout ..: "enableLocalTimeout" % o
+        <*< configLocalTimeout ..: "localTimeout" % o
 
 pChainwebConfiguration :: MParser ChainwebConfiguration
 pChainwebConfiguration = id
@@ -585,6 +590,9 @@ pChainwebConfiguration = id
     <*< configEnableLocalTimeout .:: option auto
         % long "enable-local-timeout"
         <> help "Enable timeout support on /local endpoints"
+    <*< configLocalTimeout .:: jsonOption
+        % long "local-timeout"
+        <> help "Timeout in microseonds on /local endpoints"
 
 parseVersion :: MParser ChainwebVersion
 parseVersion = constructVersion

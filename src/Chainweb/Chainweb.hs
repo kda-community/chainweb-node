@@ -442,7 +442,9 @@ withChainwebInternal conf logger peer serviceSock rocksDb pactDbDir backupDir re
       , _pactNewBlockGasLimit = maybe id min maxGasLimit (_configBlockGasLimit conf)
       , _pactLogGas = _configLogGas conf
       , _pactModuleCacheLimit = _configModuleCacheLimit conf
-      , _pactEnableLocalTimeout = _configEnableLocalTimeout conf
+      , _pactLocalTimeout = if _configEnableLocalTimeout conf
+                            then Just $ _configLocalTimeout conf
+                            else Nothing
       , _pactFullHistoryRequired = _configFullHistoricPactState conf
       , _pactPersistIntraBlockWrites =
           if _configFullHistoricPactState conf

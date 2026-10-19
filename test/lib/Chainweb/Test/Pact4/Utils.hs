@@ -702,7 +702,7 @@ testPactCtxSQLite logger v cid bhdb pdb sqlenv conf = do
                 $ logger
 
         , _psBlockGasLimit = _pactNewBlockGasLimit conf
-        , _psEnableLocalTimeout = False
+        , _psLocalTimeout = Nothing
         , _psTxFailuresCounter = Nothing
         , _psTxTimeLimit = _pactTxTimeLimit conf
         }

@@ -52,7 +52,7 @@ module Chainweb.Pact.Types
   , psGasLogger
   , psAllowReadsInLocal
   , psBlockGasLimit
-  , psEnableLocalTimeout
+  , psLocalTimeout
   , psTxFailuresCounter
   , psTxTimeLimit
     --
@@ -505,7 +505,7 @@ data PactServiceEnv logger tbl = PactServiceEnv
 
     , _psBlockGasLimit :: !Pact4.GasLimit
 
-    , _psEnableLocalTimeout :: !Bool
+    , _psLocalTimeout :: !(Maybe Micros)
     , _psTxFailuresCounter :: !(Maybe (Counter "txFailures"))
     , _psTxTimeLimit :: !(Maybe Micros)
     }
@@ -557,8 +557,8 @@ data PactServiceConfig = PactServiceConfig
   , _pactFullHistoryRequired :: !Bool
     -- ^ Whether or not the node requires that the full Pact history be
     --   available. Compaction can remove history.
-  , _pactEnableLocalTimeout :: !Bool
-    -- ^ Whether to enable the local timeout to prevent long-running transactions
+  , _pactLocalTimeout :: !(Maybe Micros)
+    -- ^ local timeout to prevent long-running transactions
   , _pactPersistIntraBlockWrites :: !IntraBlockPersistence
     -- ^ Whether or not the node requires that all writes made in a block
     --   are persisted. Useful if you want to use PactService BlockTxHistory.
@@ -582,7 +582,7 @@ testPactServiceConfig = PactServiceConfig
       , _pactLogGas = False
       , _pactModuleCacheLimit = defaultModuleCacheLimit
       , _pactFullHistoryRequired = False
-      , _pactEnableLocalTimeout = False
+      , _pactLocalTimeout = Nothing
       , _pactPersistIntraBlockWrites = DoNotPersistIntraBlockWrites
       , _pactTxTimeLimit = Nothing
       }
