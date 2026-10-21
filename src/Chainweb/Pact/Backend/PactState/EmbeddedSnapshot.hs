@@ -12,7 +12,8 @@ import Chainweb.BlockHeader (BlockHeader)
 import Chainweb.Pact.Backend.PactState.GrandHash.Algorithm (ChainGrandHash)
 import Data.Aeson qualified as A
 import Data.ByteString (ByteString)
-import Data.ByteString.Base16 qualified as Base16
+import Data.Base16.Types qualified as B16
+import Data.ByteString.Base16 qualified as B16
 import Data.Text (Text)
 import Data.Text.Encoding qualified as Text
 
@@ -28,6 +29,4 @@ unsafeDecodeBlockHeader t = case A.decodeStrict (Text.encodeUtf8 t) of
   Nothing -> error "unsafeDecodeBlockHeader: invalid BlockHeader JSON"
 
 unsafeBase16Decode :: Text -> ByteString
-unsafeBase16Decode t = case Base16.decode (Text.encodeUtf8 t) of
-  Right a -> a
-  Left err -> error ("unsafeBase16Decode failed: " ++ show err)
+unsafeBase16Decode = B16.decodeBase16' . B16.assertBase16

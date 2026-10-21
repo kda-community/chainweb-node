@@ -24,6 +24,7 @@ module Chainweb.VerifierPlugin.Hyperlane.Utils
 import Control.Lens hiding (index)
 import Control.Monad.Catch
 
+import Data.Bifunctor (first)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Short as BS
@@ -78,7 +79,7 @@ encodeHex = ((<>) "0x") . Text.decodeUtf8 . B.toStrict . Builder.toLazyByteStrin
 
 decodeHex :: Text -> Either String B.ByteString
 decodeHex s
-  | Just h <- Text.stripPrefix "0x" s = B16.decode $ Text.encodeUtf8 h
+  | Just h <- Text.stripPrefix "0x" s = first (const "Base16 Decoding Error") $ B16.decodeBase16Untyped $ Text.encodeUtf8 h
   | otherwise = Left "decodeHex: does not start with 0x"
 
 decodeHexUnsafe :: Text -> B.ByteString

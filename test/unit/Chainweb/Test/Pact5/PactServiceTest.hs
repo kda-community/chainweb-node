@@ -51,7 +51,6 @@ import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils
 import Chainweb.Time
 import Chainweb.Utils
-import qualified Data.ByteString.Base64.URL as B64U
 import Chainweb.SPV.CreateProof
 import Chainweb.Version
 import Chainweb.WebBlockHeaderDB (getWebBlockHeaderDb)
@@ -590,7 +589,7 @@ assertCutHeight fixt bh = do
     view cutMaxHeight cut @?= bh
 
 makeProof :: Fixture -> ChainId -> ChainId -> BlockHeight -> Int -> IO ContProof
-makeProof Fixture{..} cidT cidS bh i = (ContProof . B64U.encode . encodeToByteString) <$>
+makeProof Fixture{..} cidT cidS bh i = (ContProof . encodeB64UrlNoPadding . encodeToByteString) <$>
                                          createTransactionOutputProof_ (_bdbWebBlockHeaderDb _fixtureBlockDb) ( _bdbPayloadDb _fixtureBlockDb)
                                                                        cidT cidS bh i
 

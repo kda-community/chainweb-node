@@ -115,7 +115,7 @@ foldHashList
   -> ExceptT VerifierError (ST s) (BS.ByteString, PactValue)
 foldHashList gp gasRef = \case
   -- Top-level precomputed digest provided as hex.
-  
+
   HLHashHex hexTxt -> do
     bs <- decodeHex hexTxt
     pure (bs, PList V.empty)
@@ -235,4 +235,4 @@ decompressPublicKey cKey =
   & either (const Nothing) (Just . SBS.fromShort . ecdsaPublicKeyBytes)
 
 hexToBS :: BS.ByteString -> Maybe BS.ByteString
-hexToBS = either (const Nothing) Just . B16.decode
+hexToBS = either (const Nothing) Just . B16.decodeBase16Untyped

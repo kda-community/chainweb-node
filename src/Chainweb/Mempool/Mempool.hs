@@ -108,6 +108,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Short as SB
 import Data.Decimal (Decimal, DecimalRaw(..))
 import Data.Foldable (traverse_)
+import Data.Bifunctor (first)
 import Data.Hashable (Hashable(hashWithSalt))
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
@@ -750,7 +751,7 @@ mockCodec = Codec mockEncode mockDecode
 
 mockEncode :: MockTx -> ByteString
 mockEncode (MockTx nonce (GasPrice (ParsedDecimal price)) limit meta) =
-  B64.encode $
+  encodeB64UrlNoPadding $
   runPutS $ do
     putWord64le $ fromIntegral nonce
     putDecimal price
@@ -793,7 +794,7 @@ getDecimal = do
 
 mockDecode :: ByteString -> Either String MockTx
 mockDecode s = do
-    s' <- B64.decode s
+    s' <- first T.unpack $ B64.decodeBase64UnpaddedUntyped s
     runGetEitherS (MockTx <$> getI64 <*> getPrice <*> getGL <*> getMeta) s'
   where
     getPrice = GasPrice . ParsedDecimal <$> getDecimal

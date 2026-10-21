@@ -53,6 +53,7 @@ import Control.Monad.Trans.Resource (ResourceT, allocate, runResourceT)
 import Data.Aeson qualified as A
 import Data.Aeson.Lens qualified as A
 import Data.Aeson.KeyMap qualified as A.KeyMap
+import Data.Base16.Types qualified as B16
 import Data.ByteString.Base16 qualified as B16
 import Data.Foldable (forM_, traverse_)
 import Data.HashMap.Strict qualified as HashMap
@@ -1101,8 +1102,8 @@ localTests baseRdb = let
                         & cbSigners .~ [mkEd25519Signer' sender00 []]
                 goodCmdHash <- _cmdHash <$> buildTextCmd v buildSender00Cmd
                 sender01KeyPair <- either error return $ importEd25519KeyPair Nothing
-                    (PrivBS $ either error id $ B16.decode $ T.encodeUtf8 $ snd sender01)
-                let sender01Sig = ED25519Sig $ T.decodeUtf8 $ B16.encode $ exportEd25519Signature $
+                    (PrivBS $ either (error . T.unpack) id $ B16.decodeBase16Untyped $ T.encodeUtf8 $ snd sender01)
+                let sender01Sig = ED25519Sig $ B16.extractBase16 $ B16.encodeBase16 $ exportEd25519Signature $
                         signEd25519 (fst sender01KeyPair) (snd sender01KeyPair) goodCmdHash
 
                 buildTextCmd v buildSender00Cmd

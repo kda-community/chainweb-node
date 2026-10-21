@@ -33,7 +33,6 @@ import Control.Monad
 import Control.Lens hiding ((.=))
 
 import Data.Aeson as Aeson
-import qualified Data.ByteString.Base64.URL as B64U
 import qualified Data.ByteString.Char8 as B8
 
 import Data.ByteString.Lazy (toStrict)
@@ -529,7 +528,7 @@ createSuccess v time (TestBlockDb wdb pdb _c) pidv sid tid bhe = do
             True -> return mempty
             False -> do
                 q <- toJSON <$> createTransactionOutputProof_ wdb pdb tid sid bhe 0
-                let proof = Just . ContProof .  B64U.encode . toStrict . Aeson.encode $ q
+                let proof = Just . ContProof .  encodeB64UrlNoPadding . toStrict . Aeson.encode $ q
                 createCont v tid pidv proof time
                     `finally` writeIORef ref True
 

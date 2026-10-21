@@ -46,13 +46,13 @@ import Control.Exception (bracket)
 import Control.Lens ((^?!), ix, view)
 import Control.Monad (forM, when)
 import Data.ByteString (ByteString)
-import Data.ByteString.Base16 qualified as Base16
+import Data.Base16.Types qualified as B16
+import Data.ByteString.Base16 qualified as B16
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict qualified as HM
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
 import Options.Applicative qualified as O
 import System.Directory (doesFileExist)
 import System.Exit (exitFailure)
@@ -216,7 +216,7 @@ withConnections logger pactDir cids f = do
     closeConnections = mapM_ stopSqliteDb
 
 hex :: ByteString -> Text
-hex = Text.decodeUtf8 . Base16.encode
+hex = B16.extractBase16 . B16.encodeBase16
 
 cwvParser :: O.Parser ChainwebVersion
 cwvParser = fmap (lookupVersionByName . fromMaybe (error "ChainwebVersion parse failed") . fromText)

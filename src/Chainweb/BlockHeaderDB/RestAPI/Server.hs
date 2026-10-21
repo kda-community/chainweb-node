@@ -39,6 +39,7 @@ import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Binary.Builder (fromByteString, fromLazyByteString)
 import qualified Data.ByteString as BS
+import qualified Data.Base16.Types as B16
 import qualified Data.ByteString.Base16 as B16
 import Data.ByteString.Short (fromShort)
 import Data.Foldable
@@ -47,7 +48,6 @@ import Data.Functor.Of
 import Data.IORef
 import qualified Data.Map.Strict as Map
 import Data.Proxy
-import Data.Text.Encoding (decodeUtf8)
 import Numeric.Natural(Natural)
 
 import Network.Wai.EventSource (ServerEvent(..), eventSourceAppIO)
@@ -423,7 +423,7 @@ blockStreamHandler db withPayloads = Tagged $ \req resp -> do
             , _huPayloadWithOutputs =
                 x <$ guard withPayloads
             , _huTxCount = length $ _payloadWithOutputsTransactions x
-            , _huPowHash = decodeUtf8 . B16.encode . BS.reverse . fromShort . powHashBytes $ view blockPow bh
+            , _huPowHash = B16.extractBase16 . B16.encodeBase16 . BS.reverse . fromShort . powHashBytes $ view blockPow bh
             , _huTarget = showTargetHex $ view blockTarget bh
             }
 

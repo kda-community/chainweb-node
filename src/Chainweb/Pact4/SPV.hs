@@ -196,33 +196,34 @@ decodeB64UrlNoPaddingTextWithFixedErrorMessage errorMessageType msg =
   fromEitherM
   . first (\e -> Base64DecodeException $ base64ErrorMessage e)
   . (if errorMessageType == Legacy then patchNonCanonical else id)
-  . B64U.decode
+  . B64U.decodeBase64Untyped
   . Text.encodeUtf8
   . (if errorMessageType == Legacy then pad else id)
   $ msg
   where
     pad t = let s = Text.length t `mod` 4 in t <> Text.replicate ((4 - s) `mod` 4) "="
     base64ErrorMessage m = case errorMessageType of
-      Legacy -> base64DowngradeErrorMessage (Text.pack m)
+      Legacy -> base64DowngradeErrorMessage m
       Simplified -> "could not base64-decode message"
     patchNonCanonical decodeResult = case decodeResult of
       Right bs -> Right bs
-      Left e | "non-canonical" `Text.isInfixOf` Text.pack e ->
-               (B64U.decodeNonCanonical (Text.encodeUtf8 msg))
+      Left e | "non-canonical" `Text.isInfixOf` e ->
+               Right $ B64U.decodeBase64Lenient $ Text.encodeUtf8 msg
       Left e -> Left e
 {-# INLINE decodeB64UrlNoPaddingTextWithFixedErrorMessage #-}
 
 
 
--- | Converts the error message format of base64-bytestring-1.2
+-- | Converts the error message format of base64-bytestring-1.2 or base64 2.0
 --   into that of base64-bytestring-0.1, for the error messages
 --   that have made it onto the chain.
---   This allows us to upgrade to base64-bytestring-1.2 without
+--   This allows us to upgrade to base64 without
 --   breaking compatibility.
 base64DowngradeErrorMessage :: Text -> Text
 base64DowngradeErrorMessage msg = case msg of
   "Base64-encoded bytestring has invalid size" ->
        "invalid base64 encoding near offset 0"
+-- Note : to be confirmed, but the two next shims shouldn't be necessary with base64 2.0
   (Text.stripPrefix "invalid character at offset: " -> Just suffix) ->
     Text.pack $ "invalid base64 encoding near offset " ++ show (adjustedOffset suffix)
   (Text.stripPrefix "invalid padding at offset: " -> Just suffix) ->
