@@ -114,6 +114,7 @@ executable chainweb-node
         , lens >= 4.17
         , loglevel >= 0.1
         , managed >= 1.0
+        , resourcet >= 1.2
         , streaming >= 0.2
         , text >= 2.0
         , time >= 1.12.2

@@ -13,8 +13,8 @@
 module P2P.BootstrapNodes
 ( mainnetBootstrapHosts
 , testnet04BootstrapHosts
+, evmTestnetBootstrapHosts
 , testnet06BootstrapHosts
-,
 ) where
 
 -- internal modules
@@ -74,3 +74,7 @@ testnet06BootstrapHosts = map unsafeHostAddressFromText
      [ "testnet06-1.chainweb-community.org:443"
      , "testnet06-2.chainweb-community.org:443"
      ]
+
+
+evmTestnetBootstrapHosts :: [HostAddress]
+evmTestnetBootstrapHosts = []

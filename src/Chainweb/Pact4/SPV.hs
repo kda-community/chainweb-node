@@ -1,11 +1,10 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -28,85 +27,100 @@ module Chainweb.Pact4.SPV
 , getTxIdx
 ) where
 
+
+import GHC.Stack
+
+import Control.Lens hiding (index)
+import Control.Monad
+import Control.Monad.Catch
+import Control.Monad.Except
+import Control.Monad.Trans.Except
+
+import Data.Aeson hiding (Object, (.=))
+import Data.Bifunctor
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Base64.URL as B64U
+import qualified Data.Map.Strict as M
+import Data.Text (Text, pack)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import Text.Read (readMaybe)
+
+import qualified Ethereum.Header as EthHeader
+import Ethereum.Misc
+import Ethereum.Receipt
+import Ethereum.Receipt.ReceiptProof
+import Ethereum.RLP
+
+import Numeric.Natural
+
+import qualified Streaming.Prelude as S
+
+-- internal chainweb modules
+
 import Chainweb.BlockHeader
 import Chainweb.BlockHeaderDB
-import Chainweb.BlockHeaderDB.HeaderOracle qualified as Oracle
 import Chainweb.BlockHeight
-import Chainweb.Pact.Types(internalError)
+import Chainweb.Pact.Backend.Types (HeaderOracle)
+import Chainweb.Pact.Types(BlockCtx(..), _bctxCurrentBlockHeight)
 import Chainweb.Pact.Utils (aeson)
-import Chainweb.Payload
-import Chainweb.Payload.PayloadStore
+import Chainweb.Pact4.Types(internalError)
+import Chainweb.Pact.Payload
+import Chainweb.Pact.Payload.PayloadStore
 import Chainweb.SPV
 import Chainweb.SPV.VerifyProof
 import Chainweb.TreeDB
 import Chainweb.Utils
-import Chainweb.Version qualified as CW
-import Chainweb.Version.Guards qualified as CW
-import Control.Error
-import Control.Lens hiding (index)
-import Control.Monad
-import Control.Monad.Catch
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Except
-import Control.Monad.Trans.Except
-import Crypto.Hash.Algorithms
-import Data.Aeson hiding (Object, (.=))
-import Data.Bifunctor
-import Data.ByteString qualified as B
-import Data.ByteString.Base64.URL qualified as B64U
-import Data.Map.Strict qualified as M
-import Data.Text (Text, pack)
-import Data.Text qualified as Text
-import Data.Text.Encoding qualified as Text
-import Ethereum.Header qualified as EthHeader
-import Ethereum.Misc
-import Ethereum.RLP
-import Ethereum.Receipt
-import Ethereum.Receipt.ReceiptProof
-import GHC.Stack
-import Numeric.Natural
-import Pact.JSON.Encode qualified as J
-import Pact.Types.Command qualified as Pact4
-import Pact.Types.Hash qualified as Pact4
-import Pact.Types.Info qualified as Pact4
-import Pact.Types.PactValue qualified as Pact4
-import Pact.Types.Runtime qualified as Pact4
-import Pact.Types.SPV qualified as Pact4
-import Streaming.Prelude qualified as S
-import Text.Read (readMaybe)
+import qualified Chainweb.Version as CW
+import qualified Chainweb.Version.Guards as CW
 
-catchAndDisplaySPVError :: BlockHeader -> ExceptT Text IO a -> ExceptT Text IO a
-catchAndDisplaySPVError bh =
-  if CW.chainweb219Pact (CW._chainwebVersion bh) (CW._chainId bh) (view blockHeight bh)
-  then flip catch $ \case
-    SpvExceptionVerificationFailed m -> throwError ("spv verification failed: " <> m)
-    spvErr -> throwM spvErr
-  else id
+-- internal pact modules
 
-forkedThrower :: BlockHeader -> Text -> ExceptT Text IO a
-forkedThrower bh =
-  if CW.chainweb219Pact (CW._chainwebVersion bh) (CW._chainId bh) (view blockHeight bh)
+import qualified Pact.JSON.Encode as J
+import qualified Pact.Types.Command as Pact4
+import qualified Pact.Types.Hash as Pact4
+import qualified Pact.Types.Info as Pact4
+import qualified Pact.Types.PactValue as Pact4
+import qualified Pact.Types.Runtime as Pact4
+import qualified Pact.Types.SPV as Pact4
+import Chainweb.MerkleUniverse (ChainwebMerkleHashAlgorithm)
+
+forkedThrower :: CW.HasVersion => BlockCtx -> Text -> ExceptT Text IO a
+forkedThrower bctx =
+  if CW.chainweb219Pact (CW._chainId bctx) (_bctxCurrentBlockHeight bctx)
   then throwError
   else internalError
+
+catchAndDisplaySPVError :: CW.HasVersion => BlockCtx -> ExceptT Text IO a -> ExceptT Text IO a
+catchAndDisplaySPVError bctx =
+  if CW.chainweb219Pact (CW._chainId bctx) (_bctxCurrentBlockHeight bctx)
+  then id
+  else flip catchError $
+    -- the only error we expect
+    \_msg -> throwM $ SpvExceptionVerificationFailed "target header is not in the chain"
 
 -- | Spv support for pact
 --
 pactSPV
-    :: BlockHeaderDb
+    :: CW.HasVersion
+    => HeaderOracle
       -- ^ handle into the cutdb
-    -> BlockHeader
+    -> BlockCtx
       -- ^ the context for verifying the proof
     -> Pact4.SPVSupport
-pactSPV bdb bh = Pact4.SPVSupport (verifySPV bdb bh) (verifyCont bdb bh)
+pactSPV headerOracle bctx = Pact4.SPVSupport
+  (verifySPV headerOracle bctx)
+  (verifyCont headerOracle bctx)
 
 -- | SPV transaction verification support. Calls to 'verify-spv' in Pact
 -- will thread through this function and verify an SPV receipt, making the
 -- requisite calls to the SPV api and verifying the output proof.
 --
 verifySPV
-    :: BlockHeaderDb
+    :: CW.HasVersion
+    => HeaderOracle
       -- ^ handle into the cut db
-    -> BlockHeader
+    -> BlockCtx
         -- ^ the context for verifying the proof
     -> Text
       -- ^ TXOUT or TXIN - defines the type of proof
@@ -114,12 +128,10 @@ verifySPV
     -> Pact4.Object Pact4.Name
       -- ^ the proof object to validate
     -> IO (Either Text (Pact4.Object Pact4.Name))
-verifySPV bdb bh typ proof = do
-  oracle <- Oracle.createSpv bdb bh
-  runExceptT $ go oracle typ proof
+verifySPV headerOracle bctx typ proof = runExceptT $ go typ proof
   where
-    cid = CW._chainId bdb
-    enableBridge = CW.enableSPVBridge (CW._chainwebVersion bh) cid (view blockHeight bh)
+    cid = CW._chainId headerOracle
+    enableBridge = CW.enableSPVBridge cid (_bctxCurrentBlockHeight bctx)
 
     mkSPVResult' cr j
         | enableBridge =
@@ -128,7 +140,7 @@ verifySPV bdb bh typ proof = do
             Pact4.TObject o _ -> return o
             _ -> throwError "spv-verified tx output has invalid type"
 
-    go oracle s o = case s of
+    go s o = case s of
 
       -- Ethereum Receipt Proof
       "ETH" | enableBridge -> except (extractEthProof o) >>=
@@ -140,7 +152,7 @@ verifySPV bdb bh typ proof = do
       "TXOUT" -> do
         u <- except $ extractProof enableBridge o
         unless (view outputProofChainId u == cid) $
-          forkedThrower bh "cannot redeem spv proof on wrong target chain"
+          forkedThrower bctx "cannot redeem spv proof on wrong target chain"
 
         -- SPV proof verification is a 3 step process:
         --
@@ -151,10 +163,11 @@ verifySPV bdb bh typ proof = do
         --  3. Extract tx outputs as a pact object and return the
         --  object.
 
-        TransactionOutput p <- catchAndDisplaySPVError bh $ Pact4.liftIO $ verifyTransactionOutputProof oracle u
+        TransactionOutput p <- catchAndDisplaySPVError bctx $
+          checkProofAndExtractOutput headerOracle u
 
         q <- case decodeStrict' p :: Maybe (Pact4.CommandResult Pact4.Hash) of
-          Nothing -> forkedThrower bh "unable to decode spv transaction output"
+          Nothing -> forkedThrower bctx "unable to decode spv transaction output"
           Just cr -> return cr
 
         case Pact4._crResult q of
@@ -242,28 +255,25 @@ base64DowngradeErrorMessage msg = case msg of
 -- in Pact, providing a validation that the yield data of a cross-chain pact is valid.
 --
 verifyCont
-    :: BlockHeaderDb
+    :: CW.HasVersion
+    => HeaderOracle
       -- ^ handle into the cut db
-    -> BlockHeader
+    -> BlockCtx
         -- ^ the context for verifying the proof
     -> Pact4.ContProof
       -- ^ bytestring of 'TransactionOutputP roof' object to validate
     -> IO (Either Text Pact4.PactExec)
-verifyCont bdb bh (Pact4.ContProof cp) = runExceptT $ do
-    oracle <- liftIO $ Oracle.createSpv bdb bh
+verifyCont headerOracle bctx (Pact4.ContProof cp) = runExceptT $ do
     let errorMessageType =
-          if CW.chainweb221Pact
-             (CW._chainwebVersion bh)
-             (CW._chainId bh)
-             (view blockHeight bh)
+          if CW.chainweb221Pact (CW._chainId bctx) (_bctxCurrentBlockHeight bctx)
           then Simplified
           else Legacy
     t <- decodeB64UrlNoPaddingTextWithFixedErrorMessage errorMessageType $ Text.decodeUtf8 cp
     case decodeStrict' t of
-      Nothing -> forkedThrower bh "unable to decode continuation proof"
+      Nothing -> forkedThrower bctx "unable to decode continuation proof"
       Just u
         | view outputProofChainId u /= cid ->
-          forkedThrower bh "cannot redeem continuation proof on wrong target chain"
+          forkedThrower bctx "cannot redeem continuation proof on wrong target chain"
         | otherwise -> do
 
           -- Cont proof verification is a 3 step process:
@@ -275,21 +285,22 @@ verifyCont bdb bh (Pact4.ContProof cp) = runExceptT $ do
           --  3. Extract continuation 'PactExec' from decoded result
           --  and return the cont exec object
 
-          TransactionOutput p <- catchAndDisplaySPVError bh $ Pact4.liftIO $ verifyTransactionOutputProof oracle u
+          TransactionOutput p <- catchAndDisplaySPVError bctx $
+            checkProofAndExtractOutput headerOracle u
 
           q <- case decodeStrict' p :: Maybe (Pact4.CommandResult Pact4.Hash) of
-            Nothing -> forkedThrower bh "unable to decode spv transaction output"
+            Nothing -> forkedThrower bctx "unable to decode spv transaction output"
             Just cr -> return cr
 
           case Pact4._crContinuation q of
             Nothing -> throwError "no pact exec found in command result"
             Just pe -> return pe
   where
-    cid = CW._chainId bdb
+    cid = CW._chainId headerOracle
 
 -- | Extract a 'TransactionOutputProof' from a generic pact object
 --
-extractProof :: Bool -> Pact4.Object Pact4.Name -> Either Text (TransactionOutputProof SHA512t_256)
+extractProof :: Bool -> Pact4.Object Pact4.Name -> Either Text (TransactionOutputProof ChainwebMerkleHashAlgorithm)
 extractProof False o = Pact4.toPactValue (Pact4.TObject o Pact4.noInfo) >>= k
   where
     k = aeson (Left . pack) Right
@@ -374,16 +385,17 @@ ethResultToPactValue ReceiptProofValidation{..} = mkObject
 --
 getTxIdx
     :: HasCallStack
+    => CW.HasVersion
     => CanReadablePayloadCas tbl
     => BlockHeaderDb
     -> PayloadDb tbl
     -> BlockHeight
     -> Pact4.PactHash
     -> IO (Either Text Int)
-getTxIdx bdb pdb bh th = do
+getTxIdx headerOracle pdb bh th = do
     -- get BlockPayloadHash
-    m <- maxEntry bdb
-    ph <- seekAncestor bdb m (int bh) >>= \case
+    m <- maxEntry headerOracle
+    ph <- seekAncestor headerOracle m (int bh) >>= \case
         Just x -> return $ Right $! view blockPayloadHash x
         Nothing -> return $ Left "unable to find payload associated with transaction hash"
 
@@ -399,7 +411,7 @@ getTxIdx bdb pdb bh th = do
           & S.mapM toTxHash
           & sindex (== th)
 
-        r & note "unable to find transaction at the given block height"
+        r & maybe (Left "unable to find transaction at the given block height") Right
           & fmap int
           & return
   where

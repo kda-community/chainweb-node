@@ -10,16 +10,8 @@
 -- 'Setter', again only in tests, use 'Chainweb.BlockHeader.Internal' instead.
 module Chainweb.BlockHeader
 (
--- * Newtype wrappers for function parameters
-  I.ParentHeader(..)
-, I.parentHeader
-, I.parentHeaderHash
-, I._rankedParentHash
-, I.rankedParentHash
-, I.ParentCreationTime(..)
-
 -- * Block Payload Hash
-, I.BlockPayloadHash
+  I.BlockPayloadHash
 , I.BlockPayloadHash_(..)
 , I.encodeBlockPayloadHash
 , I.decodeBlockPayloadHash
@@ -69,6 +61,7 @@ module Chainweb.BlockHeader
 , I._rankedBlockPayloadHash
 , I._blockAdjacentChainIds
 , I.blockAdjacentChainIds
+, I.encodeAsMiningWork
 , I.encodeBlockHeader
 , I.encodeBlockHeaderWithoutHash
 , I.decodeBlockHeader
@@ -98,7 +91,11 @@ module Chainweb.BlockHeader
 
 -- * Genesis BlockHeader
 , I.isGenesisBlockHeader
+, I.isGenesisBlockHeader'
+, I.childBlockHeight
+, I.parentBlockHeight
 , I.genesisParentBlockHash
+, I.genesisRankedParentBlockHash
 , I.genesisBlockHeader
 , I.genesisBlockHeaders
 , I.genesisBlockHeadersAtHeight
@@ -112,18 +109,20 @@ module Chainweb.BlockHeader
 
 -- * CAS Constraint
 , I.BlockHeaderCas
+, I.ReadableBlockHeaderCas
 )
 where
 
+import Chainweb.ChainId (ChainId)
 import Chainweb.ForkState (ForkState, ForkVotes, ForkNumber)
 import Chainweb.BlockCreationTime (BlockCreationTime)
 import Chainweb.BlockHash (BlockHash, BlockHashRecord)
 import Chainweb.BlockHeader.Internal qualified as I
 import Chainweb.BlockHeight (BlockHeight)
 import Chainweb.BlockWeight (BlockWeight)
-import Chainweb.ChainId (ChainId)
+import Chainweb.Parent
 import Chainweb.Difficulty (HashTarget)
-import Chainweb.Payload (BlockPayloadHash)
+import Chainweb.BlockPayloadHash
 import Chainweb.Version (ChainwebVersionCode)
 import Control.Lens (Getter)
 
@@ -133,7 +132,7 @@ blockFlags = I.blockFlags
 blockCreationTime :: Getter I.BlockHeader BlockCreationTime
 blockCreationTime = I.blockCreationTime
 
-blockParent :: Getter I.BlockHeader BlockHash
+blockParent :: Getter I.BlockHeader (Parent BlockHash)
 blockParent = I.blockParent
 
 blockAdjacentHashes :: Getter I.BlockHeader BlockHashRecord
