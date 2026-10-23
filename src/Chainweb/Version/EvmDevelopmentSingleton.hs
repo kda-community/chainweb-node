@@ -1,3 +1,4 @@
+{-# language ExplicitNamespaces #-}
 {-# language LambdaCase #-}
 {-# language NumericUnderscores #-}
 {-# language OverloadedStrings #-}
@@ -7,9 +8,9 @@
 
 module Chainweb.Version.EvmDevelopmentSingleton
 ( evmDevnetSingleton
-, pattern EvmDevelopmentSingleton
+, data EvmDevelopmentSingleton
 , evmDevnetPair
-, pattern EvmDevelopmentPair
+, data EvmDevelopmentPair
 ) where
 
 import qualified Data.Set as Set

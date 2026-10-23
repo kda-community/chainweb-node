@@ -100,12 +100,12 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/kda-community/pact-5
-    tag: 72f427605406df61be8284091922f1fe1af7541b
+    tag: 9b6d07651014b7cb61734513643079917d358ffa
 
 source-repository-package
     type: git
     location: https://github.com/kda-community/merkle-log
-    tag: 864f21c366afe2004c1b70f1a2e781b0ffa18e53
+    tag: f2bbdd7ace0b7409060a936f28afe85765c8d5b7
 
 source-repository-package
     type: git
@@ -122,8 +122,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/kda-community/kadena-ethereum-bridge.git
-    tag: 96bff6b35b2a2b6bf63f9d19b536f0c61102be36
-    --sha256: 0czl48hhlk8fl63jprg719x3ngrinhj6xs5rqm9cfzpcygp4wz4q
+    tag: ad90038d19d1d92efa11aff2f99c0ff9b34ff28e
 
 source-repository-package
     type: git

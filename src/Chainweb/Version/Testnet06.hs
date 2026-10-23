@@ -1,3 +1,4 @@
+{-# language ExplicitNamespaces #-}
 {-# language LambdaCase #-}
 {-# language NumericUnderscores #-}
 {-# language OverloadedStrings #-}
@@ -5,7 +6,7 @@
 {-# language QuasiQuotes #-}
 {-# language ViewPatterns #-}
 
-module Chainweb.Version.Testnet06(testnet06, pattern Testnet06) where
+module Chainweb.Version.Testnet06(testnet06, data Testnet06) where
 
 import qualified Data.HashMap.Strict as HM
 import Control.Lens

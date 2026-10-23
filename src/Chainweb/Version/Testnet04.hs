@@ -1,3 +1,4 @@
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# language LambdaCase #-}
 {-# language NumericUnderscores #-}
 {-# language OverloadedStrings #-}
@@ -8,7 +9,7 @@
 
 -- Note: Testnet04 is deprecated
 
-module Chainweb.Version.Testnet04(testnet04, pattern Testnet04) where
+module Chainweb.Version.Testnet04(testnet04, data Testnet04) where
 
 import Control.Lens
 import qualified Data.HashMap.Strict as HM

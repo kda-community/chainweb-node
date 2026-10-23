@@ -141,15 +141,15 @@ jobs:
         MATRIX="$(jq -c '.' <<EOF
         {
           # The first version in this list is the version to be used for release
-          "ghc": ["9.10.3"],
-          "cabal": ["latest"],
+          "ghc": ["9.14.1"],
+          "cabal": ["3.16"],
           "os": ["ubuntu-22.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
               # These are the build values that will be used for release scripts
-              "ghc": "9.10.3",
-              "cabal": "latest",
+              "ghc": "9.14.1",
+              "cabal": "3.16",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
             }
@@ -160,26 +160,26 @@ jobs:
         else
         MATRIX="$(jq -c '.' <<EOF
         {
-          "ghc": ["9.10.3"],
-          "cabal": ["latest"],
+          "ghc": ["9.14.1"],
+          "cabal": ["3.16"],
           "os": ["ubuntu-22.04", "ubuntu-24.04"],
           "use-freeze-file": ["false"],
           "include" : [
             {
-              "ghc": "9.12.2",
-              "cabal": "latest",
+              "ghc": "9.14.1",
+              "cabal": "3.16",
               "os": "ubuntu-24.04",
               "use-freeze-file": "false"
             },
             {
-              "ghc": "9.12.2",
-              "cabal": "latest",
+              "ghc": "9.14.1",
+              "cabal": "3.16",
               "os": "macos-latest",
               "use-freeze-file": "false"
             },
             {
-              "ghc": "9.10.3",
-              "cabal": "3.14",
+              "ghc": "9.14.1",
+              "cabal": "3.16",
               "os": "ubuntu-22.04",
               "use-freeze-file": "true"
             }
@@ -725,10 +725,10 @@ jobs:
         # when adding more than one build, use a different package name or
         # different tags
         include:
-        - ghc: "9.10.3"
+        - ghc: "9.14.1"
           os: "ubuntu-22.04"
           use-freeze-file: "true"
-        - ghc: "9.10.3"
+        - ghc: "9.14.1"
           os: "ubuntu-22.04"
           use-freeze-file: "false"
     env:

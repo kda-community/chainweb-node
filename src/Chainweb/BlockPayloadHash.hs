@@ -27,7 +27,7 @@ module Chainweb.BlockPayloadHash
 
 -- * Ranked Block Payload Hash
 , type RankedBlockPayloadHash
-, pattern RankedBlockPayloadHash
+, data RankedBlockPayloadHash
 , _rankedBlockPayloadHashHash
 , _rankedBlockPayloadHashHeight
 , encodeRankedBlockPayloadHash
@@ -123,4 +123,3 @@ encodeRankedBlockPayloadHash = encodeRanked encodeBlockPayloadHash
 
 decodeRankedBlockPayloadHash :: Get RankedBlockPayloadHash
 decodeRankedBlockPayloadHash = decodeRanked decodeBlockPayloadHash
-

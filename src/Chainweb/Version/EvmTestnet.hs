@@ -1,3 +1,4 @@
+{-# language ExplicitNamespaces #-}
 {-# language LambdaCase #-}
 {-# language NumericUnderscores #-}
 {-# language OverloadedStrings #-}
@@ -7,7 +8,7 @@
 
 module Chainweb.Version.EvmTestnet
 ( evmTestnet
-, pattern EvmTestnet
+, data EvmTestnet
 ) where
 
 import qualified Data.Set as Set
@@ -60,7 +61,7 @@ evmTestnet = withVersion evmTestnet $ ChainwebVersion
     , _versionForkNumber = 1
     , _versionForkVoteCastingLength = 20
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
-    , _versionInitialGasModel = onAllChains $ Bottom (minBound, post32GasModel) 
+    , _versionInitialGasModel = onAllChains $ Bottom (minBound, post32GasModel)
     , _versionGraphs = Bottom (minBound, d4k4ChainGraph)
     , _versionBlockDelay = BlockDelay 30_000_000
     , _versionWindow = WindowWidth 120

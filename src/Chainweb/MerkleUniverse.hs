@@ -44,7 +44,7 @@ module Chainweb.MerkleUniverse
 , fromSomeTagVal
 , fromTagVal
 , Sing (..)
-, pattern STagVal
+, data STagVal
 , sTagVal
 ) where
 
@@ -641,4 +641,3 @@ fromSomeTagVal x = case msum (f <$> tagList) of
         r@(SomeSing (STagVal (SNat @s))) -> do
             guard (natVal_ @s == int x)
             Just r
-

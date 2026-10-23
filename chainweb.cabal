@@ -1,4 +1,4 @@
-cabal-version: 3.8
+cabal-version: 3.16
 
 name:         chainweb
 version:      3.2.1
@@ -15,8 +15,7 @@ category:     Blockchain, Currency, Bitcoin, Kadena
 build-type:   Simple
 
 tested-with:
-    GHC == 9.10
-    GHC == 9.8
+    GHC == 9.14
 
 extra-source-files:
     CHANGELOG.md
@@ -844,7 +843,7 @@ test-suite compaction-tests
         , chainweb:chainweb-test-utils
 
         -- external
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , chainweb-storage >= 0.1
         , loglevel >= 0.1
         , tasty >= 1.0
@@ -871,7 +870,7 @@ test-suite multi-node-network-tests
         , chainweb:chainweb-test-utils
 
         -- external
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , chainweb-storage >= 0.1
         , loglevel >= 0.1
         , tasty >= 1.0
@@ -901,7 +900,7 @@ test-suite remote-tests
 
         -- external
         , async >= 2.2
-        , base >= 4.12 && < 5
+        , base >= 4.22 && < 5
         , bytestring >= 0.10.12
         , http-client >= 0.5
         , http-types >= 0.12

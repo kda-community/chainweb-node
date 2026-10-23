@@ -103,7 +103,7 @@ module Chainweb.Version
 
     -- ** Singletons
     , SChainwebVersion
-    , pattern FromSingChainwebVersion
+    , data FromSingChainwebVersion
 
     -- * Payload Provider Type
     , PayloadProviderType(..)
@@ -138,7 +138,7 @@ module Chainweb.Version
     -- ** Undirected Edges
     , AdjPair
     , _getAdjPair
-    , pattern Adj
+    , data Adj
     , adjs
     , adjsOfVertex
     , checkAdjacentChainIds

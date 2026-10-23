@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -39,7 +40,7 @@ module Chainweb.MinerReward
 
 -- * KDA
 , Kda
-, pattern Kda
+, data Kda
 , _kda
 , stuToKda
 , kdaToStu
