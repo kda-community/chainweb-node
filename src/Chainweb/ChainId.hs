@@ -17,6 +17,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -67,6 +68,17 @@ module Chainweb.ChainId
 , chainZip
 , chainIntersect
 
+-- Range Maps
+, ChainRangesMap(..)
+, rangesMapNoOverLap
+, rangesLookup
+, toChainMap
+, fromChainMap
+, rangesMapOnChain
+, rangesMapOnChains
+, rangesMapAllChains
+, rangesMapRemove
+
 -- * Configuration Utils
 , prefixLongCid
 , suffixHelpCid
@@ -82,13 +94,19 @@ import Chainweb.Utils.Serialization
 import Configuration.Utils hiding (Lens')
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (Exception, MonadThrow, displayException)
-import Data.Aeson.Types (toJSONKeyText)
+import Data.Aeson.Types (toJSONKeyText, Parser)
+import Data.Aeson.KeyMap qualified as KM
+import Data.Aeson.Key qualified as K
 import Data.HashMap.Strict (HashMap)
 import Data.HashMap.Strict qualified as HM
 import Data.Hashable (Hashable(..))
 import Data.Kind
 import Data.Proxy
 import Data.Semialign
+import Data.Ranges
+import Data.Range.Parser
+import Data.List qualified as L
+import Control.Arrow (first)
 import Data.Singletons hiding (Index)
 import Data.Text qualified as T
 import Data.Word (Word32)
@@ -125,8 +143,8 @@ instance Exception ChainIdException
 --
 newtype ChainId :: Type where
     ChainId' :: Word32 -> ChainId
-    deriving stock (Show, Read, Eq, Ord, Generic)
-    deriving newtype (Hashable, ToJSON, FromJSON, NFData, HasTextRepresentation)
+    deriving stock (Eq, Ord, Generic)
+    deriving newtype (Show, Read, Enum, Hashable, ToJSON, FromJSON, NFData, HasTextRepresentation)
 
 pattern ChainId :: Word32 -> ChainId
 pattern ChainId n <- ChainId' n
@@ -357,3 +375,87 @@ pEnableConfigCid comp cid pConfig = id
         <> help ("whether " <> comp <> " is enabled or disabled for the respective chain")
         <> mconcat [ hidden <> internal | chainIdInt @Int cid /= 0 ]
     <*< enableConfigConfig %:: pConfig cid
+
+---- ChainID Ranges Maps
+------------------------
+-- The map is implemented as a list of tuples
+-- Note: This structure is not efficient: eg lookups are O(n), merges are O(n^2)
+--       It's fine for configuration evaluated once at startup. But for runtime, it should be flattened to a normal ChainMap.
+newtype ChainRangesMap a = ChainRangesMap ( [(Ranges ChainId, a)])
+    deriving stock (Show, Eq, Generic, Functor, Foldable, Traversable)
+
+instance Semigroup (ChainRangesMap a) where
+    (<>) (ChainRangesMap x) (ChainRangesMap y) = ChainRangesMap $ x <> (substractRange totalRange y)
+      where
+         -- Compute the total range of the added Map
+         totalRange = mconcat $ map fst x
+
+instance Monoid (ChainRangesMap a) where
+    mempty = ChainRangesMap []
+
+-- Private util function: substract a range from all elements within a map
+substractRange :: Ranges ChainId -> [(Ranges ChainId, a)] -> [(Ranges ChainId, a)]
+substractRange range = filter (\(r, _) -> r /= mempty)
+                       . map (\(r, val) -> (difference r range, val))
+
+rangesMapOnChain :: ChainId -> a -> ChainRangesMap a
+rangesMapOnChain cid v = ChainRangesMap [(cid +=+ cid, v)]
+
+rangesMapRemove :: ChainId ->  ChainRangesMap a -> ChainRangesMap a
+rangesMapRemove cid (ChainRangesMap rm) = ChainRangesMap $ substractRange (cid +=+ cid) rm
+
+rangesMapAllChains :: a -> ChainRangesMap a
+rangesMapAllChains v = ChainRangesMap [(lbi (unsafeChainId 0), v)]
+
+rangesMapOnChains :: [(ChainId, a)] -> ChainRangesMap a
+rangesMapOnChains = ChainRangesMap . map (\(cid, v) -> (cid +=+ cid, v))
+
+rangesMapNoOverLap :: ChainRangesMap a -> Bool
+rangesMapNoOverLap (ChainRangesMap rm) = all (\((r1,_), (r2,_)) -> (intersection r1 r2) == mempty) $ combin rm
+    where
+        combin [] = []
+        combin (x:xs) = [(x, y) | y <- xs] ++ combin xs
+
+
+-- Flatten the ChainRangesMap to a normal ChainMap
+-- Providing min-max known ChainIds is necessary to bound open ranges.
+toChainMap :: ChainId -> ChainId -> ChainRangesMap a -> ChainMap a
+toChainMap minChainId maxChainId (ChainRangesMap rm) = mconcat $ fmap (rangesToMap . first boundedRange) rm
+    where
+    rangesToMap (r, a) = onChains $ (, a) <$> fromRanges r
+    boundedRange = intersection (minChainId +=+ maxChainId)
+
+fromChainMap :: ChainMap a -> ChainRangesMap a
+fromChainMap (ChainMap cm) = rangesMapOnChains $ HM.toList cm
+
+rangesLookup :: ChainRangesMap a -> ChainId -> Maybe a
+rangesLookup (ChainRangesMap rm) cid = snd <$> L.find (\(r,_) -> inRanges r cid) rm
+
+
+instance ToJSON a => ToJSON (ChainRangesMap a) where
+    toJSON(ChainRangesMap rm) = toJSON $ KM.fromList $ fmap (first rangeToKey) rm
+      where
+        rangeToKey = K.fromText . T.intercalate "," . fmap rangeToText . unRanges
+
+        lb (Bound v typ) = if (typ == Inclusive) then v else succ v
+        ub (Bound v typ) = if (typ == Inclusive) then v else pred v
+
+        rangeToText :: Range ChainId -> T.Text
+        rangeToText (SingletonRange x) = toText x
+        rangeToText (SpanRange x y) =  (toText . lb) x <> "-" <> (toText . ub) y
+        rangeToText (LowerBoundRange x) = (toText . lb) x <> "-"
+        rangeToText (UpperBoundRange y) = "-" <> (toText . ub) y
+        rangeToText InfiniteRange       = "*"
+
+instance FromJSON a => FromJSON (ChainRangesMap a) where
+    parseJSON json = do
+        rv <- KM.toList <$> parseJSON json
+        ChainRangesMap <$> mapM doParseRange rv
+      where
+        doParseRange:: (K.Key, a) -> Parser (Ranges ChainId, a)
+        doParseRange (rt, v) = (, v) <$> ( either (fail . show) return
+                                         $ parseRanges
+                                         $ K.toString rt)
+
+instance FromJSON a => FromJSON (ChainRangesMap a -> ChainRangesMap a) where
+    parseJSON json = (<>) <$> parseJSON json

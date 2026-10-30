@@ -1091,8 +1091,8 @@ config ver n = defaultChainwebConfiguration ver
     & set (configMining . miningInNode) miner
     & set
         ( configPayloadProviders
-        . payloadProviderConfigPact
         . traversed
+        . _PactConfig
         . pactConfigBlockGasLimit
         )
         (Pact.GasLimit $ Pact.Gas 1_000_000)

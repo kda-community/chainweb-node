@@ -310,34 +310,36 @@ withPayloadProviderResources
 withPayloadProviderResources sched logger cid serviceApiConfig peerStuff rdb rewindLimit initialUnlimitedRewind defaultPactDbDir configs = do
     SomeChainwebVersionT @v' _ <- return $ someChainwebVersionVal
     SomeChainIdT @c' _ <- return $ someChainIdVal cid
+
     withSomeSing provider $ \case
-        SMinimalProvider -> do
+        SMinimalProvider -> case rangesLookup configs cid of
+            Just (MinimalConfig config) -> do
+                -- FIXME this should be better abstracted.
+                -- Should we put the api and server into the payload provider
+                -- itself? Would it be an issue if the payload provider would keep a
+                -- reference to it?
+                --
+                -- It would allow the server to be integrated more closely with the
+                -- provider.
 
-            -- FIXME this should be better abstracted.
-            -- Should we put the api and server into the payload provider
-            -- itself? Would it be an issue if the payload provider would keep a
-            -- reference to it?
-            --
-            -- It would allow the server to be integrated more closely with the
-            -- provider.
 
-            let config = _payloadProviderConfigMinimal configs
-            p <- liftIO $ newMinimalPayloadProvider logger cid rdb (view _4 <$> peerStuff) config
-            let pdb = view minimalPayloadDb p
-            let queue = view minimalPayloadQueue p
-            p2pRes <- liftIO $ forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) ->
-                payloadP2pResources @v' @c' @'MinimalProvider
-                    logger p2pConfig myPeerInfo peerDb pdb queue mgr
-            let serviceRes =
-                    payloadServiceApiResources @v' @c' @'MinimalProvider serviceApiConfig pdb
-            return ProviderResources
-                { _providerResPayloadProvider = ConfiguredPayloadProvider p
-                , _providerResServiceApi = Just serviceRes
-                , _providerResP2pApiResources = p2pRes
-                }
+                p <- liftIO $ newMinimalPayloadProvider logger cid rdb (view _4 <$> peerStuff) config
+                let pdb = view minimalPayloadDb p
+                let queue = view minimalPayloadQueue p
+                p2pRes <- liftIO $ forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) ->
+                    payloadP2pResources @v' @c' @'MinimalProvider
+                        logger p2pConfig myPeerInfo peerDb pdb queue mgr
+                let serviceRes =
+                        payloadServiceApiResources @v' @c' @'MinimalProvider serviceApiConfig pdb
+                return ProviderResources
+                    { _providerResPayloadProvider = ConfiguredPayloadProvider p
+                    , _providerResServiceApi = Just serviceRes
+                    , _providerResP2pApiResources = p2pRes
+                    }
+            _ -> return $ ProviderResources DisabledPayloadProvider Nothing Nothing
 
-        SPactProvider -> case _payloadProviderConfigPact configs ^. at cid of
-            Just conf -> do
+        SPactProvider -> case rangesLookup configs cid of
+            Just (PactConfig conf) -> do
                 -- , _pactGenesisPayload = Pact.genesisPayload v ^?! atChain chain
 
                 -- let mcfg = validatingMempoolConfig cid v (_configBlockGasLimit conf) (_configMinGasPrice conf)
@@ -422,8 +424,8 @@ withPayloadProviderResources sched logger cid serviceApiConfig peerStuff rdb rew
 
             _ -> return $ ProviderResources DisabledPayloadProvider Nothing Nothing
 
-        SEvmProvider @n _ -> case _payloadProviderConfigEvm configs ^. at cid of
-            Just config -> do
+        SEvmProvider @n _ -> case rangesLookup configs cid of
+            Just (EvmConfig config) -> do
                 -- This assumes that the respective execution client is available
                 -- and answering API requests.
                 -- It also starts to awaiting and devlivering new payloads if mining

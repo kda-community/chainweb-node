@@ -1,8 +1,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- |
@@ -26,6 +28,7 @@ module Chainweb.PayloadProvider.Pact.Configuration
 , pactConfigMiner
 , defaultPactProviderConfig
 , pPactProviderConfig
+, validatePactProviderConfig
 , pMiner
 , invalidMiner
 ) where
@@ -172,3 +175,7 @@ pPactProviderConfig cid = id
     <*< pactConfigDatabaseDirectory .:: fmap Just % fileOption
         % prefixLongCid cid "pact-database-directory"
         <> helpCid cid "the directory to store the pact database"
+
+validatePactProviderConfig :: HasVersion => ChainId -> ConfigValidation PactProviderConfig []
+-- TODO Validate some stuffs here
+validatePactProviderConfig _ _ = pure ()

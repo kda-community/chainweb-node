@@ -57,11 +57,13 @@ someGetConfigServer config = SomeServer (Proxy @GetConfigApi) $ return
     $ set (configP2p . p2pConfigPeer . peerConfigKeyFile) Nothing
 
     -- Miner Info
-    $ set (configPayloadProviders . payloadProviderConfigMinimal . mpcRedeemAccount) invalidAccount
-    $ set (configPayloadProviders . payloadProviderConfigPact . traversed . pactConfigMiner) Nothing
-    $ set (configPayloadProviders . payloadProviderConfigEvm . traversed . evmConfMinerAddress) Nothing
-    $ set (configPayloadProviders . payloadProviderConfigEvm . traversed . evmConfEngineJwtSecret) (_evmConfEngineJwtSecret defaultEvmProviderConfig)
+    $ set (configPayloadProviders . traversed . _MinimalConfig . mpcRedeemAccount) invalidAccount
+    $ set (configPayloadProviders . traversed . _PactConfig    . pactConfigMiner) Nothing
+    $ set (configPayloadProviders . traversed . _EvmConfig     . evmConfMinerAddress) Nothing
 
+    -- EVM Secret
+    $ set (configPayloadProviders . traversed . _EvmConfig     . evmConfEngineJwtSecret) (_evmConfEngineJwtSecret defaultEvmProviderConfig)
+--
     -- Service API port
     $ set (configServiceApi . serviceApiConfigPort) 0
     $ set (configServiceApi . serviceApiConfigInterface) "invalid"
