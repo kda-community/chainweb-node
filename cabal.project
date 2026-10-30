@@ -95,7 +95,7 @@ package yet-another-logger
 source-repository-package
     type: git
     location: https://github.com/kda-community/pact.git
-    tag: ef859d8b7992b8f91bd4864f55a16080c8ae2b2a
+    tag: d6df7d49cfb0bce8620eed2653474a6c091a2c30
 
 source-repository-package
     type: git
