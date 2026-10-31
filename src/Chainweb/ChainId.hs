@@ -78,6 +78,7 @@ module Chainweb.ChainId
 , rangesMapOnChains
 , rangesMapAllChains
 , rangesMapRemove
+, rangesMapOnRange
 
 -- * Configuration Utils
 , prefixLongCid
@@ -388,7 +389,7 @@ instance Semigroup (ChainRangesMap a) where
     (<>) (ChainRangesMap x) (ChainRangesMap y) = ChainRangesMap $ x <> (substractRange totalRange y)
       where
          -- Compute the total range of the added Map
-         totalRange = mconcat $ map fst x
+        totalRange = joinRanges $ mconcat $ map fst x
 
 instance Monoid (ChainRangesMap a) where
     mempty = ChainRangesMap []
@@ -396,19 +397,44 @@ instance Monoid (ChainRangesMap a) where
 -- Private util function: substract a range from all elements within a map
 substractRange :: Ranges ChainId -> [(Ranges ChainId, a)] -> [(Ranges ChainId, a)]
 substractRange range = filter (\(r, _) -> r /= mempty)
-                       . map (\(r, val) -> (difference r range, val))
+                       . map (\(r, val) -> (inclusiveOnly $ difference r range, val))
 
+-- Private util function tp convert all ranges to "Inclusive", this can be done since ChainId is a enum
+inclusiveOnly :: Ranges ChainId -> Ranges ChainId
+inclusiveOnly = mergeRanges . map goRange . unRanges
+  where
+    goBound b@(Bound _ Inclusive) _ = b
+    goBound (Bound v Exclusive) isUpper = (Bound (update v) Inclusive)
+      where
+        update = if isUpper then pred else succ
+    goRange = \case
+        (SpanRange x y)     -> (SpanRange       (goBound x False) (goBound y True))
+        (LowerBoundRange x) -> (LowerBoundRange (goBound x False))
+        (UpperBoundRange y) -> (UpperBoundRange (goBound y True))
+        r -> r
+
+
+-- Create a ChainRangesMap from a lower and upper range
+rangesMapOnRange :: ChainId -> ChainId -> a -> ChainRangesMap a
+rangesMapOnRange _from _to v = ChainRangesMap [(_from +=+ _to, v)]
+
+-- Create a ChainRangesMap for a signle chain
 rangesMapOnChain :: ChainId -> a -> ChainRangesMap a
-rangesMapOnChain cid v = ChainRangesMap [(cid +=+ cid, v)]
+rangesMapOnChain cid v = rangesMapOnRange cid cid v
 
-rangesMapRemove :: ChainId ->  ChainRangesMap a -> ChainRangesMap a
-rangesMapRemove cid (ChainRangesMap rm) = ChainRangesMap $ substractRange (cid +=+ cid) rm
 
+-- Create a ChainRangesMap for all chains = * modifier
 rangesMapAllChains :: a -> ChainRangesMap a
 rangesMapAllChains v = ChainRangesMap [(lbi (unsafeChainId 0), v)]
 
+-- Creta a ChainRangesMap from a list of (ChainID, Config)
 rangesMapOnChains :: [(ChainId, a)] -> ChainRangesMap a
 rangesMapOnChains = ChainRangesMap . map (\(cid, v) -> (cid +=+ cid, v))
+
+-- Rmeove a chain from a RangesMaps
+rangesMapRemove :: ChainId ->  ChainRangesMap a -> ChainRangesMap a
+rangesMapRemove cid (ChainRangesMap rm) = ChainRangesMap $ substractRange (cid +=+ cid) rm
+
 
 rangesMapNoOverLap :: ChainRangesMap a -> Bool
 rangesMapNoOverLap (ChainRangesMap rm) = all (\((r1,_), (r2,_)) -> (intersection r1 r2) == mempty) $ combin rm
@@ -428,6 +454,7 @@ toChainMap minChainId maxChainId (ChainRangesMap rm) = mconcat $ fmap (rangesToM
 fromChainMap :: ChainMap a -> ChainRangesMap a
 fromChainMap (ChainMap cm) = rangesMapOnChains $ HM.toList cm
 
+-- Lookup
 rangesLookup :: ChainRangesMap a -> ChainId -> Maybe a
 rangesLookup (ChainRangesMap rm) cid = snd <$> L.find (\(r,_) -> inRanges r cid) rm
 
@@ -435,17 +462,13 @@ rangesLookup (ChainRangesMap rm) cid = snd <$> L.find (\(r,_) -> inRanges r cid)
 instance ToJSON a => ToJSON (ChainRangesMap a) where
     toJSON(ChainRangesMap rm) = toJSON $ KM.fromList $ fmap (first rangeToKey) rm
       where
-        rangeToKey = K.fromText . T.intercalate "," . fmap rangeToText . unRanges
+        rangeToKey = K.fromText . T.intercalate "," . fmap rangeToText . unRanges . inclusiveOnly
 
-        lb (Bound v typ) = if (typ == Inclusive) then v else succ v
-        ub (Bound v typ) = if (typ == Inclusive) then v else pred v
-
-        rangeToText :: Range ChainId -> T.Text
-        rangeToText (SingletonRange x) = toText x
-        rangeToText (SpanRange x y) =  (toText . lb) x <> "-" <> (toText . ub) y
-        rangeToText (LowerBoundRange x) = (toText . lb) x <> "-"
-        rangeToText (UpperBoundRange y) = "-" <> (toText . ub) y
-        rangeToText InfiniteRange       = "*"
+        rangeToText (SingletonRange x)                    = toText x
+        rangeToText (SpanRange (Bound lb _) (Bound ub _)) = toText lb <> "-" <> toText ub
+        rangeToText (LowerBoundRange  (Bound lb _) )      = toText lb <> "-"
+        rangeToText (UpperBoundRange (Bound ub _))        = "-" <> toText ub
+        rangeToText InfiniteRange                         = "*"
 
 instance FromJSON a => FromJSON (ChainRangesMap a) where
     parseJSON json = do
