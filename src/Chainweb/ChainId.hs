@@ -399,7 +399,7 @@ substractRange :: Ranges ChainId -> [(Ranges ChainId, a)] -> [(Ranges ChainId, a
 substractRange range = filter (\(r, _) -> r /= mempty)
                        . map (\(r, val) -> (inclusiveOnly $ difference r range, val))
 
--- Private util function tp convert all ranges to "Inclusive", this can be done since ChainId is a enum
+-- Private util function to convert all ranges to "Inclusive", this can be done because ChainId is an Enum
 inclusiveOnly :: Ranges ChainId -> Ranges ChainId
 inclusiveOnly = mergeRanges . map goRange . unRanges
   where
@@ -413,12 +413,11 @@ inclusiveOnly = mergeRanges . map goRange . unRanges
         (UpperBoundRange y) -> (UpperBoundRange (goBound y True))
         r -> r
 
-
 -- Create a ChainRangesMap from a lower and upper range
 rangesMapOnRange :: ChainId -> ChainId -> a -> ChainRangesMap a
 rangesMapOnRange _from _to v = ChainRangesMap [(_from +=+ _to, v)]
 
--- Create a ChainRangesMap for a signle chain
+-- Create a ChainRangesMap for a single chain
 rangesMapOnChain :: ChainId -> a -> ChainRangesMap a
 rangesMapOnChain cid v = rangesMapOnRange cid cid v
 
@@ -427,11 +426,11 @@ rangesMapOnChain cid v = rangesMapOnRange cid cid v
 rangesMapAllChains :: a -> ChainRangesMap a
 rangesMapAllChains v = ChainRangesMap [(lbi (unsafeChainId 0), v)]
 
--- Creta a ChainRangesMap from a list of (ChainID, Config)
+-- Create a ChainRangesMap from a list of (ChainID, Config)
 rangesMapOnChains :: [(ChainId, a)] -> ChainRangesMap a
 rangesMapOnChains = ChainRangesMap . map (\(cid, v) -> (cid +=+ cid, v))
 
--- Rmeove a chain from a RangesMaps
+-- Rmeove a chain from a ChainRangesMap
 rangesMapRemove :: ChainId ->  ChainRangesMap a -> ChainRangesMap a
 rangesMapRemove cid (ChainRangesMap rm) = ChainRangesMap $ substractRange (cid +=+ cid) rm
 
@@ -444,7 +443,7 @@ rangesMapNoOverLap (ChainRangesMap rm) = all (\((r1,_), (r2,_)) -> (intersection
 
 
 -- Flatten the ChainRangesMap to a normal ChainMap
--- Providing min-max known ChainIds is necessary to bound open ranges.
+-- Providing min-max known ChainIds is necessary to "close" open ranges, and discard unused elements.
 toChainMap :: ChainId -> ChainId -> ChainRangesMap a -> ChainMap a
 toChainMap minChainId maxChainId (ChainRangesMap rm) = mconcat $ fmap (rangesToMap . first boundedRange) rm
     where

@@ -199,6 +199,7 @@ validatePayloadProviderConfig conf = do
                 -- Mismatch
                 (_, e) -> do
                     tell [ configTypeName _conf <> "provider configured for chain " <> sshow cid <> ": " <> sshow _conf ]
+                    -- Should we throw an error error here ? Or let the node manage it later by disabling chains
                     throwError $ mconcat $
                         [ "Wrong payload provider type configuration for chain " <> sshow cid
                         , ". Expected " <> sshow e <> " but found " <> configTypeName _conf
