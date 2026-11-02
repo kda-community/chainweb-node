@@ -28,7 +28,9 @@ import Data.Bifunctor (first)
 import Data.ByteArray qualified as Memory
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.ByteString.Base16 qualified as Base16
+import Data.Coerce (coerce)
+import Data.Base16.Types qualified as B16
+import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Lazy qualified as BL
 import Data.Int (Int64)
@@ -58,7 +60,7 @@ newtype TableHash = TableHash { getTableHash :: ByteString }
 newtype HexBytes = HexBytes ByteString
 
 instance Show HexBytes where
-  show (HexBytes b) = Text.unpack (Text.decodeUtf8 (Base16.encode b))
+  show = Text.unpack . B16.extractBase16 . B16.encodeBase16 . coerce
 
 computeGrandHash :: forall m r. (Monad m)
   => Stream (Of (Text, Map ByteString PactRowContents)) m r

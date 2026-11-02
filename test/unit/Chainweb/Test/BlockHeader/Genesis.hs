@@ -14,7 +14,6 @@ module Chainweb.Test.BlockHeader.Genesis ( tests ) where
 
 import Control.Lens
 
-import qualified Data.ByteString.Base64.URL as B64U
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Lazy as BL
 import Data.Function (on)
@@ -57,7 +56,7 @@ blockHashes =
     BB.toLazyByteString . foldMap (hash . snd) . sortBy (compare `on` fst) . HM.toList
   where
     hash :: BlockHeader -> BB.Builder
-    hash = BB.byteString . B64U.encode . runPutS . encodeBlockHash . view blockHash
+    hash = BB.byteString . encodeB64Url . runPutS . encodeBlockHash . view blockHash
 
 blockHashTest :: ChainwebVersion -> TestTree
 blockHashTest v = golden (sshow v <> "-block-hashes") $

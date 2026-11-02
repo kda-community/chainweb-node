@@ -23,7 +23,6 @@ module Chainweb.Test.Pact.SPVTest
     ( tests
     ) where
 
-import Data.ByteString.Base16 qualified as Base16
 import Chainweb.Pact.Block (Block (_blockPayloadWithOutputs))
 import System.Environment (lookupEnv, setEnv)
 import Control.Applicative ((<|>))

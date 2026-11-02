@@ -173,7 +173,7 @@ blockHeaders = fromJust $ traverse throwDecodeStrict'  [
   ]
 
 unsafeInsertEntry :: SQLiteEnv -> (Int64, BS.ByteString, Int64) -> IO ()
-unsafeInsertEntry sql (bh, h, txid) = case B64.decode h of
+unsafeInsertEntry sql (bh, h, txid) = case B64.decodeBase64Untyped h of
   Right h' ->
     throwOnDbError $ exec' sql "INSERT INTO BlockHistory (blockheight, endingtxid, hash) VALUES (?, ?, ?)"
       [SInt bh, SInt txid, SBlob h' ]

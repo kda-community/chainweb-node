@@ -108,6 +108,7 @@ import Control.Monad.Catch
 
 import Data.Aeson
 import qualified Data.ByteString as B
+import qualified Data.Base16.Types as B16
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Short as BS
 import Data.Decimal
@@ -265,7 +266,7 @@ getInt256Be = do
 
 int256Hex :: Int256 -> B.ByteString
 int256Hex x@(Int256 i)
-  | i >= 0 = "0x" <> B16.encode (runPutS $ putInt256Be x)
+  | i >= 0 = "0x" <> (B16.extractBase16 $ B16.encodeBase16' $ runPutS $ putInt256Be x)
   | otherwise = "-" <> int256Hex (Int256 (-i))
 
 -- -------------------------------------------------------------------------- --

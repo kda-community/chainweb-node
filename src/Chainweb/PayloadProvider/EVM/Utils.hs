@@ -55,7 +55,9 @@ import Chainweb.Utils
 import Chainweb.Utils.Serialization (runPutS, runGetS)
 import Control.Monad.Catch
 import Data.Aeson
+import Data.Bifunctor (first)
 import Data.ByteString qualified as B
+import Data.Base16.Types qualified as B16
 import Data.ByteString.Base16 qualified as B16
 import Data.ByteString.Short qualified as BS
 import Data.Hashable (Hashable)
@@ -116,8 +118,8 @@ instance HasTextRepresentation E.BlockNumber where
     {-# INLINE fromText #-}
 
 instance HasTextRepresentation (HexBytes B.ByteString) where
-    toText (HexBytes a) = T.decodeUtf8 ("0x" <> B16.encode a)
-    fromText t = (B16.decode . T.encodeUtf8 <$> strip0x t) >>= \case
+    toText (HexBytes a) = "0x" <> (B16.extractBase16 $ B16.encodeBase16 a)
+    fromText t = ((first T.unpack . B16.decodeBase16Untyped . T.encodeUtf8) <$> strip0x t) >>= \case
         Left e -> throwM $ TextFormatException $ T.pack e
         Right x -> return $ HexBytes x
     {-# INLINE toText #-}
@@ -321,4 +323,3 @@ instance
         Left e -> throwM $ MerkleLogDecodeException (T.pack e)
         Right x -> Right x
     fromMerkleNode (TreeNode _) = throwM expectedInputNodeException
-
