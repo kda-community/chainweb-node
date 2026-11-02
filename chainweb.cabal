@@ -930,6 +930,7 @@ benchmark bench
     main-is: Bench.hs
     type: exitcode-stdio-1.0
     other-modules:
+        Chainweb.BlockHeaderDBBench
         Chainweb.CutDBBench
         Chainweb.MempoolBench
         -- Chainweb.Pact.Backend.ApplyCmd
