@@ -297,6 +297,21 @@ data Codec a = Codec
         -- ^ encode a value.
     , _codecDecode :: !(forall m. MonadThrow m => B.ByteString -> m a)
         -- ^ decode a value. Throws an exception of decoding fails.
+    , _codecUnsafeIter :: !Bool
+        -- ^ Whether the decode function is compatible with the zero-copy
+        -- 'Database.RocksDB.Iterator.unsafeIterKey' and
+        -- 'Database.RocksDB.Iterator.unsafeIterValue' iterators from
+        -- rocksdb-haskell.
+        --
+        -- Those iterators wrap the RocksDB-owned buffer directly instead of
+        -- copying it out and only force the result of the decode to weak head
+        -- normal form. Using them is therefore only sound when the decode
+        -- function never retains a reference to (never aliases) its input
+        -- 'B.ByteString' -- not even inside an unevaluated thunk. Only set this
+        -- to 'True' for codecs whose decode produces a value that is fully
+        -- independent of the input bytes (for instance decoders that copy the
+        -- input or build fresh values from it). When in doubt, leave it
+        -- 'False', in which case the (copying) iterators are used instead.
     }
 
 instance NoThunks (Codec a) where
@@ -428,21 +443,46 @@ instance Iterator (RocksDbTableIter k v) k v where
 
   iterPrev = I.iterPrev . _rocksDbTableIter
 
-  iterEntry it =
-      I.iterEntry (_rocksDbTableIter it) >>= \case
-          Nothing -> return Nothing
-          Just (k, v) -> do
-              k' <- decIterKey it k
-              v' <- decIterVal it v
-              return $! Just $! Entry k' v'
+  iterEntry it
+    | _codecUnsafeIter (_rocksDbTableIterKeyCodec it)
+    , _codecUnsafeIter (_rocksDbTableIterValueCodec it) =
+        I.unsafeIterKey (_rocksDbTableIter it) (decIterKeyE it) >>= \case
+            Nothing -> return Nothing
+            Just (Left e) -> throwM e
+            Just (Right k) ->
+                I.unsafeIterValue (_rocksDbTableIter it) (decIterValE it) >>= \case
+                    Nothing -> return Nothing
+                    Just (Left e) -> throwM e
+                    Just (Right v) -> return $! Just $! Entry k v
+    | otherwise =
+        I.iterEntry (_rocksDbTableIter it) >>= \case
+            Nothing -> return Nothing
+            Just (k, v) -> do
+                k' <- decIterKey it k
+                v' <- decIterVal it v
+                return $! Just $! Entry k' v'
 
-  iterValue it = I.iterValue (_rocksDbTableIter it) >>= \case
-      Nothing -> return Nothing
-      Just v -> Just <$> (evaluate =<< decIterVal it v)
+  iterValue it
+    | _codecUnsafeIter (_rocksDbTableIterValueCodec it) =
+        I.unsafeIterValue (_rocksDbTableIter it) (decIterValE it) >>= \case
+            Nothing -> return Nothing
+            Just (Left e) -> throwM e
+            Just (Right v) -> Just <$> evaluate v
+    | otherwise =
+        I.iterValue (_rocksDbTableIter it) >>= \case
+            Nothing -> return Nothing
+            Just v -> Just <$> (evaluate =<< decIterVal it v)
 
-  iterKey it = I.iterKey (_rocksDbTableIter it) >>= \case
-      Nothing -> return Nothing
-      Just k -> Just <$> (evaluate =<< decIterKey it k)
+  iterKey it
+    | _codecUnsafeIter (_rocksDbTableIterKeyCodec it) =
+        I.unsafeIterKey (_rocksDbTableIter it) (decIterKeyE it) >>= \case
+            Nothing -> return Nothing
+            Just (Left e) -> throwM e
+            Just (Right k) -> Just <$> evaluate k
+    | otherwise =
+        I.iterKey (_rocksDbTableIter it) >>= \case
+            Nothing -> return Nothing
+            Just k -> Just <$> (evaluate =<< decIterKey it k)
 
 instance IterableTable (RocksDbTable k v) (RocksDbTableIter k v) k v where
     withTableIterator db k = R.withReadOptions readOptions $ \opts_ptr ->
@@ -646,6 +686,23 @@ decIterKey it k =
     _codecDecode (_rocksDbTableIterKeyCodec it) (B.drop (B.length prefix) k)
   where
     prefix = namespaceFirst $ _rocksDbTableIterNamespace it
+
+-- | Pure variants of 'decIterKey' and 'decIterVal' that run the codec's decode
+-- in the @Either SomeException@ monad. They are used as the (pure) continuation
+-- for the zero-copy 'I.unsafeIterKey' / 'I.unsafeIterValue' iterators.
+--
+-- These must only be used with codecs that set '_codecUnsafeIter' to 'True',
+-- i.e. codecs whose decode never retains a reference to its input
+-- 'B.ByteString'.
+--
+decIterKeyE :: RocksDbTableIter k v -> B.ByteString -> Either SomeException k
+decIterKeyE it k =
+    _codecDecode (_rocksDbTableIterKeyCodec it) (B.drop (B.length prefix) k)
+  where
+    prefix = namespaceFirst $ _rocksDbTableIterNamespace it
+
+decIterValE :: RocksDbTableIter k v -> B.ByteString -> Either SomeException v
+decIterValE i = _codecDecode (_rocksDbTableIterValueCodec i)
 
 checked :: HasCallStack => String -> (Ptr CString -> IO a) -> IO a
 checked whatWasIDoing act = alloca $ \errPtr -> do

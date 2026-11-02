@@ -283,14 +283,14 @@ initBlockHeaderDb config = do
 
     headerTable = newTable
         (_configRocksDb config)
-        (Codec (runPutS . encodeRankedBlockHeader) (runGetS decodeRankedBlockHeader))
-        (Codec (runPutS . encodeRankedBlockHash) (runGetS decodeRankedBlockHash))
+        (Codec (runPutS . encodeRankedBlockHeader) (runGetS decodeRankedBlockHeader) True)
+        (Codec (runPutS . encodeRankedBlockHash) (runGetS decodeRankedBlockHash) True)
         ["BlockHeader", cidNs, "header"]
 
     rankTable = newTable
         (_configRocksDb config)
-        (Codec (runPutS . encodeBlockHeight) (runGetS decodeBlockHeight))
-        (Codec (runPutS . encodeBlockHash) (runGetS decodeBlockHash))
+        (Codec (runPutS . encodeBlockHeight) (runGetS decodeBlockHeight) True)
+        (Codec (runPutS . encodeBlockHash) (runGetS decodeBlockHash) True)
         ["BlockHeader", cidNs, "rank"]
 
     !db = BlockHeaderDb cid

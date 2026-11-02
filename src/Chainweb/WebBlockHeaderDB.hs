@@ -139,14 +139,14 @@ mkWebBlockHeaderDb db m =
     pruneJobTable = newTable
         db
         (Chainweb.Storage.Table.RocksDB.Codec (\(l, u) -> runPutS $ encodeBlockHeight l >> encodeBlockHeight u)
-            (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockHeight))
-        (Chainweb.Storage.Table.RocksDB.Codec (\_ -> mempty) (runGetS (pure ())))
+            (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockHeight) True)
+        (Chainweb.Storage.Table.RocksDB.Codec (\_ -> mempty) (runGetS (pure ())) True)
         ["BlockHeader", "prune-job"]
 
     highestPrunedTable = newTable
         db
-        (Chainweb.Storage.Table.RocksDB.Codec (runPutS . encodeBlockHeight) (runGetS decodeBlockHeight))
-        (Chainweb.Storage.Table.RocksDB.Codec (\_ -> mempty) (runGetS (pure ())))
+        (Chainweb.Storage.Table.RocksDB.Codec (runPutS . encodeBlockHeight) (runGetS decodeBlockHeight) True)
+        (Chainweb.Storage.Table.RocksDB.Codec (\_ -> mempty) (runGetS (pure ())) True)
         ["BlockHeader", "highest-pruned"]
 
 getWebBlockHeaderDb

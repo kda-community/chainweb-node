@@ -39,36 +39,36 @@ newTransactionDb db = TransactionDb
   where
     newBlockPayloadHeightsStore :: RocksDbTable BlockPayloadHash BlockHeight
     newBlockPayloadHeightsStore = newTable db
-        (Codec (runPutS . encodeBlockHeight) (runGetS decodeBlockHeight))
-        (Codec (runPutS . encodeBlockPayloadHash) (runGetS decodeBlockPayloadHash))
+        (Codec (runPutS . encodeBlockHeight) (runGetS decodeBlockHeight) True)
+        (Codec (runPutS . encodeBlockPayloadHash) (runGetS decodeBlockPayloadHash) True)
         ["BlockPayloadIndex"]
 
     newBlockPayloadStore :: RocksDbTable (BlockHeight, BlockPayloadHash) BlockPayload
     newBlockPayloadStore = newTable db
-        (Codec encodeBlockPayloads decodeBlockPayloads)
+        (Codec encodeBlockPayloads decodeBlockPayloads True)
         (Codec
           (\(bh, bp) -> runPutS (encodeBlockHeight bh >> encodeBlockPayloadHash bp))
-          (runGetS ((,) <$> decodeBlockHeight <*> decodeBlockPayloadHash)))
+          (runGetS ((,) <$> decodeBlockHeight <*> decodeBlockPayloadHash)) True)
         ["BlockPayload2"]
 
     newBlockTransactionsStore :: RocksDbTable (BlockHeight, BlockTransactionsHash) BlockTransactions
     newBlockTransactionsStore = newTable db
-        (Codec encodeBlockTransactions decodeBlockTransactions)
+        (Codec encodeBlockTransactions decodeBlockTransactions True)
         (Codec
           (\(h, hsh) -> runPutS $ encodeBlockHeight h >> encodeBlockTransactionsHash hsh)
-          (runGetS ((,) <$> decodeBlockHeight <*> decodeBlockTransactionsHash)))
+          (runGetS ((,) <$> decodeBlockHeight <*> decodeBlockTransactionsHash)) True)
         ["BlockTransactions2"]
 
     oldBlockPayloadStore :: Casify RocksDbTable BlockPayload
     oldBlockPayloadStore = Casify $ newTable db
-        (Codec encodeToByteString decodeStrictOrThrow')
-        (Codec (runPutS . encodeBlockPayloadHash) (runGetS decodeBlockPayloadHash))
+        (Codec encodeToByteString decodeStrictOrThrow' True)
+        (Codec (runPutS . encodeBlockPayloadHash) (runGetS decodeBlockPayloadHash) True)
         ["BlockPayload"]
 
     oldBlockTransactionsStore :: Casify RocksDbTable BlockTransactions
     oldBlockTransactionsStore = Casify $ newTable db
-        (Codec encodeToByteString decodeStrictOrThrow')
-        (Codec (runPutS . encodeBlockTransactionsHash) (runGetS decodeBlockTransactionsHash))
+        (Codec encodeToByteString decodeStrictOrThrow' True)
+        (Codec (runPutS . encodeBlockTransactionsHash) (runGetS decodeBlockTransactionsHash) True)
         ["BlockTransactions"]
 
 newPayloadDb :: RocksDb -> PayloadDb RocksDbTable
@@ -82,16 +82,16 @@ newPayloadDb db = PayloadDb (newTransactionDb db) newPayloadCache
       where
         oldBlockOutputsTbl :: Casify RocksDbTable BlockOutputs
         oldBlockOutputsTbl = Casify $ newTable db
-            (Codec encodeToByteString decodeStrictOrThrow')
-            (Codec (runPutS . encodeBlockOutputsHash) (runGetS decodeBlockOutputsHash))
+            (Codec encodeToByteString decodeStrictOrThrow' True)
+            (Codec (runPutS . encodeBlockOutputsHash) (runGetS decodeBlockOutputsHash) True)
             ["BlockOutputs"]
 
         newBlockOutputsTbl :: RocksDbTable (BlockHeight, BlockOutputsHash) BlockOutputs
         newBlockOutputsTbl = newTable db
-            (Codec encodeBlockOutputs decodeBlockOutputs)
+            (Codec encodeBlockOutputs decodeBlockOutputs True)
             (Codec
                 (\(h, hsh) -> runPutS $ encodeBlockHeight h >> encodeBlockOutputsHash hsh)
-                (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockOutputsHash))
+                (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockOutputsHash) True)
             ["BlockOutputs2"]
 
     transactionTreeStore :: TransactionTreeStore RocksDbTable
@@ -99,16 +99,16 @@ newPayloadDb db = PayloadDb (newTransactionDb db) newPayloadCache
       where
         oldTransactionTreeTbl :: Casify RocksDbTable TransactionTree
         oldTransactionTreeTbl = Casify $ newTable db
-            (Codec encodeToByteString decodeStrictOrThrow')
-            (Codec (runPutS . encodeBlockTransactionsHash) (runGetS decodeBlockTransactionsHash))
+            (Codec encodeToByteString decodeStrictOrThrow' True)
+            (Codec (runPutS . encodeBlockTransactionsHash) (runGetS decodeBlockTransactionsHash) True)
             ["TransactionTree"]
 
         newTransactionTreeTbl :: RocksDbTable (BlockHeight, BlockTransactionsHash) TransactionTree
         newTransactionTreeTbl = newTable db
-            (Codec encodeTransactionTree decodeTransactionTree)
+            (Codec encodeTransactionTree decodeTransactionTree True)
             (Codec
                 (\(h, hsh) -> runPutS $ encodeBlockHeight h >> encodeBlockTransactionsHash hsh)
-                (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockTransactionsHash))
+                (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockTransactionsHash) True)
             ["TransactionTree2"]
 
     outputTreeStore :: OutputTreeStore RocksDbTable
@@ -116,14 +116,14 @@ newPayloadDb db = PayloadDb (newTransactionDb db) newPayloadCache
       where
         oldOutputTreeTbl :: Casify RocksDbTable OutputTree
         oldOutputTreeTbl = Casify $ newTable db
-            (Codec encodeToByteString decodeStrictOrThrow')
-            (Codec (runPutS . encodeBlockOutputsHash) (runGetS decodeBlockOutputsHash))
+            (Codec encodeToByteString decodeStrictOrThrow' True)
+            (Codec (runPutS . encodeBlockOutputsHash) (runGetS decodeBlockOutputsHash) True)
             ["OutputTree"]
 
         newOutputTreeTbl :: RocksDbTable (BlockHeight, BlockOutputsHash) OutputTree
         newOutputTreeTbl = newTable db
-            (Codec encodeOutputTree decodeOutputTree)
+            (Codec encodeOutputTree decodeOutputTree True)
             (Codec
                 (\(h, hsh) -> runPutS $ encodeBlockHeight h >> encodeBlockOutputsHash hsh)
-                (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockOutputsHash))
+                (runGetS $ (,) <$> decodeBlockHeight <*> decodeBlockOutputsHash) True)
             ["OutputTree2"]
