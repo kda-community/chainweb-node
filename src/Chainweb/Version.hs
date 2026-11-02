@@ -116,6 +116,8 @@ module Chainweb.Version
     , withVersion
     , mkChainId
     , chainIds
+    , highestChainId
+    , lowestChainId
 
     -- * ChainId re-export
     , module Chainweb.ChainId
@@ -758,6 +760,12 @@ pattern FromSingChainwebVersion sng <- (\v -> withSomeSing (_versionName v) Some
 --
 chainIds :: HasVersion => HS.HashSet ChainId
 chainIds = graphChainIds $ snd $ ruleHead $ _versionGraphs implicitVersion
+
+lowestChainId :: HasVersion => ChainId
+lowestChainId = minimum $ HS.toList chainIds
+
+highestChainId :: HasVersion => ChainId
+highestChainId = maximum $ HS.toList chainIds
 
 mkChainId
     :: (MonadThrow m, HasVersion)

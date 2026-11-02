@@ -71,6 +71,7 @@ import Chainweb.Pact.Backend.PactState.GrandHash.Calc qualified as GrandHash.Cal
 import Chainweb.Pact.Backend.PactState.GrandHash.Import qualified as GrandHash.Import
 import Chainweb.Pact.Backend.PactState.GrandHash.Utils qualified as GrandHash.Utils
 import Chainweb.PayloadProvider.Pact.Configuration (defaultPactProviderConfig, PactProviderConfig (_pactConfigGenesisPayload), _pactConfigMiner)
+import Chainweb.PayloadProvider.Minimal (defaultMinimalProviderConfig)
 import Chainweb.Scheduler (Scheduler, withScheduler)
 import Chainweb.Storage.Table (IterableTable(withTableIterator), Casify)
 import Chainweb.Storage.Table.RocksDB
@@ -84,7 +85,7 @@ import Chainweb.WebBlockHeaderDB
 import Control.Concurrent.Async
 import Control.DeepSeq
 import Control.Exception
-import Control.Lens (set, view, (^?!), ix)
+import Control.Lens (set, view, (^?!), ix, (<>:~))
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (runResourceT)
@@ -150,8 +151,9 @@ multiConfig
     :: HasVersion
     => Natural
         -- ^ number of node
+    -> Bool
     -> ChainwebConfiguration
-multiConfig n = defaultChainwebConfiguration implicitVersion
+multiConfig n isPactNode = defaultChainwebConfiguration implicitVersion
     & set (configP2p . p2pConfigPeer . peerConfigHost) host
     & set (configP2p . p2pConfigPeer . peerConfigPort) 0
     & set (configP2p . p2pConfigPeer . peerConfigInterface) interface
@@ -186,9 +188,14 @@ multiConfig n = defaultChainwebConfiguration implicitVersion
     & set (configServiceApi . serviceApiConfigPort) 0
     & set (configServiceApi . serviceApiConfigInterface) interface
     & set (configCuts . cutFetchTimeout) 10_000_000
-    & set (configPayloadProviders . payloadProviderConfigPact)
-        (onChains $
-            [(cid, defaultPactProviderConfig
+
+    -- Set up Minimal provider config on all chains
+    & configPayloadProviders <>:~ (rangesMapAllChains $ MinimalConfig defaultMinimalProviderConfig)
+
+    -- And then add Pact configs if necessary
+    & if isPactNode then configPayloadProviders <>:~
+        (rangesMapOnChains $
+            [(cid, PactConfig $ defaultPactProviderConfig
                 { _pactConfigGenesisPayload = Just gp
                 , _pactConfigMiner = Just noMiner
                 })
@@ -196,6 +203,7 @@ multiConfig n = defaultChainwebConfiguration implicitVersion
                 (unsafeChainId 0, IN0.payloadBlock)
                 : [(unsafeChainId cid, INN.payloadBlock) | cid <- [1..19]]
             ])
+      else id
   where
     miner = NodeMiningConfig
         { _nodeMiningEnabled = True
@@ -207,8 +215,8 @@ multiConfig n = defaultChainwebConfiguration implicitVersion
         , _throttlingPeerRate = 10_000 -- per second, one for each p2p network
         }
 
-multiConfigBuilders :: HasVersion => Natural -> [ChainwebConfiguration -> ChainwebConfiguration]
-multiConfigBuilders n = replicate (int n) $ const (multiConfig n)
+multiConfigBuilders :: HasVersion => Natural -> Bool-> [ChainwebConfiguration -> ChainwebConfiguration]
+multiConfigBuilders n isPactNode = replicate (int n) $ const (multiConfig n isPactNode)
 
 -- | Configure a bootstrap node
 --
@@ -451,7 +459,7 @@ pactImportTest logLevel n rocksDb pactDir step = do
   stateVar <- newMVar emptyConsensusState
   let ct :: NodeId -> StartedChainweb logger -> RocksDb -> IO ()
       ct = harvestConsensusState logger stateVar
-  runNodesForSeconds logLevel logFun implicitVersion (multiConfigBuilders n) 10 rocksDb pactDir ct
+  runNodesForSeconds logLevel logFun implicitVersion (multiConfigBuilders n True) 10 rocksDb pactDir ct
   consensusState <- swapMVar stateVar emptyConsensusState
   Just stats1 <- pure $ consensusStateSummary consensusState
   assertGe "average block count before proceeding" (Actual $ _statBlockCount stats1) (Expected 50)
@@ -610,7 +618,7 @@ replayTest loglevel n rdb pactDbDir step = do
         tastylog "phase 1..."
         stateVar <- newMVar emptyConsensusState
         let ct = harvestConsensusState (genericLogger loglevel logFun) stateVar
-        runNodesForSeconds loglevel logFun implicitVersion (multiConfigBuilders n) 60 rdb pactDbDir ct
+        runNodesForSeconds loglevel logFun implicitVersion (multiConfigBuilders n True) 60 rdb pactDbDir ct
         Just stats1 <- consensusStateSummary <$> swapMVar stateVar emptyConsensusState
         assertGe "maximum cut height before reset" (Actual $ _statMaxHeight stats1) (Expected 10)
         tastylog $ sshow stats1
@@ -618,7 +626,7 @@ replayTest loglevel n rdb pactDbDir step = do
         let replayInitialHeight = 5
         firstReplayCompleteRef <- newIORef False
         runNodesForSeconds loglevel logFun implicitVersion
-            (fmap (set (configCuts . cutInitialBlockHeightLimit) (Just replayInitialHeight) .) (multiConfigBuilders n))
+            (fmap (set (configCuts . cutInitialBlockHeightLimit) (Just replayInitialHeight) .) (multiConfigBuilders n True))
             (Seconds 20) rdb pactDbDir $ \_ cw _ -> case cw of
                 RewoundToCut rewoundToCut -> do
                     writeIORef firstReplayCompleteRef True
@@ -627,7 +635,7 @@ replayTest loglevel n rdb pactDbDir step = do
                     return ()
                 _ -> error "replayTest: not a replay"
         assertEqual "replay completion" True =<< readIORef firstReplayCompleteRef
-        runNodesForSeconds loglevel logFun implicitVersion (multiConfigBuilders n) 60 rdb pactDbDir ct
+        runNodesForSeconds loglevel logFun implicitVersion (multiConfigBuilders n True) 60 rdb pactDbDir ct
         Just stats2 <- consensusStateSummary <$> swapMVar stateVar emptyConsensusState
         assertGe "maximum cut height after reset" (Actual $ _statMaxHeight stats2) (Expected $ _statMaxHeight stats1)
         assertLe "maximum cut height after reset" (Actual $ _statMaxHeight stats2) (Expected $ round @Double (int (_statMaxHeight stats1) * 2.1))
@@ -641,12 +649,13 @@ test
     :: HasVersion
     => LogLevel
     -> Natural
+    -> Bool
     -> Seconds
     -> RocksDb
     -> FilePath
     -> (String -> IO ())
     -> IO ()
-test loglevel n seconds rdb pactDbDir step = do
+test loglevel n isPactNode seconds rdb pactDbDir step = do
     -- Count log messages and only print the first 60 messages
     let tastylog = step . T.unpack
     let logFun = T.putStrLn
@@ -655,7 +664,7 @@ test loglevel n seconds rdb pactDbDir step = do
     let countedLog msg = modifyMVar_ var $ \c -> force (succ c) <$
             when (c < maxLogMsgs) (logFun msg)
     stateVar <- newMVar emptyConsensusState
-    runNodesForSeconds loglevel countedLog implicitVersion (multiConfigBuilders n) seconds rdb pactDbDir
+    runNodesForSeconds loglevel countedLog implicitVersion (multiConfigBuilders n isPactNode) seconds rdb pactDbDir
         (harvestConsensusState (genericLogger loglevel logFun) stateVar)
     state <- readMVar stateVar
     case consensusStateSummary state of

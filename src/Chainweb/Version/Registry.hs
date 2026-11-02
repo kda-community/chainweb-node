@@ -22,6 +22,8 @@ module Chainweb.Version.Registry
     ( validateVersion
     , knownVersions
     , findKnownVersion
+    , knownLowestChainId
+    , knownHighestChainId
     ) where
 
 import Control.DeepSeq
@@ -132,3 +134,9 @@ findKnownVersion vn =
             T.unpack (getChainwebVersionName vn) <> " is not a known version. perhaps you meant one of these:\n"
             <> show (getChainwebVersionName . _versionName <$> knownVersions)
         Just v -> return v
+
+knownHighestChainId :: ChainId
+knownHighestChainId = maximum $ map (\v -> withVersion v highestChainId) knownVersions
+
+knownLowestChainId :: ChainId
+knownLowestChainId = minimum $ map (\v -> withVersion v lowestChainId) knownVersions

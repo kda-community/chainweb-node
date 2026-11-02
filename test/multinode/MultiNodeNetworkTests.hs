@@ -39,18 +39,18 @@ suite = independentSequentialTestGroup "MultiNodeNetworkTests"
         withSystemTempDirectory "multinode-tests-timedconsensus-petersen-twenty-pact" $ \pactDbDir ->
         withVersion ((timedConsensusVersion 0 petersenChainGraph twentyChainGraph)
             { _versionBlockDelay = BlockDelay 5_000_000 }) $
-            Chainweb.Test.MultiNode.test loglevel 10 30 rdb pactDbDir step
+            Chainweb.Test.MultiNode.test loglevel 10 True 30 rdb pactDbDir step
     , testCaseSteps "ConsensusNetwork - TimedConsensus - 10 nodes - 30 seconds - d4k4 upgrade" $ \step ->
         withTempRocksDb "multinode-tests-timedconsensus-twenty-d4k4-rocks" $ \rdb ->
         withSystemTempDirectory "multinode-tests-timedconsensus-twenty-d4k4-pact" $ \pactDbDir ->
         withVersion ((timedConsensusVersion 0 twentyChainGraph d4k4ChainGraph)
             { _versionBlockDelay = BlockDelay 5_000_000 }) $
-            Chainweb.Test.MultiNode.test loglevel 4 100 rdb pactDbDir step
+            Chainweb.Test.MultiNode.test loglevel 4 False 100 rdb pactDbDir step
     , testCaseSteps "ConsensusNetwork - InstantTimedCPM singleChainGraph - 10 nodes - 30 seconds" $ \step ->
         withTempRocksDb "multinode-tests-instantcpm-single-rocks" $ \rdb ->
         withSystemTempDirectory "multinode-tests-instantcpm-single-pact" $ \pactDbDir ->
         withVersion (instantCpmTestVersion False singletonChainGraph) $
-            Chainweb.Test.MultiNode.test loglevel 10 30 rdb pactDbDir step
+            Chainweb.Test.MultiNode.test loglevel 10 True 30 rdb pactDbDir step
     , testCaseSteps "Replay - InstantTimedCPM - 6 nodes" $ \step ->
         withTempRocksDb "replay-test-instantcpm-pair-rocks" $ \rdb ->
         withSystemTempDirectory "replay-test-instantcpm-pair-pact" $ \pactDbDir ->
