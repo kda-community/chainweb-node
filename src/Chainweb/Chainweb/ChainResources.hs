@@ -41,7 +41,6 @@ module Chainweb.Chainweb.ChainResources
 , payloadsToServeOnServiceApi
 , payloadP2pPeersToServe
 , payloadProvidersForAllChains
-, runP2pNodesOfAllChains
 
 -- * Payload Provider
 , ProviderResources(..)
@@ -53,7 +52,6 @@ module Chainweb.Chainweb.ChainResources
 -- * Payload Provider P2P Resources
 , PayloadP2pResources(..)
 , payloadP2pResources
-, runPayloadP2pNodes
 
 -- * Payload Provider Service API Resources
 , PayloadServiceApiResources(..)
@@ -64,7 +62,6 @@ import Control.Applicative ((<|>))
 import Control.Lens hiding ((.=), (<.>))
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Resource
-import Data.Foldable
 import Data.Maybe
 import Data.PQueue (PQueue)
 import Data.Singletons
@@ -154,10 +151,16 @@ payloadP2pResources
     -> PQueue (Task ClientEnv (PayloadType p))
         -- ^ task queue for scheduling tasks with the task server
     -> HTTP.Manager
-    -> IO PayloadP2pResources
+    -> ResourceT IO PayloadP2pResources
 payloadP2pResources logger p2pConfig myInfo peerDb tbl queue mgr = do
-    p2pNode <- mkP2pNode False "payload" (session 10 queue)
+    p2pNode <- liftIO $ mkP2pNode False "payload" (session 10 queue)
     -- FIXME add a node for regularly synchronizing peers
+
+    -- start the client node for fetching payloads. The node runs in the
+    -- background and is stopped when the resources are released.
+    --
+    _ <- withAsyncR $ p2pRunNode p2pNode
+
     return $ PayloadP2pResources
         { _payloadResPeerDb = peerDb
         , _payloadResP2pNode = p2pNode
@@ -197,10 +200,16 @@ pactPayloadP2pResources
     -> PQueue (Task ClientEnv (PayloadType 'PactProvider))
         -- ^ task queue for scheduling tasks with the task server
     -> HTTP.Manager
-    -> IO PayloadP2pResources
+    -> ResourceT IO PayloadP2pResources
 pactPayloadP2pResources logger p2pConfig myInfo peerDb tbl queue mgr = do
-    p2pNode <- mkP2pNode False "payload" (session 10 queue)
+    p2pNode <- liftIO $ mkP2pNode False "payload" (session 10 queue)
     -- FIXME add a node for regularly synchronizing peers
+
+    -- start the client node for fetching payloads. The node runs in the
+    -- background and is stopped when the resources are released.
+    --
+    _ <- withAsyncR $ p2pRunNode p2pNode
+
     return $ PayloadP2pResources
         { _payloadResPeerDb = peerDb
         , _payloadResP2pNode = p2pNode
@@ -227,11 +236,6 @@ pactPayloadP2pResources logger p2pConfig myInfo peerDb tbl queue mgr = do
         , _p2pNodeParamsNetworkId = CutNetwork
         }
 
-
--- | IO actions for running Payload P2p Nodes
---
-runPayloadP2pNodes :: HasVersion => PayloadP2pResources -> [IO ()]
-runPayloadP2pNodes r = [ p2pRunNode (_payloadResP2pNode r) ]
 
 -- -------------------------------------------------------------------------- --
 -- Payload Service API Resources
@@ -325,7 +329,7 @@ withPayloadProviderResources sched logger cid serviceApiConfig peerStuff rdb rew
             p <- liftIO $ newMinimalPayloadProvider logger cid rdb (view _4 <$> peerStuff) config
             let pdb = view minimalPayloadDb p
             let queue = view minimalPayloadQueue p
-            p2pRes <- liftIO $ forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) ->
+            p2pRes <- forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) ->
                 payloadP2pResources @v' @c' @'MinimalProvider
                     logger p2pConfig myPeerInfo peerDb pdb queue mgr
             let serviceRes =
@@ -399,7 +403,7 @@ withPayloadProviderResources sched logger cid serviceApiConfig peerStuff rdb rew
                     mempool <- Mempool.withInMemoryMempool sched (setComponent "mempool" logger) mempoolConfig
                     let mpa = pactMemPoolAccess mempool $ addLabel ("sub-component", "MempoolAccess") logger
                 let queue = _payloadStoreQueue $ _psPdb $ pactPayloadProviderServiceEnv pp
-                p2pRes <- liftIO $ forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) ->
+                p2pRes <- forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) ->
                     pactPayloadP2pResources @v' @c' logger p2pConfig myPeerInfo peerDb pdb queue mgr
                 let serviceApiPayloadServer =
                         pactPayloadServiceApiResources @v' @c' serviceApiConfig pdb
@@ -431,7 +435,7 @@ withPayloadProviderResources sched logger cid serviceApiConfig peerStuff rdb rew
                 p <- withEvmPayloadProvider logger cid rdb (view _4 <$> peerStuff) config
                 let pdb = view evmPayloadDb p
                 let queue = view evmPayloadQueue p
-                apiRes <- liftIO $ forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) -> do
+                apiRes <- forM peerStuff $ \(p2pConfig, myPeerInfo, peerDb, mgr) -> do
                     p2pRes <-
                         payloadP2pResources @v' @c' @('EvmProvider n)
                             logger p2pConfig myPeerInfo peerDb pdb queue mgr
@@ -557,21 +561,6 @@ payloadProvidersForAllChains
 payloadProvidersForAllChains chains =
     (_providerResPayloadProvider . _chainResPayloadProvider)
     <$> chains
-
--- | Returns actions for running the P2P nodes for all chains.
---
-runP2pNodesOfAllChains
-    :: Foldable l
-    => HasVersion
-    => l (ChainResources logger)
-    -> [IO ()]
-runP2pNodesOfAllChains
-    = fmap p2pRunNode
-    . fmap _payloadResP2pNode
-    . catMaybes
-    . fmap _providerResP2pApiResources
-    . fmap _chainResPayloadProvider
-    . toList
 
 -- -------------------------------------------------------------------------- --
 -- ATTIC (mostly pact related)

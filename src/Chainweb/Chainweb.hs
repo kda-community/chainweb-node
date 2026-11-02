@@ -621,7 +621,6 @@ runChainweb cw nowServing = do
         concurrentlies_ $ concat
             [ miner
             , cutNetworks (_chainwebCutResources cw)
-            , runP2pNodesOfAllChains (_chainwebChains cw)
             ]
 
     logg :: LogFunctionText
