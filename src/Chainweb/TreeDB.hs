@@ -828,7 +828,7 @@ collectForkBlocks db lastHeader newHeader = do
     let !new = V.fromList $ unsafeTail "Chainweb.TreeDB.collectForkBlocks.new" newL
     return (common, old, new)
   where
-    go !stream (!oldBlocks, !newBlocks) = do
+    go !stream (oldBlocks, newBlocks) = do
         nxt <- S.next stream
         case nxt of
             -- end of the stream, last item is common branch point of the forks
