@@ -553,9 +553,11 @@ getBranch db lowerBounds upperBounds = do
         -> HS.HashSet (DbEntry db)
         -> HS.HashSet (DbEntry db)
         -> (HS.HashSet (DbEntry db), HS.HashSet (DbEntry db))
-    activate r inactive active =
-        let (stillInactive, newlyActive) = hsPartition (\x -> rank x < r) inactive
-        in (stillInactive, active <> newlyActive)
+    activate r inactive active
+        | HS.null inactive = (inactive, active)
+        | otherwise =
+            let (stillInactive, newlyActive) = hsPartition (\x -> rank x < r) inactive
+            in (stillInactive, active <> newlyActive)
 
     -- | The size of the input sets decreases monotonically. Space complexity is
     -- linear in the input and constant in the output size.
@@ -581,7 +583,9 @@ getBranch db lowerBounds upperBounds = do
         => (a -> Bool)
         -> HS.HashSet a
         -> (HS.HashSet a, HS.HashSet a)
-    hsPartition p = (HS.fromList *** HS.fromList) . L.partition p . HS.toList
+    hsPartition p s = (yes, HS.difference s yes)
+      where
+        yes = HS.filter p s
 
 -- -------------------------------------------------------------------------- --
 -- Limiting and Seeking a stream
