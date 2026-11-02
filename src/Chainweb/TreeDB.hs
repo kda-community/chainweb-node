@@ -532,16 +532,42 @@ getBranch
     -> HS.HashSet (UpperBound (DbKey db))
     -> S.Stream (Of (DbEntry db)) IO ()
 getBranch db lowerBounds upperBounds = do
-    lowers <- liftIO $ getEntriesHs _getLowerBound lowerBounds
-    uppers <- liftIO $ getEntriesHs _getUpperBound upperBounds
+    uppers <- liftIO $ getEntriesHs db _getUpperBound upperBounds
+    getBranchResolved db lowerBounds uppers
 
-    let mar = getMax $ fromJuste $
-            foldMap' (foldMap' (Just . Max . rank)) [lowers, uppers]
+-- | Resolve a set of bound keys to the corresponding entries. Missing keys
+-- are ignored.
+--
+getEntriesHs
+    :: TreeDb db
+    => db
+    -> (a -> DbKey db)
+    -> HS.HashSet a
+    -> IO (HS.HashSet (DbEntry db))
+getEntriesHs db f = streamToHashSet_ . lookupStream db . S.map f . S.each
 
-    go mar (activate mar lowers mempty) (activate mar uppers mempty)
+-- | A variant of 'getBranch' where the upper bounds have already been
+-- resolved to entries.
+--
+getBranchResolved
+    :: forall db
+    . TreeDb db
+    => db
+    -> HS.HashSet (LowerBound (DbKey db))
+    -> HS.HashSet (DbEntry db)
+    -> S.Stream (Of (DbEntry db)) IO ()
+getBranchResolved db lowerBounds uppers
+    -- If the upper bounds are empty the result is empty, too. In that case
+    -- we return early, before the lower bounds are resolved.
+    | HS.null uppers = return ()
+    | otherwise = do
+        lowers <- liftIO $ getEntriesHs db _getLowerBound lowerBounds
+
+        let mar = getMax $ fromJuste $
+                foldMap' (foldMap' (Just . Max . rank)) [lowers, uppers]
+
+        go mar (activate mar lowers mempty) (activate mar uppers mempty)
   where
-    getEntriesHs :: (a -> Key (DbEntry db)) -> HS.HashSet a -> IO (HS.HashSet (DbEntry db))
-    getEntriesHs f = streamToHashSet_ . lookupStream db . S.map f . S.each
     getParentsHs = streamToHashSet_ . lookupParentStreamM GenesisParentNone db . S.each
 
     -- The newly active members of the set after advancing the highest ones
