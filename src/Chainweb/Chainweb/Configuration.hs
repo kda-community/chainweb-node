@@ -139,7 +139,8 @@ type PayloadProviderConfig = ChainRangesMap GenericProviderConfig
 
 -- Should the default be Minimal on all chains or empty ?
 defaultPayloadProviderConfig :: PayloadProviderConfig
-defaultPayloadProviderConfig = rangesMapAllChains (MinimalConfig defaultMinimalProviderConfig)
+-- defaultPayloadProviderConfig = rangesMapAllChains (MinimalConfig defaultMinimalProviderConfig)
+defaultPayloadProviderConfig = mempty
 
 minimalTag :: T.Text
 minimalTag = "minimal"
