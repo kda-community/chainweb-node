@@ -58,6 +58,7 @@ module Chainweb.TreeDB
 , ancestors
 , defaultBranchEntries
 , chainBranchEntries
+, applyRankDesc
 
 -- ** Lookups
 , lookupM

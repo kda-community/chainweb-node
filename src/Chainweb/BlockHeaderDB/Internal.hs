@@ -73,9 +73,12 @@ import Control.Monad.Trans.Resource hiding (throwM)
 
 import Data.Aeson
 import Data.Function
+import Data.Functor.Of (Of)
 import Data.Hashable
 import Data.HashSet qualified as HS
+import qualified Data.List as L
 import Data.Maybe
+import Data.Semigroup (Max(..))
 import qualified Data.Text.Encoding as T
 
 import GHC.Generics (Generic)
@@ -103,6 +106,7 @@ import Chainweb.Storage.Table
 import Chainweb.Storage.Table.RocksDB
 
 import Numeric.Additive
+import Numeric.Natural (Natural)
 
 -- -------------------------------------------------------------------------- --
 -- | Configuration of the chain DB.
@@ -318,9 +322,6 @@ withBlockHeaderDb db cid = snd <$> allocate start closeBlockHeaderDb
 -- -------------------------------------------------------------------------- --
 -- TreeDB instance
 
--- | TODO provide more efficient branchEntries implementation that uses
--- iterators.
---
 instance HasVersion => TreeDb BlockHeaderDb where
     type DbEntry BlockHeaderDb = BlockHeader
 
@@ -341,16 +342,55 @@ instance HasVersion => TreeDb BlockHeaderDb where
             $ f . S.map _getRankedBlockHeader
     {-# INLINEABLE entries #-}
 
-    branchEntries db k l mir mar lower upper f = do
-        -- we use the ranked implementation as it is more efficient
-        -- TODO run these queries in parallel or batch them; usually it is a
-        -- relatively small number.
-        let mapSetM a = fmap HS.fromList . mapM a . HS.toList
-        rk <- mapM (mapM (getRankedKey db)) k
-        rlow <- mapSetM (mapM (getRankedKey db)) lower
-        rup <- mapSetM (mapM (getRankedKey db)) upper
-        chainBranchEntries (RankedBlockHeaderDb db) rk l mir mar rlow rup
-            $ f . S.map _getRankedBlockHeader
+    -- | This implementation of 'branchEntries' uses iterators over the ranked
+    -- block header table.
+    --
+    -- The generic implementation ('chainBranchEntries') resolves the branch
+    -- bounds and then traverses the branches by looking up the parent of each
+    -- entry with an individual point lookup. Each of these lookups seeks the
+    -- table from its root and allocates a fresh set of read options.
+    --
+    -- Since the ranked block header table is keyed by block height and block
+    -- hash, all entries of a block height are stored next to each other. The
+    -- implementation below uses a single iterator for the entire query and
+    -- resolves all entries of a block height with seeks into that iterator,
+    -- which avoids per-lookup seeking overhead.
+    --
+    -- The traversal is equivalent to the one of 'getBranchResolved', which
+    -- backs the generic implementation.
+    --
+    branchEntries db k l mir mar lower upper f
+        -- If the upper bounds are empty the result is empty, too. In that case
+        -- the lower bounds are not even resolved.
+        | HS.null upper = f (return (0, Eos True))
+        | otherwise = do
+            -- Resolve the upper bounds. Keys that aren't in the database are
+            -- ignored.
+            uppers <- resolveBounds db _getUpperBound upper
+            if HS.null uppers
+                then f (return (0, Eos True))
+                else do
+                    lowers <- resolveBounds db _getLowerBound lower
+
+                    -- If a maximum rank is given, the upper bounds are reduced
+                    -- to ancestors of that rank. This limits the depth of the
+                    -- traversal and is essential for the performance of
+                    -- queries that limit the result to a range of ranks that is
+                    -- far below the upper bounds.
+                    uppers' <- case mar of
+                        Nothing -> return uppers
+                        Just (MaxRank (Max m)) -> reduceUpperBounds db m uppers
+
+                    if HS.null uppers'
+                        then f (return (0, Eos True))
+                        else do
+                            let !startRank = int $ maximum $ map rank
+                                    $ HS.toList (uppers' <> lowers)
+                            withTableIterator (_chainDbCas db) $ \it -> f $
+                                branchStream it startRank mempty mempty
+                                    (sortByRankDesc uppers') (sortByRankDesc lowers)
+                                    & applyRankDesc mir mar
+                                    & seekLimitStream key k l
     {-# INLINEABLE branchEntries #-}
 
     keys db k l mir mar f = do
@@ -375,6 +415,119 @@ getRankedKey db h = do
         Nothing -> throwM $ TreeDbKeyNotFound @BlockHeaderDb h "getRankedKey.lookup"
         Just v -> return $ RankedBlockHash (int v) h
 {-# INLINE getRankedKey #-}
+
+-- -------------------------------------------------------------------------- --
+-- Branch Traversal
+--
+-- The following functions implement the 'branchEntries' method of the
+-- 'BlockHeaderDb' instance of 'TreeDb'. They are the iterator based equivalent
+-- of 'getBranchResolved' and 'chainBranchEntries'.
+
+-- | Resolve the bounds of a branch query to the corresponding block headers.
+-- Keys that aren't in the database are ignored.
+--
+resolveBounds
+    :: HasVersion
+    => BlockHeaderDb
+    -> (a -> BlockHash)
+        -- ^ Projector for the bound keys
+    -> HS.HashSet a
+    -> IO (HS.HashSet BlockHeader)
+resolveBounds db f = fmap (HS.fromList . catMaybes)
+    . mapM (lookup db . f) . HS.toList
+{-# INLINEABLE resolveBounds #-}
+
+-- | Replace the upper bounds of a branch query by ancestors of the given rank.
+-- Bounds for which no ancestor of that rank exists are dropped.
+--
+-- This limits the depth of the branch traversal and corresponds to the
+-- optimization that 'chainBranchEntries' applies to the upper bounds.
+--
+reduceUpperBounds
+    :: HasVersion
+    => BlockHeaderDb
+    -> Natural
+    -> HS.HashSet BlockHeader
+    -> IO (HS.HashSet BlockHeader)
+reduceUpperBounds db m = fmap (HS.fromList . catMaybes)
+    . mapM (\e -> seekAncestor db e m) . HS.toList
+{-# INLINEABLE reduceUpperBounds #-}
+
+-- | Sort block headers by descending rank.
+--
+sortByRankDesc :: HasVersion => HS.HashSet BlockHeader -> [BlockHeader]
+sortByRankDesc = L.sortBy (\a b -> compare (rank b) (rank a)) . HS.toList
+{-# INLINEABLE sortByRankDesc #-}
+
+-- | Stream the ancestors of the given upper bounds that aren't descendents of
+-- the given lower bounds. Entries are streamed in descending order by rank.
+--
+-- @r@ is the rank of the entries that are streamed next. The inactive bounds
+-- must be sorted by descending rank. Whenever the traversal descends to the
+-- rank of a bound, the bound is moved into the corresponding active set.
+--
+-- The iterator must remain valid for the lifetime of the returned stream.
+--
+branchStream
+    :: HasVersion
+    => RocksDbTableIter RankedBlockHash RankedBlockHeader
+    -> Int
+        -- ^ Rank of the entries that are streamed next
+    -> HS.HashSet BlockHeader
+        -- ^ Upper bounds at the current rank
+    -> HS.HashSet BlockHeader
+        -- ^ Lower bounds at the current rank
+    -> [BlockHeader]
+        -- ^ Upper bounds of larger rank, sorted by descending rank
+    -> [BlockHeader]
+        -- ^ Lower bounds of larger rank, sorted by descending rank
+    -> S.Stream (Of BlockHeader) IO ()
+branchStream _ _ upAct _ upInact _
+    | HS.null upAct && null upInact = return ()
+branchStream it r upAct loAct upInact loInact = do
+    let !r' = int r
+        (upNew, upInact') = span (\e -> rank e >= r') upInact
+        (loNew, loInact') = span (\e -> rank e >= r') loInact
+        upAct' = upAct <> HS.fromList upNew
+        loAct' = loAct <> HS.fromList loNew
+
+        -- The entries of the upper branches that are not entries of the lower
+        -- branches.
+        yielded = upAct' `HS.difference` loAct'
+
+    mapM_ S.yield (HS.toList yielded)
+    upNext <- liftIO $ branchParents it (pred r) yielded
+    loNext <- if HS.null loAct'
+        then return mempty
+        else liftIO $ branchParents it (pred r) loAct'
+    branchStream it (pred r) upNext loNext upInact' loInact'
+
+-- | Lookup the parents of the given block headers. Parents of genesis headers
+-- are dropped. A 'TreeDbParentMissing' exception is thrown if a parent isn't in
+-- the database.
+--
+-- The entries are resolved by seeking the iterator to the key of the parent.
+--
+branchParents
+    :: HasVersion
+    => RocksDbTableIter RankedBlockHash RankedBlockHeader
+    -> Int
+        -- ^ Rank of the parents
+    -> HS.HashSet BlockHeader
+    -> IO (HS.HashSet BlockHeader)
+branchParents it r es
+    | null ps = return mempty
+    | otherwise = fmap HS.fromList $ forM ps $ \(h, e) -> do
+        iterSeek it (RankedBlockHash (int r) h)
+        iterValue it >>= \case
+            Just v
+                | view blockHash (_getRankedBlockHeader v) == h ->
+                    return $! _getRankedBlockHeader v
+            _ -> throwM $ TreeDbParentMissing @BlockHeaderDb e
+                "Chainweb.BlockHeaderDB.Internal.branchParents"
+  where
+    ps = [ (p, e) | e <- HS.toList es, Just p <- [parent e] ]
+{-# INLINEABLE branchParents #-}
 
 -- -------------------------------------------------------------------------- --
 -- TreeDB instance for RankedBlockHeaderDb
