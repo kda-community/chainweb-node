@@ -263,7 +263,7 @@ chainwebPactBlockDb env = ChainwebPactDb
                         Nothing -> False
                         Just rootHeight -> rootHeight < currentHeight
                 }
-        let spv = pactSPV headerOracle
+        let spv = pactSPV headerOracle currentHeight
         r <- liftIO $ kont pactDb spv
         finalState <- liftIO $ readMVar stateVar
         -- Register a successful transaction in the pending data for the block

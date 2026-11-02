@@ -164,7 +164,7 @@ verifySPV headerOracle bctx typ proof = runExceptT $ go typ proof
         --  object.
 
         TransactionOutput p <- catchAndDisplaySPVError bctx $
-          checkProofAndExtractOutput headerOracle u
+          checkProofAndExtractOutput headerOracle (_bctxCurrentBlockHeight bctx) u
 
         q <- case decodeStrict' p :: Maybe (Pact4.CommandResult Pact4.Hash) of
           Nothing -> forkedThrower bctx "unable to decode spv transaction output"
@@ -286,7 +286,7 @@ verifyCont headerOracle bctx (Pact4.ContProof cp) = runExceptT $ do
           --  and return the cont exec object
 
           TransactionOutput p <- catchAndDisplaySPVError bctx $
-            checkProofAndExtractOutput headerOracle u
+            checkProofAndExtractOutput headerOracle (_bctxCurrentBlockHeight bctx) u
 
           q <- case decodeStrict' p :: Maybe (Pact4.CommandResult Pact4.Hash) of
             Nothing -> forkedThrower bctx "unable to decode spv transaction output"

@@ -23,6 +23,7 @@ import Pact.Core.PactValue (ObjectData(..), PactValue(..))
 import Pact.Core.SPV (SPVSupport(..), ContProof (..))
 import Pact.Core.StableEncoding (encodeStable)
 
+import Chainweb.BlockHeight (BlockHeight)
 import Chainweb.MerkleUniverse
 import Chainweb.Pact.Backend.Types
 import Chainweb.Pact.Payload(TransactionOutput(..))
@@ -31,20 +32,21 @@ import Chainweb.SPV.VerifyProof (checkProofAndExtractOutput)
 import Chainweb.Utils (decodeB64UrlNoPaddingText)
 import Chainweb.Version qualified as CW
 
-pactSPV :: HeaderOracle -> SPVSupport
-pactSPV oracle = SPVSupport
-    { _spvSupport = \proofType proof -> verifySPV oracle proofType proof
-    , _spvVerifyContinuation = \contProof -> verifyCont oracle contProof
+pactSPV :: CW.HasVersion => HeaderOracle -> BlockHeight -> SPVSupport
+pactSPV oracle blockHeight = SPVSupport
+    { _spvSupport = \proofType proof -> verifySPV oracle blockHeight proofType proof
+    , _spvVerifyContinuation = \contProof -> verifyCont oracle blockHeight contProof
     }
 
 -- | Attempt to verify an SPV proof of a continuation given
 --   a continuation payload object bytestring. On success, returns
 --   the 'DefPactExec' associated with the proof.
-verifyCont :: ()
+verifyCont :: CW.HasVersion
     => HeaderOracle
+    -> BlockHeight
     -> ContProof
     -> IO (Either Text DefPactExec)
-verifyCont bdb (ContProof base64Proof) = runExceptT $ do
+verifyCont bdb blockHeight (ContProof base64Proof) = runExceptT $ do
     proofBytes <- case decodeB64UrlNoPaddingText (Text.decodeUtf8 base64Proof) of
         Left _ -> throwError "verifyCont: Invalid base64-encoded transaction output proof"
         Right bs -> return bs
@@ -62,7 +64,7 @@ verifyCont bdb (ContProof base64Proof) = runExceptT $ do
     --   1. Verify SPV TransactionOutput proof via Chainweb SPV API
     --   2. Decode tx outputs to 'CommandResult' 'Hash' _
     --   3. Extract continuation 'DefPactExec' from decoded result and return the cont exec object
-    TransactionOutput proof <- checkProofAndExtractOutput bdb outputProof
+    TransactionOutput proof <- checkProofAndExtractOutput bdb blockHeight outputProof
 
     -- TODO: Do we care about the error type here?
     commandResult <- case Aeson.decodeStrict' @(CommandResult Hash Aeson.Value) proof of
@@ -73,12 +75,13 @@ verifyCont bdb (ContProof base64Proof) = runExceptT $ do
         Nothing -> throwError "verifyCont: No pact exec found in command result"
         Just defpactExec -> return defpactExec
 
-verifySPV :: ()
+verifySPV :: CW.HasVersion
     => HeaderOracle
+    -> BlockHeight
     -> Text -- ^ ETH or TXOUT - defines the type of proof used in validation
     -> ObjectData PactValue
     -> IO (Either Text (ObjectData PactValue))
-verifySPV oracle proofType proof = runExceptT $ do
+verifySPV oracle blockHeight proofType proof = runExceptT $ do
     case proofType of
         "ETH" -> do
             throwError "verifySPV: ETH proof type is not yet supported in Pact."
@@ -96,7 +99,7 @@ verifySPV oracle proofType proof = runExceptT $ do
             --   3. Extract tx outputs as a pact object and return the object
 
             TransactionOutput rawCommandResult <-
-              checkProofAndExtractOutput oracle outputProof
+              checkProofAndExtractOutput oracle blockHeight outputProof
 
             commandResult <- case Aeson.decodeStrict' @(CommandResult Hash Aeson.Value) rawCommandResult of
                 Nothing -> throwError "verifySPV: Unable to decode SPV transaction output"
