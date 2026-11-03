@@ -28,6 +28,8 @@ PayloadProviderConfig
 , _EvmConfig
 , _PactConfig
 , defaultPayloadProviderConfig
+, defaultPayloadProviderConfigWithMinimal
+, defaultPayloadProviderConfigWithPact
 , validatePayloadProviderConfig
 
 -- * Throttling Configuration
@@ -137,10 +139,20 @@ makePrisms ''GenericProviderConfig
 
 type PayloadProviderConfig = ChainRangesMap GenericProviderConfig
 
+-- A set of default Providers
 -- Should the default be Minimal on all chains or empty ?
 defaultPayloadProviderConfig :: PayloadProviderConfig
 -- defaultPayloadProviderConfig = rangesMapAllChains (MinimalConfig defaultMinimalProviderConfig)
 defaultPayloadProviderConfig = mempty
+
+-- Minimal providers on all chains
+defaultPayloadProviderConfigWithMinimal ::PayloadProviderConfig
+defaultPayloadProviderConfigWithMinimal = rangesMapAllChains $ MinimalConfig defaultMinimalProviderConfig
+
+-- Pact providers on all chains
+defaultPayloadProviderConfigWithPact ::PayloadProviderConfig
+defaultPayloadProviderConfigWithPact = rangesMapAllChains $ PactConfig defaultPactProviderConfig
+
 
 minimalTag :: T.Text
 minimalTag = "minimal"
