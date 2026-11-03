@@ -60,6 +60,7 @@ getConf :: IO ChainwebConfiguration
 getConf = do
     ip <- getIP
     hostname <- hostnameFromText ip
+    pactProvidersEnabled <- getUserInput providersEnableMesg (Just True) (return . yesorno2Bool) Nothing
     host <- getUserInput (hostMsg ip) (Just hostname) (const $ return Nothing) Nothing
     port <- getUserInput portMsg (Just 443) (return . portFromText) Nothing
     coord <- getUserInput mineCoordMsg (Just True) (return . yesorno2Bool) Nothing
@@ -67,10 +68,14 @@ getConf = do
       defaultChainwebConfiguration Mainnet01
       & configMining . miningCoordination . coordinationEnabled .~ coord
       & configP2p . p2pConfigPeer . peerConfigAddr .~ HostAddress host port
+      & configPayloadProviders <>:~ if pactProvidersEnabled
+                                    then defaultPayloadProviderConfigWithPact
+                                    else mempty
   where
     hostMsg ip = "What is your publicly reachable domain name / IP address (default: " <> T.unpack ip <> ")?"
     portMsg = "Which port would you like to use (default: 443)?"
     mineCoordMsg = "Would you like to turn mining coordination (default: yes)?"
+    providersEnableMesg = "Would you like to enable automatic Pact providers (default: yes)?"
 
 main :: IO ()
 main = do

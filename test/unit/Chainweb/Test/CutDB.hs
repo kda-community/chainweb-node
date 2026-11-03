@@ -29,7 +29,7 @@ module Chainweb.Test.CutDB
 , tests
 ) where
 
-import Chainweb.Chainweb.Configuration (defaultPayloadProviderConfig, defaultServiceApiConfig)
+import Chainweb.Chainweb.Configuration (defaultPayloadProviderConfigWithMinimal, defaultServiceApiConfig)
 import Chainweb.BlockHeader
 import Chainweb.BlockHeight
 import Chainweb.ChainId
@@ -503,7 +503,7 @@ testCutPruning rdb = testCase "cut pruning" $ runResourceT $ withVersion (barebo
         (RewindLimit 10)
         False
         tmp
-        defaultPayloadProviderConfig
+        defaultPayloadProviderConfigWithMinimal
     (cutHashesStore, _) <- withTestCutDb rdb alterPruningSettings
         (int $ avgCutHeightAt minedBlockHeight)
         pps
@@ -544,7 +544,7 @@ testCutGet rdb = testCase "cut get" $ withVersion (barebonesTestVersion pairChai
         (RewindLimit 10)
         False
         tmp
-        defaultPayloadProviderConfig
+        defaultPayloadProviderConfigWithMinimal
     (_, cutDb) <- withTestCutDb rdb id (2 * int ch) pps testLogger
     liftIO $ do
         curHeight <- _cutHeight <$> _cut cutDb
