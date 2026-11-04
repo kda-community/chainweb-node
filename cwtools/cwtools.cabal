@@ -206,6 +206,7 @@ executable pact-replay
         , streaming
         , unordered-containers
         , text
+        , time
         , yet-another-logger
 
 -- Generate genesis headers.

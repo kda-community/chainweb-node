@@ -49,6 +49,10 @@ import Data.IORef
 import Data.List qualified as List
 import Data.LogMessage
 import Data.Proxy
+import Data.Maybe (fromMaybe)
+import Data.Time.Clock
+import Data.Time.Format.ISO8601
+import System.Exit
 import Data.Text qualified as T
 import GHC.Stack
 import Options.Applicative
@@ -134,10 +138,11 @@ parser = do
                         let upperBoundBlock = upperBoundCut ^?! cutHeaders . ix cid
                         let upper = HS.singleton (TreeDB.UpperBound $ view blockHash upperBoundBlock)
 
-                        failureCountRef <- liftIO $ newIORef (0 :: Word)
+                        failureCountRef <- liftIO $ newIORef (0 :: Word) --This one will be resetted by the loggin thread
+                        totalFailureCountRef <- liftIO $ newIORef (0 :: Word)
                         heightRef <- liftIO $ newIORef (view blockHeight upperBoundBlock)
                         rateRef <- liftIO $ newIORef (0 :: Double)
-                        _ <- withAsyncR (logProgress chainLogger cid heightRef rateRef)
+                        _ <- withAsyncR (logProgress chainLogger cid (fromMaybe 0 maybeStart) heightRef rateRef failureCountRef)
 
                         -- replay all blocks below our upper bound, in descending order.
                         -- This works well for us because replay failures are
@@ -167,14 +172,17 @@ parser = do
                                 & mapsM_ (\blkChunk -> do
                                     startTime <- getCurrentTimeIntegral
 
+                                    let incrementFailures =  atomicModifyIORef' failureCountRef (\n -> (succ n, ()))
+                                                          >> modifyIORef' totalFailureCountRef succ
+
                                     count S.:> _ S.:> res <- blkChunk
                                         & S.mapM (\case
                                             (h, Left err) -> do
-                                                atomicModifyIORef' failureCountRef (\n -> (succ n, ()))
+                                                incrementFailures
                                                 logFunctionText chainLogger Error $ "Error block: " <> brief h <> ": " <> sshow err
                                                 return h
                                             (h, Right (Just err)) -> do
-                                                atomicModifyIORef' failureCountRef (\n -> (succ n, ()))
+                                                incrementFailures
                                                 logFunctionText chainLogger Error $ "Invalid block " <> brief h <> ": " <> sshow err
                                                 return h
                                             (h, Right Nothing) -> return h
@@ -194,19 +202,30 @@ parser = do
 
                         liftIO $ logFunctionText chainLogger Info $ "finished replaying chain " <> brief cid
 
-                        liftIO $ readIORef failureCountRef
+                        liftIO $ readIORef totalFailureCountRef
                     let failureCount = sum failuresByChain
-                    when (failureCount > 0) $
-                        error $ sshow failureCount <> " blocks failed"
+                    if (failureCount > 0)
+                        then logFunctionText logger Error (sshow failureCount <> " blocks failed") >> exitFailure
+                        else logFunctionText logger Info "All blocks successfully replayed"  >> exitSuccess
     where
-    logProgress logger cid heightRef rateRef = forever $ do
+    logProgress logger _cid start heightRef rateRef failureRef = forever $ do
         threadDelay 20_000_000
         height <- readIORef heightRef
         rate <- readIORef rateRef
+        currentFailures <- atomicModifyIORef' failureRef (\n -> (0, n))
+
+        eta <- computeEta (height - start) rate
+
         logFunctionText logger Info $
-            "Chain " <> brief cid <>
             " rate " <> T.pack (printf "%.2f" rate) <> "/s"
-            <> " at " <> brief height <> " (desc.)"
+            <> " at " <> brief height <> " (desc.) /"
+            <> " Failures = " <> (T.pack $ show currentFailures)
+            <> " / ETA: " <> (T.pack $ iso8601Show eta)
+
+    computeEta:: BlockHeight -> Double -> IO UTCTime
+    computeEta blocksToProcess rate = addUTCTime (realToFrac timeToEnd) <$> getCurrentTime
+      where
+        timeToEnd = fromIntegral blocksToProcess / rate
 
 -- requires that the input is descending
 withParent :: Monad m => S.Stream (S.Of h) m r -> S.Stream (S.Of (h, Parent h)) m r
