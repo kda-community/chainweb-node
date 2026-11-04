@@ -422,6 +422,7 @@ jobs:
         cp $(cabal list-bin compact) artifacts/chainweb
         cp $(cabal list-bin ea) artifacts/chainweb
         cp $(cabal list-bin genconf) artifacts/chainweb
+        cp $(cabal list-bin b64) artifacts/chainweb
         cp $(cabal list-bin known-graphs) artifacts/chainweb
         cp $(cabal list-bin pact-diff) artifacts/chainweb
         cp $(cabal list-bin standalone-pruner) artifacts/chainweb
