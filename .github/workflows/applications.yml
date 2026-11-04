@@ -1,7 +1,7 @@
 name: Build and publish application binaries
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   attestations: write
   id-token: write
@@ -343,9 +343,30 @@ jobs:
       run: cabal outdated
     - name: Configure build
       run: cabal build all --dry-run
+
     - name: Generate new freeze file
       if: matrix.use-freeze-file != 'true'
       run: cabal freeze
+
+    - name: Generate and Commit freeze if necessary
+      # In case, we request a frozen build, but the freeze file doesn't exist
+      if: matrix.use-freeze-file == 'true'
+      run: |
+        if [ -f cabal.project.freeze ]; then
+        echo "File already exists, nothing to do."
+        exit 0
+        fi
+
+        cabal freeze
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git add cabal.project.freeze
+        git commit -m "Add missing cabal freeze file"
+        git push
+
+
     - name: Display Dependency Changes
       run: |
         diff -w <(git show HEAD:cabal.project.freeze) cabal.project.freeze || true
