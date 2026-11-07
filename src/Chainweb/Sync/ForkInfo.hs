@@ -96,7 +96,7 @@ resolveForkInfo
     -> IO ()
 resolveForkInfo logg bhdb candidateHdrs provider hints finfo = do
 
-    logg Info $ "resolveForkInfo: starting resolution"
+    logg Debug $ "resolveForkInfo: starting resolution"
             <> "; target state: " <> brief (_forkInfoTargetState finfo)
             <> "; base payload: " <> brief (_forkInfoBasePayloadHash finfo)
             <> "; trace length: " <> sshow (length $ _forkInfoTrace finfo)
