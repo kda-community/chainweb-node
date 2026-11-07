@@ -81,7 +81,7 @@ import Chainweb.Ranked
 import Chainweb.Time
 import Chainweb.Utils hiding (check)
 import Chainweb.Version
-import Chainweb.Version.Guards (pact5)
+import Chainweb.Version.Guards (pact5, minimumBlockHeaderHistory)
 import Control.Exception.Safe (MonadMask)
 import Data.List.NonEmpty (NonEmpty)
 import Chainweb.Pact.Backend.ChainwebPactDb (lookupRankedBlockHash)
@@ -195,7 +195,8 @@ readFrom logger cid sql parentCreationTime parent pactRead = do
                     , ChainwebPactDb._blockHandlerUpperBoundTxId = startTxId
                     , ChainwebPactDb._blockHandlerAtTip = parentIsLatestHeader
                     }
-            let pactDb = ChainwebPactDb.chainwebPactBlockDb blockHandlerEnv
+            -- TODO Here
+            let pactDb = ChainwebPactDb.chainwebPactBlockDb blockHandlerEnv Nothing
             let blockEnv = BlockEnv blockCtx pactDb
             pact5Read pactRead blockEnv (emptyBlockHandle startTxId)
         else do
@@ -240,14 +241,16 @@ data PactRead a
 
 readPact5 :: String -> (BlockEnv -> BlockHandle -> IO a) -> PactRead a
 readPact5 msg act = PactRead
-    { pact4Read = \_ -> error msg
+    { pact4Read = \_ -> error msg -- TODO: Not good => possible DoS for a node that is catching up ?
     , pact5Read = act
     }
 
 data RunnableBlock m q
     = Pact4RunnableBlock
+        BlockCtx -- <- FOR API consistency, in fact Pact4 doesn't need it
         (forall logger. Logger logger => Pact4.CurrentBlockDbEnv logger -> m (q, (BlockHash, BlockPayloadHash)))
     | Pact5RunnableBlock
+        BlockCtx
         (ChainwebPactDb -> StateT BlockHandle m (q, (BlockHash, BlockPayloadHash)))
 
 foldState1
@@ -293,7 +296,7 @@ restoreAndSave logger cid sql parent blocks = do
     executeBlock :: RunnableBlock m q -> T2 BlockHeight Pact.TxId -> m (q, T2 BlockHeight Pact.TxId)
     executeBlock blockAction (T2 currentBlockHeight startTxId) = do
         case blockAction of
-            Pact4RunnableBlock block | not (pact5 cid currentBlockHeight) -> do
+            Pact4RunnableBlock _ block | not (pact5 cid currentBlockHeight) -> do
                 let pact4TxId = Pact4.TxId (coerce startTxId)
                 let blockHandlerEnv = Pact4.mkBlockHandlerEnv cid currentBlockHeight sql logger
                 newBlockDbEnv <- liftIO $ newMVar $ Pact4.BlockDbEnv
@@ -327,8 +330,10 @@ restoreAndSave logger cid sql parent blocks = do
                     , T2
                         (childBlockHeight cid (Parent currentRbh))
                         (Pact.TxId $ coerce $ Pact4._bsTxId finalBlockState))
-            Pact5RunnableBlock block | pact5 cid currentBlockHeight -> do
+            Pact5RunnableBlock ctx block | pact5 cid currentBlockHeight -> do
                 let
+                    minOracleHistory = (minimumBlockHeaderHistory (ctx ^. bctxParentForkNumber)
+                                                                  currentBlockHeight)
                     blockEnv = ChainwebPactDb.BlockHandlerEnv
                         { ChainwebPactDb._blockHandlerDb = sql
                         , ChainwebPactDb._blockHandlerLogger = logger
@@ -338,7 +343,8 @@ restoreAndSave logger cid sql parent blocks = do
                         , ChainwebPactDb._blockHandlerUpperBoundTxId = startTxId
                         , ChainwebPactDb._blockHandlerAtTip = True
                         }
-                    pactDb = ChainwebPactDb.chainwebPactBlockDb blockEnv
+                    pactDb = ChainwebPactDb.chainwebPactBlockDb blockEnv minOracleHistory
+
                 -- run the block
                 !((!m', !blockInfo), !blockHandle) <-
                     runStateT (block pactDb) (emptyBlockHandle startTxId)

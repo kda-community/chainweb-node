@@ -104,6 +104,7 @@ import Data.HashMap.Strict qualified as HM
 import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet
 import Data.Int
+import Data.Word
 import Data.List(sort)
 import Data.Map.Strict qualified as M
 import Data.Maybe
@@ -233,8 +234,8 @@ runOnBlockGassed env stateVar act = do
         return (newState, fmap fst r)
     liftEither r
 
-chainwebPactBlockDb :: (Logger logger) => HasVersion => BlockHandlerEnv logger -> ChainwebPactDb
-chainwebPactBlockDb env = ChainwebPactDb
+chainwebPactBlockDb :: (Logger logger) => HasVersion => BlockHandlerEnv logger -> Maybe Word64 -> ChainwebPactDb
+chainwebPactBlockDb env minBlockHistory = ChainwebPactDb
     { doChainwebPactDbTransaction = \maybeRequestKey kont -> do
         blockHandle <- get
         stateVar <- liftIO $ newMVar $ BlockState blockHandle (_blockHandlePending blockHandle) Nothing
@@ -259,9 +260,10 @@ chainwebPactBlockDb env = ChainwebPactDb
         let headerOracle = HeaderOracle
                 { chain = _chainId env
                 , consult = \(Parent hsh) -> do
+                    let minHeight = maybe (BlockHeight 0) (\delta -> (currentHeight - fromIntegral delta)) minBlockHistory
                     throwOnDbError (lookupBlockHash (_blockHandlerDb env) hsh) <&> \case
                         Nothing -> False
-                        Just rootHeight -> rootHeight < currentHeight
+                        Just rootHeight -> rootHeight < currentHeight && rootHeight >= minHeight
                 }
         let spv = pactSPV headerOracle currentHeight
         r <- liftIO $ kont pactDb spv

@@ -54,6 +54,7 @@ module Chainweb.Pact.Types
     , bctxParentHeight
     , bctxChainId
     , bctxMinerReward
+    , bctxParentForkNumber
 
     , PactServiceConfig(..)
     , defaultPactServiceConfig
@@ -151,7 +152,6 @@ import Data.Text.Encoding qualified as T
 import Data.Vector (Vector)
 import Data.Word
 import GHC.Generics (Generic)
-import Language.Haskell.TH (mkName, nameBase)
 import Pact.Core.Builtin qualified as Pact
 import Pact.Core.Capabilities qualified as Pact
 import Pact.Core.ChainData qualified as Pact
@@ -363,14 +363,7 @@ data BlockCtx = BlockCtx
   , _bctxMinerReward :: !MinerReward
   } deriving stock (Eq, Generic, Show)
 
--- The lens for '_bctxParentForkNumber' is not generated because it is unused.
---
-makeLensesWith
-    (lensRules & lensField .~ \_ _ f ->
-        if nameBase f == "_bctxParentForkNumber"
-        then []
-        else [TopName $ mkName $ dropWhile (== '_') $ nameBase f])
-    ''BlockCtx
+makeLenses ''BlockCtx
 
 instance ToJSON BlockCtx where
   toJSON BlockCtx{..} = object
