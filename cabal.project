@@ -38,6 +38,7 @@ package chainweb
     tests: True
     benchmarks: True
     ghc-options: -Wno-missed-extra-shared-lib
+    optimization: 2
 
 package chainweb-node
     ghc-options: -Wno-missed-extra-shared-lib

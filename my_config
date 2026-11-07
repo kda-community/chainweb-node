@@ -1,0 +1,97 @@
+chainweb:
+  backgroundJobsPoolSize: null
+  backup:
+    api:
+      configuration: {}
+      enabled: false
+    directory: null
+  chainwebVersion: mainnet01
+  cuts:
+    fetchTimeout: 84125000
+    initialBlockHeightLimit: null
+    initialCutFile: null
+  mining:
+    coordination:
+      enabled: false
+      targetForkOverride: false
+      updateStreamTimeout: 240
+    nodeMining:
+      enabled: false
+  p2p:
+    bootstrapReachability: 0.1
+    disableCertVerification: false
+    ignoreBootstrapNodes: false
+    maxPeerCount: 50
+    maxSessionCount: 10
+    peer:
+      certificateChain: null
+      certificateChainFile: null
+      hostaddress:
+        hostname: 86.104.252.61
+        port: 1789
+      interface: '*'
+      key: null
+      keyFile: null
+    peers: []
+    private: false
+    sessionTimeout: 240
+  payloadProviders:
+    0-19:
+      allowReadsInLocal: false
+      databaseDirectory: null
+      enableLocalTimeout: false
+      fullHistoricPactState: false
+      gasLimitOfBlock: 150000
+      genesisPayload: null
+      logGas: false
+      mempoolP2p:
+        configuration:
+          maxSessionCount: 6
+          pollInterval: 30
+          sessionTimeout: 300
+        enabled: true
+      minGasPrice: 1.0e-8
+      miner: null
+      preInsertCheckTimeout: 1000000
+      reintroTxs: true
+      type: pact
+  pruning:
+    command: prune
+  readOnlyReplay: false
+  reorgLimit: 480
+  serviceApi:
+    headerStream: false
+    interface: '*'
+    payloadBatchLimit: 1000
+    port: 1848
+    validateSpec: false
+  syncChains: null
+  throttling:
+    global: 50.0
+    mempool: 20.0
+    putPeer: 11
+databaseDirectory: /data/mainnet/
+logging:
+  backend:
+    color: auto
+    format: text
+    handle: stdout
+  clusterId: null
+  filter:
+    default: debug
+    default-rate: 1
+    rules: []
+  logger:
+    exception_limit: 10
+    exception_wait: 1000
+    exit_timeout: 1000000
+    log_level: info
+    policy: block
+    queue_size: 1000
+    scope: []
+  telemetryBackend:
+    configuration:
+      color: auto
+      format: text
+      handle: stdout
+    enabled: false
