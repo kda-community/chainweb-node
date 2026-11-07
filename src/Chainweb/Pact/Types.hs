@@ -363,8 +363,6 @@ data BlockCtx = BlockCtx
   , _bctxMinerReward :: !MinerReward
   } deriving stock (Eq, Generic, Show)
 
--- The lens for '_bctxParentForkNumber' is not generated because it is unused.
---
 makeLenses ''BlockCtx
 
 instance ToJSON BlockCtx where
