@@ -237,12 +237,12 @@ runGenesisIfNeeded logger serviceEnv = do
                 $ NEL.singleton
                 $ (
                 if pact5 cid (genesisHeight cid)
-                then Checkpointer.Pact5RunnableBlock $ \chainwebPactDb -> do
+                then Checkpointer.Pact5RunnableBlock blockCtx $ \chainwebPactDb -> do
                     _ <- Pact.execExistingBlock logger serviceEnv
                         (BlockEnv blockCtx chainwebPactDb)
                         (CheckablePayloadWithOutputs genesisPayload)
                     return ((), (genesisBlockHash, genesisPayloadHash))
-                else Checkpointer.Pact4RunnableBlock $ \blockDbEnv -> do
+                else Checkpointer.Pact4RunnableBlock blockCtx $ \blockDbEnv -> do
                     _ <- Pact4.execBlock logger serviceEnv
                         (Pact4.BlockEnv blockCtx blockDbEnv)
                         (CheckablePayloadWithOutputs genesisPayload)
@@ -395,6 +395,10 @@ execLocal logger serviceEnv cwtx preflight sigVerify rdepth = do
 
     doLocal = Pool.withResource (view psReadSqlPool serviceEnv) $ \sql -> withTransaction sql $ do
         fakeNewBlockCtx <- liftIO Checkpointer.mkFakeParentCreationTime
+        -- TODO : We have several issues Here:
+        -- We don't know the ForkInfo at rank n
+        -- and the CreationTime is fake
+        -- We need to retrieve the ForkInfo from the database
         Checkpointer.readFromNthParent logger cid sql fakeNewBlockCtx (fromIntegral rewindDepth)
             $ Checkpointer.readPact5 "Pact 4 cannot execute local calls" $ \blockEnv blockHandle -> do
                 let blockCtx = view psBlockCtx blockEnv
@@ -604,7 +608,7 @@ syncToFork logger serviceEnv hints forkInfo = do
                             if guardCtx pact5 blockCtx
                             then
                                 return $
-                                    Checkpointer.Pact5RunnableBlock $ \chainwebPactDb -> do
+                                    Checkpointer.Pact5RunnableBlock blockCtx $ \chainwebPactDb -> do
                                         (_, pwo, validatedTxs) <-
                                             Pact.execExistingBlock logger serviceEnv
                                                 (BlockEnv blockCtx chainwebPactDb)
@@ -617,7 +621,7 @@ syncToFork logger serviceEnv hints forkInfo = do
                                         return $ (DList.singleton validatedTxs, (_ranked rankedBHash, expectedPayloadHash))
                             else
                                 return $
-                                    Checkpointer.Pact4RunnableBlock $ \blockDbEnv -> do
+                                    Checkpointer.Pact4RunnableBlock blockCtx $ \blockDbEnv -> do
                                         (_, pwo) <-
                                             Pact4.execBlock logger serviceEnv
                                                 (Pact4.BlockEnv blockCtx blockDbEnv)
@@ -654,6 +658,16 @@ syncToFork logger serviceEnv hints forkInfo = do
                     -- immediately. then we set up a separate thread
                     -- to add new transactions to the block.
                     logFunctionText logger Debug "producing new block"
+
+                    -- TODO
+                    -- HERE ALL INFO should come from the Consensus newBlockCtx
+                    --   - Parent Ranked Hash
+                    --   - Parent ForkNumber
+                    --   - Parent Block time (already the case for this one)
+                    --
+                    -- In the current state, it's hacky and buggy
+                    -- - We got the Parent Block time from the Consensus, while the Ranked hash comes from the Pact Hsitory (WTF ? !!)
+                    -- - And ForkNumber is simply ignored.
                     emptyBlock <-
                         Checkpointer.readFromLatest logger cid sql (_newBlockCtxParentCreationTime newBlockCtx)
                             $ Checkpointer.readPact5 "Pact 4 cannot make new blocks" $ \blockEnv blockHandle ->
@@ -756,6 +770,8 @@ refreshPayloads logger serviceEnv = do
     maybeRefreshedBlockInProgress <-
         Pool.withResource (view psReadSqlPool serviceEnv) $ \sql ->
             withTransaction sql $
+                -- HERE we are suppsoed to have the ForkNumber info within the blockInProgress data.
+                -- But we ignore it ... This is bad.
                 Checkpointer.readFrom logger cid sql
                     (_bctxParentCreationTime $ _blockInProgressBlockCtx blockInProgress)
                     (_bctxParentRankedBlockHash $ _blockInProgressBlockCtx blockInProgress)
@@ -858,6 +874,9 @@ execPreInsertCheckReq logger serviceEnv txs = do
     logFunctionText logger Info $ "(pre-insert check " <> sshow requestKeys <> ")"
     fakeParentCreationTime <- Checkpointer.mkFakeParentCreationTime
     let act sql = withTransaction sql $
+            -- Here we have 2 issues:
+            --  - The fakeCreationTime is not ideal (we should be able to grab it from the consensus or the blockHistory)
+            --  - The forknumber is ignored (we should be able to grab it from the consensus or the blockHistory)
             Checkpointer.readFromLatest logger cid sql fakeParentCreationTime $ Checkpointer.PactRead
                 { pact5Read = \blockEnv bh -> do
                     forM txs $ \tx ->
