@@ -18,16 +18,21 @@ module Data.PQueue
 , pQueueRemove
 , pQueueIsEmpty
 , pQueueSize
+, pQueueToStream
 ) where
 
 import Control.Concurrent.STM
 import Control.Monad
+import Control.Monad.IO.Class
 
 import Data.Ord
 import qualified Data.Map as M
 import qualified Data.Set as S
 
 import Numeric.Natural
+
+import Streaming (Stream, Of)
+import qualified Streaming.Prelude as S
 
 -- -------------------------------------------------------------------------- --
 -- PQueue
@@ -88,3 +93,8 @@ pQueueRemove (PQueue mv sv _getPrio _getKey _) = atomically run
                 writeTVar mv $! m'
                 modifyTVar' sv (S.delete k)
                 return a
+
+pQueueToStream :: PQueue a -> Stream (Of a) IO ()
+pQueueToStream pq = forever $ do
+    a <- liftIO (pQueueRemove pq)
+    S.yield a

@@ -55,13 +55,13 @@ module Chainweb.Version.Guards
     , migratePlatformShare
     , pact5
     , pact44NewTrans
-    , pact4ParserVersion
     , maxBlockGasLimit
     , minimumBlockHeaderHistory
     , activeInitialGasModel
     , validPPKSchemes
-    , isWebAuthnPrefixLegal
     , validKeyFormats
+    , isWebAuthnPrefixLegal
+    , pact4ParserVersion
     , pact5Serialiser
 
     -- ** BlockHeader Validation Guards
@@ -69,6 +69,7 @@ module Chainweb.Version.Guards
     , oldTargetGuard
     , skipFeatureFlagValidationGuard
     , oldDaGuard
+    , hashedAdjacentRecord
     ) where
 
 import Chainweb.BlockHeight
@@ -77,33 +78,32 @@ import Chainweb.Pact4.Transaction qualified as Pact4
 import Chainweb.Utils.Rule
 import Chainweb.ForkState
 import Chainweb.Version
-import Chainweb.Pact5.InitialGasModel
+import Chainweb.Pact.InitialGasModel
 import Control.Lens
 import Data.Word (Word64)
 import Numeric.Natural
-import Pact.Core.Builtin qualified as Pact5
-import Pact.Core.Info qualified as Pact5
-import Pact.Core.Serialise qualified as Pact5
+import Pact.Core.Builtin qualified as Pact
+import Pact.Core.Info qualified as Pact
+import Pact.Core.Serialise qualified as Pact
 import Pact.Types.KeySet (PublicKeyText, ed25519HexFormat, webAuthnFormat)
 import Pact.Types.Scheme (PPKScheme(ED25519, WebAuthn))
 
--- Gets the height which the fork is associated with.
--- This may not be the first height at which the associated guard is `True`
--- necessarily; check the guard to see how it uses the fork's height.
-getForkHeight :: Fork -> ChainwebVersion -> ChainId -> ForkHeight
-getForkHeight fork v cid = v ^?! versionForks . at fork . _Just . atChain cid
+getForkHeight :: HasVersion => Fork -> ChainId -> ForkHeight
+getForkHeight fork cid = implicitVersion ^?! versionForks . at fork . _Just . atChain cid
 
 -- Check Fork by height
 checkFork
-    :: (ForkHeight -> ForkHeight -> Bool)
-    -> Fork -> ChainwebVersion -> ChainId -> BlockHeight -> Bool
-checkFork p f v cid h = p (ForkAtBlockHeight h) (getForkHeight f v cid)
+    :: HasVersion
+    => (ForkHeight -> ForkHeight -> Bool)
+    -> Fork -> ChainId -> BlockHeight -> Bool
+checkFork p f cid h = p (ForkAtBlockHeight h) (getForkHeight f cid)
 
 -- CheckFork by forkNumber
 checkFork'
-    :: (ForkHeight -> ForkHeight -> Bool)
-    -> Fork -> ChainwebVersion -> ChainId -> ForkNumber -> Bool
-checkFork' p f v cid fn = p (ForkAtForkNumber fn) (getForkHeight f v cid)
+    :: HasVersion
+    => (ForkHeight -> ForkHeight -> Bool)
+    -> Fork -> ChainId -> ForkNumber -> Bool
+checkFork' p f cid fn = p (ForkAtForkNumber fn) (getForkHeight f cid)
 
 
 after :: ForkHeight -> ForkHeight -> Bool
@@ -162,8 +162,8 @@ atNotGenesis fh fh' = fh == fh'
 -- is usually more important than throughput.
 --
 slowEpochGuard
-    :: ChainwebVersion
-    -> ChainId
+    :: HasVersion
+    => ChainId
     -> BlockHeight
         -- ^ BlockHeight of parent Header
     -> Bool
@@ -176,7 +176,7 @@ slowEpochGuard = checkFork before SlowEpoch
 -- blocks. The target computation won't compensate for that, since the effects
 -- are marginal.
 --
-oldTargetGuard :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+oldTargetGuard :: HasVersion => ChainId -> BlockHeight -> Bool
 oldTargetGuard = checkFork before OldTargetGuard
 
 -- | Skip validation of feature flags.
@@ -186,20 +186,20 @@ oldTargetGuard = checkFork before OldTargetGuard
 -- live chains, enforcing the following condition must be ignored for the
 -- historical blocks for which both the Nonce and Flags could be anything.
 --
-skipFeatureFlagValidationGuard :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+skipFeatureFlagValidationGuard :: HasVersion => ChainId -> BlockHeight -> Bool
 skipFeatureFlagValidationGuard = checkFork before SkipFeatureFlagValidation
 
-oldDaGuard :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+oldDaGuard :: HasVersion => ChainId -> BlockHeight -> Bool
 oldDaGuard = checkFork before OldDAGuard
 
 -----------------
 -- Payload validation guards
 
-vuln797Fix :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+vuln797Fix :: HasVersion => ChainId -> BlockHeight -> Bool
 vuln797Fix = checkFork atOrAfter Vuln797Fix
 
 -- | Preserve Pact bugs pre-1.6 chainweb.
-pactBackCompat_v16 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+pactBackCompat_v16 :: HasVersion => ChainId -> BlockHeight -> Bool
 pactBackCompat_v16 = checkFork before PactBackCompat_v16
 
 -- | Early versions of chainweb used the creation time of the current header
@@ -208,175 +208,195 @@ pactBackCompat_v16 = checkFork before PactBackCompat_v16
 --
 -- When this guard is enabled timing validation is skipped.
 --
-skipTxTimingValidation :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+skipTxTimingValidation :: HasVersion => ChainId -> BlockHeight -> Bool
 skipTxTimingValidation = checkFork before SkipTxTimingValidation
 
 -- | Checks height after which module name fix in effect.
 --
-enableModuleNameFix :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+enableModuleNameFix :: HasVersion => ChainId -> BlockHeight -> Bool
 enableModuleNameFix = checkFork atOrAfter ModuleNameFix
 
 -- | Related, later fix (Pact #801).
 --
-enableModuleNameFix2 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+enableModuleNameFix2 :: HasVersion => ChainId -> BlockHeight -> Bool
 enableModuleNameFix2 = checkFork atOrAfter ModuleNameFix2
 
 -- | Turn on pact events in command output.
-enablePactEvents :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+enablePactEvents :: HasVersion => ChainId -> BlockHeight -> Bool
 enablePactEvents = checkFork atOrAfter PactEvents
 
 -- | Bridge support: ETH and event SPV.
-enableSPVBridge :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+enableSPVBridge :: HasVersion => ChainId -> BlockHeight -> Bool
 enableSPVBridge = checkFork atOrAfter SPVBridge
 
 -- | Should Pact check that keysets have a legal format?
-enforceKeysetFormats :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+enforceKeysetFormats :: HasVersion => ChainId -> BlockHeight -> Bool
 enforceKeysetFormats = checkFork atOrAfter EnforceKeysetFormats
 
--- | Should Pact check that the `hash` included with a `Command` is correct?
-doCheckTxHash :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+doCheckTxHash :: HasVersion => ChainId -> BlockHeight -> Bool
 doCheckTxHash = checkFork atOrAfter CheckTxHash
 
 -- | Fork for musl trans funs
-pact44NewTrans :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+pact44NewTrans :: HasVersion => ChainId -> BlockHeight -> Bool
 pact44NewTrans = checkFork atOrAfter Pact44NewTrans
 
 -- | Pact 4.0 features
-pact4Coin3 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+pact4Coin3 :: HasVersion => ChainId -> BlockHeight -> Bool
 pact4Coin3 = checkFork after Pact4Coin3
 
 -- | Pact 4.2 features
-pact42 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+pact42 :: HasVersion => ChainId -> BlockHeight -> Bool
 pact42 = checkFork atOrAfter Pact42
 
 -- | Pact charges gas for the size of transitive module dependencies
-chainweb213Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb213Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb213Pact = checkFork atOrAfter Chainweb213Pact
 
 -- | Pact 4.3 features
-chainweb214Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb214Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb214Pact = checkFork after Chainweb214Pact
 
 -- | Pact 4.3.1 features
-chainweb215Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb215Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb215Pact = checkFork after Chainweb215Pact
 
 -- | Pact 4.4 features, including new expression parser
-chainweb216Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb216Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb216Pact = checkFork after Chainweb216Pact
 
 -- | Pact 4.5 features, and considering all table names lowercase
-chainweb217Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb217Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb217Pact = checkFork after Chainweb217Pact
 
 -- | Pact 4.6 features
-chainweb218Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb218Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb218Pact = checkFork atOrAfter Chainweb218Pact
 
 -- | Pact 4.7 features + new SPV errors without callstacks
-chainweb219Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb219Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb219Pact = checkFork atOrAfter Chainweb219Pact
 
 -- | Pact 4.8 features
-chainweb220Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb220Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb220Pact = checkFork atOrAfter Chainweb220Pact
 
 -- Pact 4.9 features + new spv base64 errors that don't depend on legacy library
 -- versions
-chainweb221Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb221Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb221Pact = checkFork atOrAfter Chainweb221Pact
 
 -- | Pact 4.10 features, webauthn keys and signatures
-chainweb222Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb222Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb222Pact = checkFork atOrAfter Chainweb222Pact
 
 -- | Pact 4.11 features, verifier plugins
-chainweb223Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb223Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb223Pact = checkFork atOrAfter Chainweb223Pact
 
 -- | Pact 4.12 features, optimized buy/redeem gas transactions reduce gas cost
 -- for all transactions
-chainweb224Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb224Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb224Pact = checkFork atOrAfter Chainweb224Pact
 
 -- | Update Hyperlane verifier plugin to provide a "merkle tree ISM"
-chainweb225Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb225Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb225Pact = checkFork atOrAfter Chainweb225Pact
 
 -- | Pact 5, an entirely new Pact compiler and interpreter, and comes with some
 -- big changes to PactService
-pact5 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+pact5 :: HasVersion => ChainId -> BlockHeight -> Bool
 pact5 = checkFork atOrAfter Pact5Fork
 
 -- | Pact 5.1, including a new more succinct serializer for modules
-chainweb228Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb228Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb228Pact = checkFork atOrAfter Chainweb228Pact
 
 -- | Pact 5.2 and 5.3, including a re-entrancy check for module references
 -- Also, a fix for duplicates in `keys`
-chainweb230Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb230Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb230Pact = checkFork atOrAfter Chainweb230Pact
 
 -- | Pact 5.4, SPV proof root expiry
-chainweb231Pact :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb231Pact :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb231Pact = checkFork atOrAfter Chainweb231Pact
 
 -- | Fork numbering and voting, continuation proof size gassed
-chainweb31 :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
+chainweb31 :: HasVersion => ChainId -> BlockHeight -> Bool
 chainweb31 = checkFork atOrAfter Chainweb31
 
 -- | Pact 5.4.1
-chainweb32 :: ChainwebVersion -> ChainId -> ForkNumber -> Bool
+chainweb32 :: HasVersion => ChainId -> ForkNumber -> Bool
 chainweb32 = checkFork' atOrAfter Chainweb32
 
-migratePlatformShare :: ChainwebVersion -> ChainId -> BlockHeight -> Bool
-migratePlatformShare = checkFork atNotGenesis MigratePlatformShare
-
-pact5Serialiser :: ChainwebVersion -> ChainId -> BlockHeight -> Pact5.PactSerialise Pact5.CoreBuiltin Pact5.LineInfo
-pact5Serialiser v cid bh
-    | chainweb228Pact v cid bh = Pact5.serialisePact_lineinfo_pact51
-    | otherwise                = Pact5.serialisePact_lineinfo_pact50
-
-pact4ParserVersion :: ChainwebVersion -> ChainId -> BlockHeight -> Pact4.PactParserVersion
-pact4ParserVersion v cid bh
-    | chainweb213Pact v cid bh = Pact4.PactParserChainweb213
+pact4ParserVersion :: HasVersion => ChainId -> BlockHeight -> Pact4.PactParserVersion
+pact4ParserVersion cid bh
+    | chainweb213Pact cid bh = Pact4.PactParserChainweb213
     | otherwise = Pact4.PactParserGenesis
 
-maxBlockGasLimit :: ChainwebVersion -> ForkNumber -> BlockHeight -> Maybe Natural
-maxBlockGasLimit v fn bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> searchKey >= h) (_versionMaxBlockGasLimit v)
-    where
-        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
+migratePlatformShare :: HasVersion => ChainId -> BlockHeight -> Bool
+migratePlatformShare = checkFork atNotGenesis MigratePlatformShare
 
+pact5Serialiser
+    :: HasVersion
+    => ChainId
+    -> BlockHeight
+    -> Pact.PactSerialise Pact.CoreBuiltin Pact.LineInfo
+pact5Serialiser cid bh
+    | chainweb228Pact cid bh = Pact.serialisePact_lineinfo_pact51
+    | otherwise              = Pact.serialisePact_lineinfo_pact50
 
-minimumBlockHeaderHistory :: ChainwebVersion -> ForkNumber -> BlockHeight -> Maybe Word64
-minimumBlockHeaderHistory v fn bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> searchKey >= h) (_versionSpvProofRootValidWindow v)
-    where
-        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
+maxBlockGasLimit
+    :: HasVersion
+    => ForkNumber
+    -> BlockHeight
+    -> Maybe Natural
+maxBlockGasLimit fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h)
+        (_versionMaxBlockGasLimit implicitVersion)
+  where
+    searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
 
-activeInitialGasModel :: ChainwebVersion -> ChainId -> ForkNumber -> BlockHeight -> InitialGasModel
-activeInitialGasModel v cid fn bh = snd $ ruleZipperHere $ snd
-    $ ruleSeek (\h _ -> searchKey >= h) $ v ^?! versionInitialGasModel . atChain cid
-    where
-        searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
+minimumBlockHeaderHistory
+    :: HasVersion
+    => ForkNumber
+    -> BlockHeight
+    -> Maybe Word64
+minimumBlockHeaderHistory fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h)
+        (_versionSpvProofRootValidWindow implicitVersion)
+  where
+    searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
+
+activeInitialGasModel
+    :: HasVersion
+    => ChainId
+    -> ForkNumber
+    -> BlockHeight
+    -> InitialGasModel
+activeInitialGasModel cid fn bh = snd $ ruleZipperHere $ snd
+    $ ruleSeek (\h _ -> searchKey >= h)
+        (implicitVersion ^?! versionInitialGasModel . atChain cid)
+  where
+    searchKey = ForkAtBlockHeight bh `max` ForkAtForkNumber fn
+
+hashedAdjacentRecord :: HasVersion => ChainId -> BlockHeight -> Bool
+hashedAdjacentRecord = checkFork atOrAfter HashedAdjacentRecord
 
 -- | Different versions of Chainweb allow different PPKSchemes.
 --
-validPPKSchemes :: ChainwebVersion -> ChainId -> BlockHeight -> [PPKScheme]
-validPPKSchemes v cid bh =
-  if chainweb221Pact v cid bh
+validPPKSchemes :: HasVersion => ChainId -> BlockHeight -> [PPKScheme]
+validPPKSchemes cid bh =
+  if chainweb221Pact cid bh
   then [ED25519, WebAuthn]
   else [ED25519]
 
-isWebAuthnPrefixLegal :: ChainwebVersion -> ChainId -> BlockHeight -> Pact4.IsWebAuthnPrefixLegal
-isWebAuthnPrefixLegal v cid bh =
-    if chainweb222Pact v cid bh
-    then Pact4.WebAuthnPrefixLegal
-    else Pact4.WebAuthnPrefixIllegal
-
-validKeyFormats :: ChainwebVersion -> ChainId -> BlockHeight -> [PublicKeyText -> Bool]
-validKeyFormats v cid bh =
-  if chainweb222Pact v cid bh
+validKeyFormats :: HasVersion => ChainId -> BlockHeight -> [PublicKeyText -> Bool]
+validKeyFormats cid bh =
+  if chainweb222Pact cid bh
   then [ed25519HexFormat, webAuthnFormat]
   else [ed25519HexFormat]
+
+isWebAuthnPrefixLegal :: HasVersion => ChainId -> BlockHeight -> Pact4.IsWebAuthnPrefixLegal
+isWebAuthnPrefixLegal cid bh
+    | chainweb222Pact cid bh = Pact4.WebAuthnPrefixLegal
+    | otherwise = Pact4.WebAuthnPrefixIllegal
