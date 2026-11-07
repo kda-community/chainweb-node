@@ -13,12 +13,12 @@ module Chainweb.Test.Pact4.GrandHash
 
 import Data.ByteArray qualified as Memory
 import Data.Functor.Identity (Identity(..))
-import Data.ByteString.Base16 qualified as Base16
 import Data.Maybe (mapMaybe)
 import Crypto.Hash (hashWith)
 import Data.List qualified as List
 import Chainweb.Pact.Backend.PactState (PactRow(..), Table(..))
 import Chainweb.Pact.Backend.PactState.GrandHash.Algorithm (TableHash(..), rowToHashInput, hashTable, tableNameToHashInput, hashStream, hashAlgorithm)
+import Chainweb.Pact.Backend.PactState.GrandHash.Utils
 import Control.Monad (replicateM)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder qualified as BB
@@ -40,6 +40,7 @@ import Test.QuickCheck (Property, Arbitrary, Gen, Positive(..), (===), arbitrary
 import Test.Tasty (TestTree)
 import Test.Tasty.HUnit (Assertion, testCase, (@?=))
 import Test.Tasty.QuickCheck (testProperty)
+
 
 import Chainweb.Test.Utils
 
@@ -185,6 +186,3 @@ parseTableHashInput b = Smith.parseBytesEither parser (Bytes.fromByteString b)
       len <- SmithLE.word64 "tablename len"
       tablename <- Smith.take "tablename" (fromIntegral @Word64 @Int len)
       pure (len, Bytes.toByteString tablename)
-
-hex :: ByteString -> Text
-hex = Text.decodeUtf8 . Base16.encode

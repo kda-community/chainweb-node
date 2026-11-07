@@ -50,15 +50,15 @@ import Control.Monad.Except (MonadError(..))
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Binary.Builder (fromByteString, fromLazyByteString)
-import Data.ByteString qualified as BS
-import Data.ByteString.Base16 qualified as B16
+import qualified Data.ByteString as BS
+import qualified Data.Base16.Types as B16
+import qualified Data.ByteString.Base16 as B16
 import Data.ByteString.Short (fromShort)
 import Data.Foldable
 import Data.Function
 import Data.Functor.Of
 import Data.IORef
 import Data.Proxy
-import Data.Text.Encoding (decodeUtf8)
 import Network.Wai.EventSource (ServerEvent(..), eventSourceAppIO)
 import Numeric.Natural(Natural)
 import Prelude hiding (lookup)
@@ -330,7 +330,7 @@ blockStreamHandler db = Tagged $ \req resp -> do
     g :: BlockHeader -> IO HeaderUpdate
     g bh = pure $ HeaderUpdate
         { _huHeader = ObjectEncoded bh
-        , _huPowHash = decodeUtf8 . B16.encode . BS.reverse . fromShort . powHashBytes $ view blockPow bh
+        , _huPowHash = B16.extractBase16 . B16.encodeBase16 . BS.reverse  . BS.reverse . fromShort . powHashBytes $ view blockPow bh
         , _huTarget = showTargetHex $ view blockTarget bh
         }
 
