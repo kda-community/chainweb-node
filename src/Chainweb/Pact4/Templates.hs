@@ -1,3 +1,4 @@
+{-# language ExplicitNamespaces #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -22,7 +23,7 @@ module Chainweb.Pact4.Templates
 , mkRedeemGasTerm
 , mkCoinbaseTerm
 , mkCoinbaseCmd
-, pattern MinerKeys
+, data MinerKeys
 ) where
 
 

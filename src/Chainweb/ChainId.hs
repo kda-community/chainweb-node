@@ -33,7 +33,7 @@
 module Chainweb.ChainId
 ( ChainIdException(..)
 , ChainId
-, pattern ChainId
+, data ChainId
 , HasChainId(..)
 , checkChainId
 
@@ -53,7 +53,7 @@ module Chainweb.ChainId
 -- * Singletons
 , Sing(SChainId)
 , type SChainId
-, pattern FromSingChainId
+, data FromSingChainId
 
 -- * Testing
 , unsafeChainId

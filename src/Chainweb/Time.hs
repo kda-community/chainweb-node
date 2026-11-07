@@ -100,7 +100,7 @@ import Data.Hashable (Hashable)
 import Data.Int
 import qualified Data.Memory.Endian as BA
 import Data.Ratio
-import Data.Time
+import Data.Time hiding (Seconds)
 import Data.Time.Clock.POSIX
 import Data.Time.Clock.System
 import Data.Word
@@ -348,4 +348,3 @@ microsToTimeSpan (Micros us) = scaleTimeSpan us microsecond
 timeSpanToMicros :: Integral a => TimeSpan a -> Micros
 timeSpanToMicros (TimeSpan us) = Micros $! int us
 {-# INLINE timeSpanToMicros #-}
-

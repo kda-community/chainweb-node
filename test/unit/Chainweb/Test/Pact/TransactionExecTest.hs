@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -68,7 +69,7 @@ import Pact.Core.Persistence hiding (pactDb)
 import Pact.Core.SPV (noSPVSupport)
 import Pact.Core.Verifiers
 import Pact.JSON.Encode qualified as J
-import PropertyMatchers ((?), pattern (:=>))
+import PropertyMatchers ((?), data (:=>))
 import PropertyMatchers qualified as P
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual, testCase)

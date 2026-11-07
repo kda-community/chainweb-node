@@ -1,11 +1,12 @@
 {-# language LambdaCase #-}
 {-# language NumericUnderscores #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# language OverloadedStrings #-}
 {-# language PatternSynonyms #-}
 {-# language QuasiQuotes #-}
 {-# language ViewPatterns #-}
 
-module Chainweb.Version.RecapDevelopment(recapDevnet, pattern RecapDevelopment) where
+module Chainweb.Version.RecapDevelopment(recapDevnet, data RecapDevelopment) where
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
