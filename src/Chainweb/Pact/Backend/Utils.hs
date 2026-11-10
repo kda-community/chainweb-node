@@ -46,8 +46,13 @@ module Chainweb.Pact.Backend.Utils
   , getLatestBlock
   , getEarliestBlock
   , lookupBlockWithHeight
+  , lookupBlocEnvkWithHeight
   , lookupBlockHash
   , lookupRankedBlockHash
+  , latestBlocEnv
+  -- * Encoders for Pact State DB
+  , encodeHistoryCtx
+  , decodeHistoryCtx
   -- * SQLite conversions and assertions
   , toUtf8
   , fromUtf8
@@ -115,6 +120,8 @@ import Chainweb.Utils
 import Chainweb.BlockHash
 import Chainweb.BlockHeader
 import Chainweb.BlockHeight
+import Chainweb.ForkState
+import Chainweb.BlockCreationTime
 import Database.SQLite3.Direct hiding (open2)
 import GHC.Stack
 import qualified Data.ByteString.Short as SB
@@ -559,6 +566,34 @@ lookupBlockWithHeight db bheight = do
     where
     qtext = "SELECT hash FROM BlockHistory2 WHERE blockheight = ?;"
 
+
+lookupBlocEnvkWithHeight :: HasCallStack => SQ3.Database -> BlockHeight -> ExceptT LocatedSQ3Error IO (Maybe (Ranked BlockHash, Parent ForkNumber, Parent BlockCreationTime))
+lookupBlocEnvkWithHeight db bheight = do
+    qry db qtext [SInt $ fromIntegral bheight] [RBlob, RBlob] >>= \case
+        [[SBlob hash, SBlob ctxData]] -> let h = Ranked bheight (either error id $ runGetEitherS decodeBlockHash hash)
+                                             (fn, ct) = (either error id $ runGetEitherS decodeHistoryCtx ctxData)
+                                          in return $! Just $! (h, fn, ct)
+
+        [] -> return Nothing
+        res -> error $ "Invalid result, " <> sshow res
+    where
+    qtext = "SELECT hash, ctxData FROM BlockHistory2 WHERE blockheight = ?;"
+
+latestBlocEnv :: HasCallStack => SQ3.Database -> ExceptT LocatedSQ3Error IO (Maybe (Ranked BlockHash, Parent ForkNumber, Parent BlockCreationTime))
+latestBlocEnv db = do
+    qry db qtext [] [RInt, RBlob, RBlob] >>= \case
+        [[SInt bheight, SBlob hash, SBlob ctxData]] -> let h = Ranked (BlockHeight $ fromIntegral bheight) (either error id $ runGetEitherS decodeBlockHash hash)
+                                                           (fn, ct) = (either error id $ runGetEitherS decodeHistoryCtx ctxData)
+                                                       in return $! Just $! (h, fn, ct)
+
+        [] -> return Nothing
+        res -> error $ "Invalid result, " <> sshow res
+    where
+    qtext = "SELECT blockheight, hash, ctxData FROM BlockHistory2 ORDER BY blockheight DESC LIMIT 1;"
+
+
+
+
 lookupBlockHash :: HasCallStack => SQ3.Database -> BlockHash -> ExceptT LocatedSQ3Error IO (Maybe BlockHeight)
 lookupBlockHash db hash = do
     qry db qtext [SBlob (runPutS (encodeBlockHash hash))] [RInt] >>= \case
@@ -578,6 +613,15 @@ lookupRankedBlockHash db rankedBHash = throwOnDbError $ do
         res -> error $ "Invalid result, " <> sshow res
     where
     qtext = "SELECT COUNT(*) FROM BlockHistory2 WHERE blockheight = ? AND hash = ?;"
+
+encodeHistoryCtx :: Parent ForkNumber -> Parent BlockCreationTime -> Put
+encodeHistoryCtx fn ct = putWord32le (_getForkNumber $ unwrapParent fn) >> encodeBlockCreationTime (unwrapParent ct)
+
+decodeHistoryCtx :: Get (Parent ForkNumber, Parent BlockCreationTime)
+decodeHistoryCtx = do
+    fn <- Parent . ForkNumber <$> getWord32le
+    bct <- Parent <$> decodeBlockCreationTime
+    return (fn, bct)
 
 data LocatedSQ3Error = LocatedSQ3Error !CallStack !SQ3.Error
 instance Show LocatedSQ3Error where
