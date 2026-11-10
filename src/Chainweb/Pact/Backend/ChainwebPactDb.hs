@@ -719,7 +719,7 @@ commitBlockStateToDatabase db blockInfo blockHandle ctx = throwOnDbError $ do
             , SBlob (runPutS $ encodeBlockHash $ fst $ _ranked blockInfo)
             , SBlob (runPutS $ encodeBlockPayloadHash $ snd $ _ranked blockInfo)
             , SInt (fromIntegral t)
-            , SBlob (runPutS $ encodeHistoryCtx (Parent $ ctx ^. bctxParentForkNumber) (ctx ^. bctxParentCreationTime))
+            , SBlob (runPutS $ encodeHistoryCtx (ctx ^. bctxParentForkNumber) (ctx ^. bctxParentCreationTime))
             ]
         where
         stmt = "INSERT INTO BlockHistory2 ('blockheight', 'hash', 'payloadhash', 'endingtxid', 'ctxData') VALUES (?,?,?,?, ?);"

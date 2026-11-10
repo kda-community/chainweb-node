@@ -423,7 +423,7 @@ execLocal logger serviceEnv cwtx preflight sigVerify rdepth = do
                                     implicitVersion
                                     (_bctxChainId blockCtx)
                                     (_bctxCurrentBlockHeight blockCtx)
-                                    (_bctxParentForkNumber blockCtx)
+                                    (blockCtx ^. bctxParentForkNumber . _Parent)
                                     cwtx
                             applyCmdResult <- liftIO $ flip evalStateT blockHandle $ doChainwebPactDbTransaction (blockEnv ^. psBlockDbEnv) Nothing (\dbEnv spvSupport ->
                                 Pact.applyCmd
@@ -753,8 +753,6 @@ refreshPayloads logger serviceEnv = do
     maybeRefreshedBlockInProgress <-
         Pool.withResource (view psReadSqlPool serviceEnv) $ \sql ->
             withTransaction sql $
-                -- HERE we are suppsoed to have the ForkNumber info within the blockInProgress data.
-                -- But we ignore it ... This is bad.
                 Checkpointer.readFrom logger cid sql (_blockInProgressBlockCtx blockInProgress)
                     $ Checkpointer.readPact5 "Pact 4 cannot make new blocks" $ \blockEnv _bh -> do
                         let dbEnv = view psBlockDbEnv blockEnv
@@ -854,9 +852,6 @@ execPreInsertCheckReq logger serviceEnv txs = do
     let requestKeys = V.map Pact.cmdToRequestKey txs
     logFunctionText logger Info $ "(pre-insert check " <> sshow requestKeys <> ")"
     let act sql = withTransaction sql $
-            -- Here we have 2 issues:
-            --  - The fakeCreationTime is not ideal (we should be able to grab it from the consensus or the blockHistory)
-            --  - The forknumber is ignored (we should be able to grab it from the consensus or the blockHistory)
             Checkpointer.readFromLatest logger cid sql $ Checkpointer.PactRead
                 { pact5Read = \blockEnv bh -> do
                     forM txs $ \tx ->

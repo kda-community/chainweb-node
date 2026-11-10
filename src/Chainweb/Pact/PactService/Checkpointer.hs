@@ -124,7 +124,7 @@ blockCtxFromHistory cid sql n = do
     return BlockCtx {_bctxParentCreationTime = targetCt -- TODO Add 30 s in case of n=0, as an estimator ?? There are pros and cons...
                     , _bctxParentHash = Parent $ _ranked parentH
                     , _bctxParentHeight = Parent $ _rankedHeight parentH
-                    , _bctxParentForkNumber = unwrapParent targetFn
+                    , _bctxParentForkNumber = targetFn
                     , _bctxChainId = cid
                     , _bctxMinerReward = blockMinerReward (_rankedHeight latestH - fromIntegral n +1)
                     }
@@ -202,7 +202,7 @@ readFrom logger cid sql blockCtx pactRead = do
                     , ChainwebPactDb._blockHandlerUpperBoundTxId = startTxId
                     , ChainwebPactDb._blockHandlerAtTip = parentIsLatestHeader
                     }
-            let minOracleHistory = minimumBlockHeaderHistory (blockCtx ^. bctxParentForkNumber) currentHeight
+            let minOracleHistory = minimumBlockHeaderHistory (blockCtx ^. bctxParentForkNumber . _Parent) currentHeight
             let pactDb = ChainwebPactDb.chainwebPactBlockDb blockHandlerEnv minOracleHistory
             let blockEnv = BlockEnv blockCtx pactDb
             pact5Read pactRead blockEnv (emptyBlockHandle startTxId)
@@ -339,7 +339,7 @@ restoreAndSave logger cid sql parent blocks = do
                         (Pact.TxId $ coerce $ Pact4._bsTxId finalBlockState))
             Pact5RunnableBlock ctx block | pact5 cid currentBlockHeight -> do
                 let
-                    minOracleHistory = (minimumBlockHeaderHistory (ctx ^. bctxParentForkNumber)
+                    minOracleHistory = (minimumBlockHeaderHistory (ctx ^. bctxParentForkNumber. _Parent)
                                                                   currentBlockHeight)
                     blockEnv = ChainwebPactDb.BlockHandlerEnv
                         { ChainwebPactDb._blockHandlerDb = sql

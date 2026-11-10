@@ -72,9 +72,8 @@ assertPreflightMetadata env cmd@(Pact.Command pay sigs hsh) blockCtx sigVerify =
     let cid = view chainId env
     -- note that we use the maximum legal block gas limit here. if no miner is
     -- willing to accept this tx, it still may not make it on the chain.
-    let mbgl = maxBlockGasLimit
-          (_bctxParentForkNumber blockCtx)
-          (_bctxCurrentBlockHeight blockCtx)
+    let mbgl = maxBlockGasLimit (blockCtx ^. bctxParentForkNumber. _Parent)
+                                (_bctxCurrentBlockHeight blockCtx)
 
     let Pact.PublicMeta pcid _ gl gp _ _ = Pact._pMeta pay
         nid = Pact._pNetworkId pay
