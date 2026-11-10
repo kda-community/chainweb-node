@@ -44,6 +44,7 @@ module Chainweb.Pact.Types
     , BlockCtx(..)
     , blockCtxOfEvaluationCtx
     , evaluationCtxOfBlockCtx
+    , blockCtxOfNewBlockCtx
     , guardCtx
     , _bctxParentRankedBlockHash
     , _bctxIsGenesis
@@ -168,11 +169,11 @@ import System.LogLevel
 import Chainweb.BlockHeader
 import Chainweb.BlockPayloadHash
 import Chainweb.Counter
-import Chainweb.ForkState (ForkNumber, pact4ForkNumber)
+import Chainweb.ForkState (ForkNumber(..), pact4ForkNumber)
 import Chainweb.Logger
 import Chainweb.Pact.Mempool.Mempool
 import Chainweb.Miner.Pact (Miner, toMinerData, noMiner)
-import Chainweb.Pact.Backend.ChainwebPactDb
+--import Chainweb.Pact.Backend.ChainwebPactDb
 import Chainweb.Pact.Backend.Types
 import Chainweb.Pact.Transaction qualified as Pact
 import Chainweb.Pact4.ModuleCache
@@ -193,6 +194,7 @@ import Control.Concurrent.STM
 import Chainweb.BlockHeight
 import Chainweb.BlockHash
 import Chainweb.Parent
+import Chainweb.Ranked
 import Chainweb.MinerReward
 import Chainweb.BlockCreationTime
 import Control.Concurrent.Async
@@ -383,6 +385,16 @@ blockCtxOfEvaluationCtx cid ec = BlockCtx
   , _bctxParentForkNumber = _evaluationCtxParentForkNumber ec
   , _bctxChainId = cid
   , _bctxMinerReward = _evaluationCtxMinerReward ec
+  }
+
+blockCtxOfNewBlockCtx :: ChainId -> Parent RankedBlockHash -> NewBlockCtx -> BlockCtx
+blockCtxOfNewBlockCtx cid bh nbc = BlockCtx
+  { _bctxParentCreationTime = _newBlockCtxParentCreationTime nbc
+  , _bctxParentHash = _ranked <$> bh
+  , _bctxParentHeight = _rankedHeight <$> bh
+  , _bctxParentForkNumber = ForkNumber 0 --TODO FIX
+  , _bctxChainId = cid
+  , _bctxMinerReward = _newBlockCtxMinerReward nbc
   }
 
 evaluationCtxOfBlockCtx :: BlockCtx -> EvaluationCtx ()

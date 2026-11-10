@@ -88,25 +88,19 @@ migrateBlockHistoryTable logger cid sdb bhdb cleanup
                 rr@[SInt bh, SInt _, SBlob h] -> do
                   let rowBlockHeight = fromIntegral bh
                   rowBlockHash <- runGetS decodeBlockHash h
-                  lookupRanked bhdb rowBlockHeight rowBlockHash >>= \case
-                      Nothing -> do
-                        -- TODO: stop when there's a missing header?
-                        -- error if there's a gap?
-                        logFunctionText logger Warn
-                          $ "BlockHeader Entry missing for "
-                            <> "blockHeight="
-                            <> sshow rowBlockHeight
-                            <> ", blockHash="
-                            <> sshow rowBlockHash
-                        return Nothing
-                      Just blockHeader -> do
-                        let bph = view blockPayloadHash blockHeader
-                            enc = runPutS $ encodeBlockPayloadHash bph
 
-                        throwOnDbError $ exec' sdb
-                          "INSERT INTO BlockHistory2 (blockheight, endingtxid, hash, payloadhash) VALUES (?, ?, ?, ?)"
-                            $ rr ++ [SBlob enc]
-                        return (Just blockHeader)
+                  withLookupRanked rowBlockHeight rowBlockHash \blockHeader ->
+                    withLookupRanked (rowBlockHeight -1) (unwrapParent $ blockHeader ^. blockParent) \parentHeader -> do
+
+                      let bph = view blockPayloadHash blockHeader
+                          enc = runPutS $ encodeBlockPayloadHash bph
+                          envData = runPutS $ encodeHistoryCtx (Parent $ parentHeader ^. blockForkNumber)
+                                                               (Parent $ parentHeader ^. blockCreationTime)
+
+                      throwOnDbError $ exec' sdb
+                        "INSERT INTO BlockHistory2 (blockheight, endingtxid, hash, payloadhash, ctxData) VALUES (?, ?, ?, ?, ?)"
+                          $ rr ++ [SBlob enc, SBlob envData]
+                      return (Just blockHeader)
                 _ -> error "unexpected row shape"
               )
               & S.last
@@ -143,6 +137,20 @@ migrateBlockHistoryTable logger cid sdb bhdb cleanup
     nTableEntries tname = throwOnDbError $ qry_ sdb ("SELECT count(*) from " <> tname) [RInt] >>= \case
         [[SInt n]] -> pure n
         _ -> error "unexpected row shape"
+
+    withLookupRanked bHeight bHash f = lookupRanked bhdb bHeight bHash >>= \case
+                      Nothing -> do
+                        -- TODO: stop when there's a missing header?
+                        -- error if there's a gap?
+                        logFunctionText logger Warn
+                          $ "BlockHeader Entry missing for "
+                            <> "blockHeight="
+                            <> sshow bHeight
+                            <> ", blockHash="
+                            <> sshow bHash
+                        return Nothing
+                      Just bh -> f bh
+
 
 
 -- | Checks whether the @BlockHistory@ table is (still) existing

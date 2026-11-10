@@ -33,8 +33,7 @@
 -- Checkpointer interaction for Pact service.
 --
 module Chainweb.Pact.PactService.Checkpointer
-    ( mkFakeParentCreationTime
-    , readFromLatest
+    ( readFromLatest
     , readFromNthParent
     , readFrom
     , restoreAndSave
@@ -68,7 +67,8 @@ import Chainweb.BlockCreationTime
 import Chainweb.BlockHash
 import Chainweb.BlockHeader
 import Chainweb.BlockHeight
-import Chainweb.ForkState (pact4ForkNumber)
+import Chainweb.ForkState (ForkNumber)
+import Control.Monad.Trans.Maybe
 import Chainweb.Logger
 import Chainweb.MinerReward
 import Chainweb.Pact.Backend.ChainwebPactDb qualified as ChainwebPactDb
@@ -78,7 +78,6 @@ import Chainweb.Pact.Types
 import Chainweb.Parent
 import Chainweb.PayloadProvider
 import Chainweb.Ranked
-import Chainweb.Time
 import Chainweb.Utils hiding (check)
 import Chainweb.Version
 import Chainweb.Version.Guards (pact5, minimumBlockHeaderHistory)
@@ -99,12 +98,36 @@ import Pact.Types.Command qualified as Pact4
 import Pact.Types.Hash qualified as Pact4
 import Data.Foldable1 (foldlMapM1)
 
--- readFrom demands to know this context in case it's mining a block.
--- But it's not really used by /local, or polling, so we fabricate it
--- for those users.
-mkFakeParentCreationTime :: IO (Parent BlockCreationTime)
-mkFakeParentCreationTime = do
-    Parent . BlockCreationTime <$> getCurrentTimeIntegral
+
+-- We try to recover the clock context from the history with a rewind of n.
+--
+-- We read both the nth block (target) and its parent:
+--  - parentBlockCreationTime and ParentForkNumber are extracted from the stored context associated to target
+--  - parentHash is extracted from its parent (referenced by Height)
+--
+-- n=0 is a special case. n=0 means that the context is related to the next mined block
+-- The parent block is the tip.. But we still ignore what is his FOrNumber and BlockCreationTime
+-- Even if the block is already mined, Consensus layer didn't send us.
+-- In this case, we take the ForkNumber and BlockCreationTime from the GrandParent
+--
+blockCtxFromHistory:: (HasCallStack, HasVersion) => ChainId ->  SQLiteEnv -> Word -> MaybeT IO BlockCtx
+blockCtxFromHistory cid sql n = do
+    latest@(latestH, _latestFn, _latestCt) <- MaybeT $ latestBlocEnv sql
+    (parentH, _parentFn, _parentCt) <- if n==0
+                                       then return latest
+                                       else MaybeT $ lookupBlocEnvkWithHeight sql $ (_rankedHeight latestH - fromIntegral n)
+
+    (_targetH, targetFn, targetCt) <- if n==0 || n==1
+                                      then return latest
+                                      else MaybeT $ lookupBlocEnvkWithHeight sql $ (_rankedHeight latestH - fromIntegral n + 1)
+
+    return BlockCtx {_bctxParentCreationTime = targetCt -- TODO Add 30 s in case of n=0, as an estimator ?? There are pros and cons...
+                    , _bctxParentHash = Parent $ _ranked parentH
+                    , _bctxParentHeight = Parent $ _rankedHeight parentH
+                    , _bctxParentForkNumber = unwrapParent targetFn
+                    , _bctxChainId = cid
+                    , _bctxMinerReward = blockMinerReward (_rankedHeight latestH - fromIntegral n +1)
+                    }
 
 -- read-only rewind to the latest block.
 -- note: because there is a race between getting the latest header
@@ -117,11 +140,10 @@ readFromLatest
     => logger
     -> ChainId
     -> SQLiteEnv
-    -> Parent BlockCreationTime
     -> PactRead a
     -> IO a
-readFromLatest logger cid sql parentCreationTime doRead =
-    readFromNthParent logger cid sql parentCreationTime 0 doRead >>= \case
+readFromLatest logger cid sql doRead =
+    readFromNthParent logger cid sql 0 doRead >>= \case
         NoHistory -> error "readFromLatest: failed to grab the latest header, this is a bug in chainweb"
         Historical a -> return a
 
@@ -132,58 +154,43 @@ readFromNthParent
     => logger
     -> ChainId
     -> SQLiteEnv
-    -> Parent BlockCreationTime
     -> Word
     -> PactRead a
     -> IO (Historical a)
-readFromNthParent logger cid sql parentCreationTime n doRead = do
-    latest <-
-        fmap (fromMaybe (error "readFromNthParent is illegal to call before genesis"))
-            $ ChainwebPactDb.throwOnDbError
-                $ ChainwebPactDb.getLatestBlock sql
-    if genesisHeight cid + fromIntegral @Word @BlockHeight n > _syncStateHeight latest
+readFromNthParent logger cid sql n doRead = do
+    latest <- (_syncStateHeight . fromMaybe (error "readFromNthParent is illegal to call before genesis"))
+              <$> (ChainwebPactDb.throwOnDbError $ ChainwebPactDb.getLatestBlock sql)
+
+    if genesisHeight cid + fromIntegral @Word @BlockHeight n > latest --TODO check if a +1 condition is required here
     then do
         logFunctionText logger Warn $ "readFromNthParent asked to rewind beyond genesis, to "
-            <> sshow (int (_syncStateHeight latest) - int n :: Integer)
+            <> sshow (int latest - int n :: Integer)
         return NoHistory
-    else do
-        let targetHeight = _syncStateHeight latest - fromIntegral @Word @BlockHeight n
-        lookupBlockWithHeight sql targetHeight >>= \case
-            -- this case for shallow nodes without enough history
-            Nothing -> do
-                logFunctionText logger Warn "readFromNthParent asked to rewind beyond known blocks"
-                return NoHistory
-            Just nthBlock ->
-                readFrom logger cid sql parentCreationTime (Parent nthBlock) doRead
 
--- read-only rewind to a target block.
--- if that target block is missing, return Nothing.
+    else do
+        mbctx <- runMaybeT $ blockCtxFromHistory cid sql n
+        case mbctx of
+            Nothing -> logFunctionText logger Warn "readFromNthParent asked to rewind beyond known blocks" >> return NoHistory
+            Just bctx -> readFrom logger cid sql bctx doRead
+
+
 readFrom
     :: (HasCallStack, HasVersion, Logger logger)
     => logger
     -> ChainId
     -> SQLiteEnv
-    -> Parent BlockCreationTime
-    -- ^ you can fake this if you're not making a new block
-    -> Parent RankedBlockHash
+    -> BlockCtx
     -> PactRead a
     -> IO (Historical a)
-readFrom logger cid sql parentCreationTime parent pactRead = do
-    let blockCtx = BlockCtx
-            { _bctxParentCreationTime = parentCreationTime
-            , _bctxParentHash = _rankedBlockHashHash <$> parent
-            , _bctxParentHeight = _rankedBlockHashHeight <$> parent
-            , _bctxParentForkNumber = pact4ForkNumber
-            , _bctxMinerReward = blockMinerReward (childBlockHeight cid parent)
-            , _bctxChainId = cid
-            }
+readFrom logger cid sql blockCtx pactRead = do
     !latestHeader <- ChainwebPactDb.throwOnDbError
         $ fmap (maybe (genesisRankedParentBlockHash cid) (Parent . _syncStateRankedBlockHash))
             $ ChainwebPactDb.getLatestBlock sql
     -- is the parent the latest header, i.e., can we get away without rewinding?
-    let parentIsLatestHeader = latestHeader == parent
+    let parentIsLatestHeader = latestHeader == _bctxParentRankedBlockHash blockCtx
     let currentHeight = _bctxCurrentBlockHeight blockCtx
-    Backend.Utils.getEndTxId cid sql parent >>= traverse \startTxId ->
+
+    Backend.Utils.getEndTxId cid sql (_bctxParentRankedBlockHash blockCtx) >>= traverse \startTxId ->
         if pact5 cid currentHeight then do
             let
                 blockHandlerEnv = ChainwebPactDb.BlockHandlerEnv
@@ -195,8 +202,8 @@ readFrom logger cid sql parentCreationTime parent pactRead = do
                     , ChainwebPactDb._blockHandlerUpperBoundTxId = startTxId
                     , ChainwebPactDb._blockHandlerAtTip = parentIsLatestHeader
                     }
-            -- TODO Here
-            let pactDb = ChainwebPactDb.chainwebPactBlockDb blockHandlerEnv Nothing
+            let minOracleHistory = minimumBlockHeaderHistory (blockCtx ^. bctxParentForkNumber) currentHeight
+            let pactDb = ChainwebPactDb.chainwebPactBlockDb blockHandlerEnv minOracleHistory
             let blockEnv = BlockEnv blockCtx pactDb
             pact5Read pactRead blockEnv (emptyBlockHandle startTxId)
         else do
@@ -362,6 +369,7 @@ restoreAndSave logger cid sql parent blocks = do
                     sql
                     (Ranked currentBlockHeight blockInfo)
                     blockHandle
+                    ctx
                 let currentRbh = RankedBlockHash currentBlockHeight (fst blockInfo)
                 return
                     (m'
@@ -391,6 +399,14 @@ setConsensusState sql cs = do
 lookupBlockWithHeight :: HasCallStack => SQLiteEnv -> BlockHeight -> IO (Maybe (Ranked BlockHash))
 lookupBlockWithHeight sql bh = do
     ChainwebPactDb.throwOnDbError $ Backend.Utils.lookupBlockWithHeight sql bh
+
+latestBlocEnv :: HasCallStack => SQLiteEnv -> IO (Maybe (Ranked BlockHash, Parent ForkNumber, Parent BlockCreationTime))
+latestBlocEnv sql = do
+    ChainwebPactDb.throwOnDbError $ Backend.Utils.latestBlocEnv sql
+
+lookupBlocEnvkWithHeight :: HasCallStack => SQLiteEnv -> BlockHeight -> IO (Maybe (Ranked BlockHash, Parent ForkNumber, Parent BlockCreationTime))
+lookupBlocEnvkWithHeight sql bh = do
+    ChainwebPactDb.throwOnDbError $ Backend.Utils.lookupBlocEnvkWithHeight sql bh
 
 lookupBlockHash :: HasCallStack => SQLiteEnv -> BlockHash -> IO (Maybe BlockHeight)
 lookupBlockHash sql pbh = do
