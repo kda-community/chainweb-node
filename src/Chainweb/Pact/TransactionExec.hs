@@ -182,7 +182,7 @@ runVerifiers txCtx cmd = do
       gasUsed <- liftIO . readIORef . _geGasRef . _txEnvGasEnv =<< ask
       let initGasRemaining = MilliGas $ case (gasToMilliGas (gasLimit ^. _GasLimit), gasUsed) of
             (MilliGas gasLimitMilliGasWord, MilliGas gasUsedMilliGasWord) -> gasLimitMilliGasWord - gasUsedMilliGasWord
-      let allVerifiers = verifiersAt (_chainId txCtx) (_bctxParentForkNumber txCtx) (_bctxCurrentBlockHeight txCtx)
+      let allVerifiers = verifiersAt (_chainId txCtx) (unwrapParent $ _bctxParentForkNumber txCtx) (_bctxCurrentBlockHeight txCtx)
       let txVerifiers = fromMaybe [] $ cmd ^. cmdPayload . pVerifiers
       verifierResult <- liftIO $ runVerifierPlugins
           (_chainId txCtx, _bctxCurrentBlockHeight txCtx) logger
@@ -1012,5 +1012,5 @@ flagsFor txCtx = Set.unions
 
 guardDisablePact54FixFlags :: HasVersion => BlockCtx -> Set ExecutionFlag
 guardDisablePact54FixFlags txCtx
-  | chainweb32 (_chainId txCtx) (_bctxParentForkNumber txCtx) = Set.empty
+  | chainweb32 (_chainId txCtx) (unwrapParent $ _bctxParentForkNumber txCtx) = Set.empty
   | otherwise = Set.singleton FlagDisablePact54Fix

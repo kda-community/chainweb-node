@@ -169,7 +169,7 @@ import System.LogLevel
 import Chainweb.BlockHeader
 import Chainweb.BlockPayloadHash
 import Chainweb.Counter
-import Chainweb.ForkState (ForkNumber(..), pact4ForkNumber)
+import Chainweb.ForkState (ForkNumber(..))
 import Chainweb.Logger
 import Chainweb.Pact.Mempool.Mempool
 import Chainweb.Miner.Pact (Miner, toMinerData, noMiner)
@@ -360,7 +360,7 @@ data BlockCtx = BlockCtx
   { _bctxParentCreationTime :: !(Parent BlockCreationTime)
   , _bctxParentHash :: !(Parent BlockHash)
   , _bctxParentHeight :: !(Parent BlockHeight)
-  , _bctxParentForkNumber :: !ForkNumber
+  , _bctxParentForkNumber :: !(Parent ForkNumber)
   , _bctxChainId :: !ChainId
   , _bctxMinerReward :: !MinerReward
   } deriving stock (Eq, Generic, Show)
@@ -392,7 +392,7 @@ blockCtxOfNewBlockCtx cid bh nbc = BlockCtx
   { _bctxParentCreationTime = _newBlockCtxParentCreationTime nbc
   , _bctxParentHash = _ranked <$> bh
   , _bctxParentHeight = _rankedHeight <$> bh
-  , _bctxParentForkNumber = ForkNumber 0 --TODO FIX
+  , _bctxParentForkNumber = _newBlockCtxParentForkNumber nbc
   , _bctxChainId = cid
   , _bctxMinerReward = _newBlockCtxMinerReward nbc
   }
@@ -578,7 +578,7 @@ genesisEvaluationCtx serviceEnv = EvaluationCtx
     { _evaluationCtxParentCreationTime = Parent $ implicitVersion ^?! versionGenesis . genesisTime . atChain cid
     , _evaluationCtxParentHash = genesisParentBlockHash cid
     , _evaluationCtxParentHeight = Parent $ genesisHeight cid
-    , _evaluationCtxParentForkNumber = pact4ForkNumber
+    , _evaluationCtxParentForkNumber = Parent $ ForkNumber 0
     -- should not be used
     , _evaluationCtxMinerReward = MinerReward 0
     , _evaluationCtxPayload = ConsensusPayload
