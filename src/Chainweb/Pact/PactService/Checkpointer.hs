@@ -122,6 +122,9 @@ blockCtxFromHistory cid sql n = do
                                       else MaybeT $ lookupBlocEnvkWithHeight sql $ (_rankedHeight latestH - fromIntegral n + 1)
 
     return BlockCtx {_bctxParentCreationTime = targetCt -- TODO Add 30 s in case of n=0, as an estimator ?? There are pros and cons...
+                                                        -- Pros: Give a more accurate estimate of the next blockTime to the local Caller.
+                                                        -- Cons: Would break the assumption of "blocTime during local" <= "really mined blocktime"
+                                                        -- IMHO Cons > Pros
                     , _bctxParentHash = Parent $ _ranked parentH
                     , _bctxParentHeight = Parent $ _rankedHeight parentH
                     , _bctxParentForkNumber = targetFn

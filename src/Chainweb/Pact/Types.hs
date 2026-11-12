@@ -581,7 +581,7 @@ genesisEvaluationCtx' :: HasVersion => ChainId -> Maybe Chainweb.PayloadWithOutp
 genesisEvaluationCtx' cid plo = EvaluationCtx
     { _evaluationCtxParentCreationTime = Parent $ implicitVersion ^?! versionGenesis . genesisTime . atChain cid
     , _evaluationCtxParentHash = genesisParentBlockHash cid
-    , _evaluationCtxParentHeight = Parent $ genesisHeight cid
+    , _evaluationCtxParentHeight = Parent $ genesisHeight cid -- As an exception we assume that the (ghost) parent of Genesis has the same blockheight than Genesis
     , _evaluationCtxParentForkNumber = Parent $ ForkNumber 0
     -- should not be used
     , _evaluationCtxMinerReward = MinerReward 0
