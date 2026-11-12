@@ -50,6 +50,7 @@ module Chainweb.Pact.Types
     , _bctxIsGenesis
     , _bctxCurrentBlockHeight
     , genesisEvaluationCtx
+    , genesisEvaluationCtx'
     , bctxParentCreationTime
     , bctxParentHash
     , bctxParentHeight
@@ -574,7 +575,10 @@ instance HasChainId BlockEnv where
 
 -- the evaluation context for the genesis block; note that the payload is filled in
 genesisEvaluationCtx :: HasVersion => ServiceEnv tbl -> EvaluationCtx ConsensusPayload
-genesisEvaluationCtx serviceEnv = EvaluationCtx
+genesisEvaluationCtx env = genesisEvaluationCtx' (_chainId env) (_psGenesisPayload env)
+
+genesisEvaluationCtx' :: HasVersion => ChainId -> Maybe Chainweb.PayloadWithOutputs -> EvaluationCtx ConsensusPayload
+genesisEvaluationCtx' cid plo = EvaluationCtx
     { _evaluationCtxParentCreationTime = Parent $ implicitVersion ^?! versionGenesis . genesisTime . atChain cid
     , _evaluationCtxParentHash = genesisParentBlockHash cid
     , _evaluationCtxParentHeight = Parent $ genesisHeight cid
@@ -585,11 +589,9 @@ genesisEvaluationCtx serviceEnv = EvaluationCtx
         { _consensusPayloadHash = genesisBlockPayloadHash cid
         , _consensusPayloadData =
             EncodedPayloadData . Chainweb.encodePayloadData . Chainweb.payloadWithOutputsToPayloadData
-              <$> _psGenesisPayload serviceEnv
+              <$> plo
         }
     }
-    where
-    cid = _chainId serviceEnv
 
 -- State from a block in progress, which is used to extend blocks after
 -- running their payloads.
