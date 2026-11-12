@@ -16,7 +16,7 @@ import Chainweb.ChainId
 import Chainweb.Logger
 import Chainweb.Pact.Backend.Types (SQLiteEnv)
 import Chainweb.TreeDB
-import Chainweb.Version (HasVersion)
+import Chainweb.Version (HasVersion, genesisTime, implicitVersion, versionGenesis)
 import Control.Lens
 import Control.Monad.IO.Class
 import System.Logger qualified as L
@@ -27,7 +27,7 @@ import Chainweb.Parent
 import Chainweb.PayloadProvider
 import Streaming qualified as S
 import Streaming.Prelude qualified as S
-import Chainweb.Utils (sshow, whenM)
+import Chainweb.Utils (sshow, whenM, fromJuste)
 import Chainweb.Utils.Serialization (runPutS, runGetS)
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Control.Monad
@@ -89,18 +89,22 @@ migrateBlockHistoryTable logger cid sdb bhdb cleanup
                   let rowBlockHeight = fromIntegral bh
                   rowBlockHash <- runGetS decodeBlockHash h
 
-                  withLookupRanked rowBlockHeight rowBlockHash \blockHeader ->
-                    withLookupRanked (rowBlockHeight -1) (unwrapParent $ blockHeader ^. blockParent) \parentHeader -> do
+                  withLookupRanked rowBlockHeight rowBlockHash \blockHeader -> do
+                    let bph = view blockPayloadHash blockHeader
+                        enc = runPutS $ encodeBlockPayloadHash bph
 
-                      let bph = view blockPayloadHash blockHeader
-                          enc = runPutS $ encodeBlockPayloadHash bph
-                          envData = runPutS $ encodeHistoryCtx (Parent $ parentHeader ^. blockForkNumber)
-                                                               (Parent $ parentHeader ^. blockCreationTime)
+                    envData <- fromJuste <$> if isGenesisBlockHeader blockHeader
+                        then pure $ Just $ runPutS $ encodeHistoryCtx (Parent $ blockHeader ^. blockForkNumber)
+                                                                      (Parent $ implicitVersion ^?! versionGenesis . genesisTime . atChain cid)
 
-                      throwOnDbError $ exec' sdb
-                        "INSERT INTO BlockHistory2 (blockheight, endingtxid, hash, payloadhash, ctxData) VALUES (?, ?, ?, ?, ?)"
-                          $ rr ++ [SBlob enc, SBlob envData]
-                      return (Just blockHeader)
+                        else withLookupRanked (rowBlockHeight - 1) (unwrapParent $ blockHeader ^. blockParent) $ \parentHeader ->
+                                  pure $ Just $ runPutS $ encodeHistoryCtx (Parent $ parentHeader ^. blockForkNumber)
+                                                                           (Parent $ parentHeader ^. blockCreationTime)
+
+                    throwOnDbError $ exec' sdb
+                      "INSERT INTO BlockHistory2 (blockheight, endingtxid, hash, payloadhash, ctxData) VALUES (?, ?, ?, ?, ?)"
+                      $ rr ++ [SBlob enc, SBlob envData]
+                    return (Just blockHeader)
                 _ -> error "unexpected row shape"
               )
               & S.last
