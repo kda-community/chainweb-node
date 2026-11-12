@@ -205,7 +205,7 @@ propBadlistPreblock (txs, badTxs) _ mempool = runExceptT $ do
 
     -- once we call mempoolGetBlock, the bad txs should be badlisted
     liftIO $ void $ mempoolGetBlock mempool mockBlockFill preblockCheck
-      (EvaluationCtx (Parent $ BlockCreationTime Time.epoch) (Parent nullBlockHash) (Parent 1) 0 (MinerReward 0) ())
+      (EvaluationCtx (Parent $ BlockCreationTime Time.epoch) (Parent nullBlockHash) (Parent 1) (Parent 0) (MinerReward 0) ())
     liftIO (lookup txs) >>= V.mapM_ lookupIsPending
     liftIO (lookup badTxs) >>= V.mapM_ lookupIsMissing
     liftIO $ insert badTxs
@@ -250,7 +250,7 @@ propAddToBadList tx _ mempool = runExceptT $ do
     lookup = mempoolLookup mempool . V.fromList . map hash
     getBlock = liftIO
       $ V.toList <$> mempoolGetBlock mempool mockBlockFill noopMempoolPreBlockCheck
-        (EvaluationCtx (Parent $ BlockCreationTime Time.epoch) (Parent nullBlockHash) (Parent 1) 0 (MinerReward 0) ())
+        (EvaluationCtx (Parent $ BlockCreationTime Time.epoch) (Parent nullBlockHash) (Parent 1) (Parent 0) (MinerReward 0) ())
 
 -- TODO Does this need to be updated?
 propPreInsert
@@ -308,7 +308,7 @@ propTrivial txs _ mempool = runExceptT $ do
     lookup = mempoolLookup mempool . V.fromList . map hash
 
     getBlock = mempoolGetBlock mempool mockBlockFill noopMempoolPreBlockCheck
-        (EvaluationCtx (Parent $ BlockCreationTime Time.epoch) (Parent nullBlockHash) (Parent 0) 0 (MinerReward 0) ())
+        (EvaluationCtx (Parent $ BlockCreationTime Time.epoch) (Parent nullBlockHash) (Parent 0) (Parent 0) (MinerReward 0) ())
     onFees x = (Down (mockGasPrice x))
 
 

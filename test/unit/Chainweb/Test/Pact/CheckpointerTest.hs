@@ -45,6 +45,10 @@ import Chainweb.BlockHash
 import Chainweb.BlockHeader
 import Chainweb.ForkState (pact4ForkNumber)
 import Chainweb.Graph (singletonChainGraph)
+import Chainweb.BlockCreationTime
+import Chainweb.Time
+import Chainweb.Ranked
+import Chainweb.Utils
 import Chainweb.MerkleLogHash
 import Chainweb.MerkleUniverse (ChainwebMerkleHashAlgorithm)
 import Chainweb.Pact.Backend.ChainwebPactDb qualified as ChainwebPactDb
@@ -56,13 +60,17 @@ import Chainweb.PayloadProvider
 import Chainweb.Test.Pact.Utils
 import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils
-import Chainweb.Utils
 import Chainweb.Utils.Serialization (runGetS, runPutS)
 import Chainweb.Version
 import Chainweb.MinerReward
 import Control.Monad.State.Strict
-import Chainweb.Pact.Payload qualified as Chainweb
 import Chainweb.Pact.Utils (emptyPayload)
+
+fakeTime :: Time Micros
+fakeTime = fromJuste $ parseTimeMicros "2026-11-11T08:03:55"
+
+fakeParentCreationTime:: Parent BlockCreationTime
+fakeParentCreationTime = Parent $ BlockCreationTime $ fakeTime
 
 -- | A @DbAction f@ is a description of some action on the database together with an f-full of results for it.
 type DbValue = Integer
@@ -201,37 +209,31 @@ runBlocks sql rootBlockCtx blks =
     where
     loop parent (block:blocks) = withVersion testVer $ do
         logger <- getTestLogger
-        fakeParentCreationTime <- Checkpointer.mkFakeParentCreationTime
+
+        let blockCtx = BlockCtx {
+                                 _bctxParentCreationTime = fakeParentCreationTime
+                                , _bctxParentHash = _ranked <$> parent
+                                , _bctxParentHeight = _rankedHeight <$> parent
+                                , _bctxParentForkNumber = Parent pact4ForkNumber
+                                , _bctxChainId = cid
+                                , _bctxMinerReward = blockMinerReward (childBlockHeight cid parent)
+                                }
+
         (fakeBlockInfo, block', _finalBlockHandle) <-
             (throwIfNoHistory =<<) $
-                Checkpointer.readFrom logger cid sql fakeParentCreationTime parent $
+                Checkpointer.readFrom logger cid sql blockCtx $
                     Checkpointer.readPact5 "unexpected pact 5" $ executeBlockTransaction parent block
-        let childBlockCtx = BlockCtx
-                { _bctxParentCreationTime = fakeParentCreationTime
-                , _bctxParentHash = Parent $ fst fakeBlockInfo
-                , _bctxParentHeight = Parent $ childBlockHeight cid parent
-                , _bctxParentForkNumber = pact4ForkNumber
-                , _bctxChainId = cid
-                , _bctxMinerReward = blockMinerReward (childBlockHeight cid parent)
-                }
-        let parentBlockCtx = BlockCtx
-                { _bctxParentCreationTime = fakeParentCreationTime
-                , _bctxParentHash = _rankedBlockHashHash <$> parent
-                , _bctxParentHeight = _rankedBlockHashHeight <$> parent
-                , _bctxParentForkNumber = pact4ForkNumber
-                , _bctxChainId = cid
-                , _bctxMinerReward = blockMinerReward (unwrapParent $ _rankedBlockHashHeight <$> parent)
-                }
-        _ <- Checkpointer.restoreAndSave logger cid sql (parentBlockCtx ^. to _bctxParentRankedBlockHash)
-            (NE.singleton $ Checkpointer.Pact5RunnableBlock $ \chainwebPactDb -> do
+
+        _ <- Checkpointer.restoreAndSave logger cid sql parent
+            (NE.singleton $ Checkpointer.Pact5RunnableBlock blockCtx $ \chainwebPactDb -> do
                 blockHandle <- get
                 (fakeBlockInfo', _blk, finalBlockHandle) <-
-                    liftIO $ executeBlockTransaction parent block (BlockEnv parentBlockCtx chainwebPactDb) blockHandle
+                    liftIO $ executeBlockTransaction parent block (BlockEnv blockCtx chainwebPactDb) blockHandle
                 put finalBlockHandle
                 liftIO $ fakeBlockInfo' & P.equals fakeBlockInfo
                 return ((), fakeBlockInfo)
                 )
-        ((parentBlockCtx, fakeBlockInfo, block') :) <$> loop (_bctxParentRankedBlockHash childBlockCtx) blocks
+        ((blockCtx, fakeBlockInfo, block') :) <$> loop (Parent $ Ranked (childBlockHeight cid parent) (fst fakeBlockInfo))  blocks
     loop _ [] = return []
     executeBlockTransaction
         :: Traversable t
@@ -263,9 +265,8 @@ runBlk txdb ph blk = do
 -- is consistent with us executing that block with `readFrom`
 assertBlock :: SQLiteEnv -> BlockCtx -> (BlockHash, BlockPayloadHash) -> DbBlock Identity -> IO ()
 assertBlock sql blockCtx expectedBlockInfo blk = withVersion testVer $ do
-    fakeNewBlockCtx <- Checkpointer.mkFakeParentCreationTime
     logger <- getTestLogger
-    hist <- Checkpointer.readFrom logger cid sql fakeNewBlockCtx (_bctxParentRankedBlockHash blockCtx) $
+    hist <- Checkpointer.readFrom logger cid sql blockCtx $
         Checkpointer.readPact5 "unexpected Pact 4" $ \blockEnv startHandle -> do
             () <- flip evalStateT startHandle $ doChainwebPactDbTransaction (_psBlockDbEnv blockEnv) Nothing $ \txdb _spv -> do
                 _ <- ignoreGas noInfo $ _pdbBeginTx txdb Transactional
@@ -297,9 +298,8 @@ tests = testGroup "Pact5 Checkpointer tests"
             ChainwebPactDb.initSchema sql
             Checkpointer.setConsensusState sql $ genesisConsensusState cid
             logger <- getTestLogger
-            fakeNewBlockCtx <- Checkpointer.mkFakeParentCreationTime
             () <- (throwIfNoHistory =<<) $
-                Checkpointer.readFrom logger cid sql fakeNewBlockCtx genesisParentRanked
+                Checkpointer.readFrom logger cid sql genesisBlockCtx
                     $ Checkpointer.readPact5 "unexpected Pact 4" $ \db blockHandle -> do
                     flip evalStateT blockHandle $
                         doChainwebPactDbTransaction (_psBlockDbEnv db) Nothing $ \txdb _spv ->
@@ -314,9 +314,9 @@ tests = testGroup "Pact5 Checkpointer tests"
                 Checkpointer.setConsensusState sql $ genesisConsensusState cid
                 logger <- getTestLogger
                 -- extend this empty chain with the genesis block
-                _ <- Checkpointer.restoreAndSave logger cid sql (_evaluationCtxRankedParentHash (genesisEvalCtx cid))
+                _ <- Checkpointer.restoreAndSave logger cid sql (_evaluationCtxRankedParentHash genesisEvalCtx)
                     $ NE.singleton
-                    $ Checkpointer.Pact5RunnableBlock $ \_ ->
+                    $ Checkpointer.Pact5RunnableBlock genesisBlockCtx $ \_ ->
                         return ((), (view blockHash (genesisBlockHeader cid), genesisBlockPayloadHash cid))
                 handle @_ @SomeException
                     (\ex -> putStrLn (displayException ex) >> throw ex)
@@ -334,13 +334,13 @@ tests = testGroup "Pact5 Checkpointer tests"
             ChainwebPactDb.initSchema sql
             _ <- Checkpointer.restoreAndSave logger cid sql (genesisRankedParentBlockHash cid)
                 $ NE.singleton
-                $ Checkpointer.Pact5RunnableBlock $ \_ ->
+                $ Checkpointer.Pact5RunnableBlock genesisBlockCtx $ \_ ->
                     return ((), (view blockHash gh, view blockPayloadHash gh))
             let coinTable = TableName "coin-table" (ModuleName "coin" Nothing)
             let domain = DUserTables coinTable
             blockInfo NE.:| [] <- Checkpointer.restoreAndSave logger cid sql (Parent $ view rankedBlockHash gh)
                 $ NE.singleton
-                $ Checkpointer.Pact5RunnableBlock $ \chainwebPactDb ->
+                $ Checkpointer.Pact5RunnableBlock genesisBlockCtx $ \chainwebPactDb ->
                     doChainwebPactDbTransaction chainwebPactDb Nothing $ \txdb _ -> do
                         ((), blockInfo) <- runBlk txdb (Parent (view rankedBlockHash gh)) $ do
                             ignoreGas noInfo $ _pdbCreateUserTable txdb
@@ -354,7 +354,7 @@ tests = testGroup "Pact5 Checkpointer tests"
             _ <- Checkpointer.restoreAndSave logger cid sql
                 (Parent rbh)
                 $ NE.singleton
-                $ Checkpointer.Pact5RunnableBlock $ \db ->
+                $ Checkpointer.Pact5RunnableBlock genesisBlockCtx $ \db -> -- TODO Check again here
                     doChainwebPactDbTransaction db Nothing $ \txdb _ ->
                         runBlk txdb (Parent rbh) $ do
                             _ <- ignoreGas noInfo $ _pdbRead txdb
@@ -365,22 +365,6 @@ tests = testGroup "Pact5 Checkpointer tests"
 
             return ()
     ]
-    where
-    -- note that this the evaluation ctx for the genesis header, *not* for the header *after*
-    genesisEvalCtx c = withVersion testVer $ EvaluationCtx
-        { _evaluationCtxParentCreationTime = Parent $ implicitVersion ^?! versionGenesis . genesisTime . atChain c
-        , _evaluationCtxParentHash = genesisParentBlockHash c
-        , _evaluationCtxParentHeight = Parent $ genesisHeight c
-        , _evaluationCtxParentForkNumber = pact4ForkNumber
-        -- should not be used
-        , _evaluationCtxMinerReward = MinerReward 0
-        , _evaluationCtxPayload = ConsensusPayload
-            { _consensusPayloadHash = genesisBlockPayloadHash c
-            , _consensusPayloadData = Just $ EncodedPayloadData $ Chainweb.encodePayloadData $
-                Chainweb.payloadWithOutputsToPayloadData emptyPayload
-            }
-        }
-
 
 testVer :: ChainwebVersion
 testVer = checkpointerTestVersion singletonChainGraph
@@ -391,11 +375,12 @@ cid = unsafeChainId 0
 gh :: BlockHeader
 gh = withVersion testVer $ genesisBlockHeader cid
 
-genesisParentRanked :: Parent RankedBlockHash
-genesisParentRanked = withVersion testVer $
-    Parent $ RankedBlockHash
-        (genesisHeight cid)
-        (unwrapParent $ genesisParentBlockHash cid)
+genesisEvalCtx :: EvaluationCtx ConsensusPayload
+genesisEvalCtx = withVersion testVer $ genesisEvaluationCtx' cid (Just emptyPayload)
+
+genesisBlockCtx :: BlockCtx
+genesisBlockCtx = withVersion testVer $ blockCtxOfEvaluationCtx cid genesisEvalCtx
+
 
 instance (forall a. Show a => Show (f a)) => Show (DbAction f) where
     showsPrec n (DbRead tn k v) = showParen (n > 10) $
