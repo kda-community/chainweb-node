@@ -44,16 +44,19 @@ module Chainweb.Pact.Types
     , BlockCtx(..)
     , blockCtxOfEvaluationCtx
     , evaluationCtxOfBlockCtx
+    , blockCtxOfNewBlockCtx
     , guardCtx
     , _bctxParentRankedBlockHash
     , _bctxIsGenesis
     , _bctxCurrentBlockHeight
     , genesisEvaluationCtx
+    , genesisEvaluationCtx'
     , bctxParentCreationTime
     , bctxParentHash
     , bctxParentHeight
     , bctxChainId
     , bctxMinerReward
+    , bctxParentForkNumber
 
     , PactServiceConfig(..)
     , defaultPactServiceConfig
@@ -151,7 +154,6 @@ import Data.Text.Encoding qualified as T
 import Data.Vector (Vector)
 import Data.Word
 import GHC.Generics (Generic)
-import Language.Haskell.TH (mkName, nameBase)
 import Pact.Core.Builtin qualified as Pact
 import Pact.Core.Capabilities qualified as Pact
 import Pact.Core.ChainData qualified as Pact
@@ -168,11 +170,11 @@ import System.LogLevel
 import Chainweb.BlockHeader
 import Chainweb.BlockPayloadHash
 import Chainweb.Counter
-import Chainweb.ForkState (ForkNumber, pact4ForkNumber)
+import Chainweb.ForkState (ForkNumber(..))
 import Chainweb.Logger
 import Chainweb.Pact.Mempool.Mempool
 import Chainweb.Miner.Pact (Miner, toMinerData, noMiner)
-import Chainweb.Pact.Backend.ChainwebPactDb
+--import Chainweb.Pact.Backend.ChainwebPactDb
 import Chainweb.Pact.Backend.Types
 import Chainweb.Pact.Transaction qualified as Pact
 import Chainweb.Pact4.ModuleCache
@@ -193,6 +195,7 @@ import Control.Concurrent.STM
 import Chainweb.BlockHeight
 import Chainweb.BlockHash
 import Chainweb.Parent
+import Chainweb.Ranked
 import Chainweb.MinerReward
 import Chainweb.BlockCreationTime
 import Control.Concurrent.Async
@@ -358,19 +361,12 @@ data BlockCtx = BlockCtx
   { _bctxParentCreationTime :: !(Parent BlockCreationTime)
   , _bctxParentHash :: !(Parent BlockHash)
   , _bctxParentHeight :: !(Parent BlockHeight)
-  , _bctxParentForkNumber :: !ForkNumber
+  , _bctxParentForkNumber :: !(Parent ForkNumber)
   , _bctxChainId :: !ChainId
   , _bctxMinerReward :: !MinerReward
   } deriving stock (Eq, Generic, Show)
 
--- The lens for '_bctxParentForkNumber' is not generated because it is unused.
---
-makeLensesWith
-    (lensRules & lensField .~ \_ _ f ->
-        if nameBase f == "_bctxParentForkNumber"
-        then []
-        else [TopName $ mkName $ dropWhile (== '_') $ nameBase f])
-    ''BlockCtx
+makeLenses ''BlockCtx
 
 instance ToJSON BlockCtx where
   toJSON BlockCtx{..} = object
@@ -390,6 +386,16 @@ blockCtxOfEvaluationCtx cid ec = BlockCtx
   , _bctxParentForkNumber = _evaluationCtxParentForkNumber ec
   , _bctxChainId = cid
   , _bctxMinerReward = _evaluationCtxMinerReward ec
+  }
+
+blockCtxOfNewBlockCtx :: ChainId -> Parent RankedBlockHash -> NewBlockCtx -> BlockCtx
+blockCtxOfNewBlockCtx cid bh nbc = BlockCtx
+  { _bctxParentCreationTime = _newBlockCtxParentCreationTime nbc
+  , _bctxParentHash = _ranked <$> bh
+  , _bctxParentHeight = _rankedHeight <$> bh
+  , _bctxParentForkNumber = _newBlockCtxParentForkNumber nbc
+  , _bctxChainId = cid
+  , _bctxMinerReward = _newBlockCtxMinerReward nbc
   }
 
 evaluationCtxOfBlockCtx :: BlockCtx -> EvaluationCtx ()
@@ -569,22 +575,23 @@ instance HasChainId BlockEnv where
 
 -- the evaluation context for the genesis block; note that the payload is filled in
 genesisEvaluationCtx :: HasVersion => ServiceEnv tbl -> EvaluationCtx ConsensusPayload
-genesisEvaluationCtx serviceEnv = EvaluationCtx
+genesisEvaluationCtx env = genesisEvaluationCtx' (_chainId env) (_psGenesisPayload env)
+
+genesisEvaluationCtx' :: HasVersion => ChainId -> Maybe Chainweb.PayloadWithOutputs -> EvaluationCtx ConsensusPayload
+genesisEvaluationCtx' cid plo = EvaluationCtx
     { _evaluationCtxParentCreationTime = Parent $ implicitVersion ^?! versionGenesis . genesisTime . atChain cid
     , _evaluationCtxParentHash = genesisParentBlockHash cid
-    , _evaluationCtxParentHeight = Parent $ genesisHeight cid
-    , _evaluationCtxParentForkNumber = pact4ForkNumber
+    , _evaluationCtxParentHeight = Parent $ genesisHeight cid -- As an exception we assume that the (ghost) parent of Genesis has the same blockheight than Genesis
+    , _evaluationCtxParentForkNumber = Parent $ ForkNumber 0
     -- should not be used
     , _evaluationCtxMinerReward = MinerReward 0
     , _evaluationCtxPayload = ConsensusPayload
         { _consensusPayloadHash = genesisBlockPayloadHash cid
         , _consensusPayloadData =
             EncodedPayloadData . Chainweb.encodePayloadData . Chainweb.payloadWithOutputsToPayloadData
-              <$> _psGenesisPayload serviceEnv
+              <$> plo
         }
     }
-    where
-    cid = _chainId serviceEnv
 
 -- State from a block in progress, which is used to extend blocks after
 -- running their payloads.

@@ -104,6 +104,7 @@ import Data.HashMap.Strict qualified as HM
 import Data.HashMap.Strict qualified as HashMap
 import Data.HashSet qualified as HashSet
 import Data.Int
+import Data.Word
 import Data.List(sort)
 import Data.Map.Strict qualified as M
 import Data.Maybe
@@ -135,6 +136,7 @@ import Chainweb.BlockHeader (encodeBlockPayloadHash, BlockPayloadHash)
 import Chainweb.BlockHeight
 import Chainweb.Logger
 import Chainweb.Pact.Backend.InMemDb qualified as InMemDb
+import Chainweb.Pact.Types
 import Chainweb.Pact.Backend.Types
 import Chainweb.Pact.Backend.Utils
 import Chainweb.Pact.SPV (pactSPV)
@@ -233,8 +235,8 @@ runOnBlockGassed env stateVar act = do
         return (newState, fmap fst r)
     liftEither r
 
-chainwebPactBlockDb :: (Logger logger) => HasVersion => BlockHandlerEnv logger -> ChainwebPactDb
-chainwebPactBlockDb env = ChainwebPactDb
+chainwebPactBlockDb :: (Logger logger) => HasVersion => BlockHandlerEnv logger -> Maybe Word64 -> ChainwebPactDb
+chainwebPactBlockDb env minBlockHistory = ChainwebPactDb
     { doChainwebPactDbTransaction = \maybeRequestKey kont -> do
         blockHandle <- get
         stateVar <- liftIO $ newMVar $ BlockState blockHandle (_blockHandlePending blockHandle) Nothing
@@ -259,9 +261,10 @@ chainwebPactBlockDb env = ChainwebPactDb
         let headerOracle = HeaderOracle
                 { chain = _chainId env
                 , consult = \(Parent hsh) -> do
+                    let minHeight = maybe (BlockHeight 0) (\delta -> (currentHeight - fromIntegral delta)) minBlockHistory
                     throwOnDbError (lookupBlockHash (_blockHandlerDb env) hsh) <&> \case
                         Nothing -> False
-                        Just rootHeight -> rootHeight < currentHeight
+                        Just rootHeight -> rootHeight < currentHeight && rootHeight >= minHeight
                 }
         let spv = pactSPV headerOracle currentHeight
         r <- liftIO $ kont pactDb spv
@@ -644,8 +647,8 @@ toTxLog cid bh d key value = do
         Nothing -> error $ "toTxLog: Unexpected value, unable to deserialize log: " <> sshow value
         Just v -> return $! Pact.TxLog d (fromUtf8 key) v
 
-commitBlockStateToDatabase :: SQLiteEnv -> Ranked (BlockHash, BlockPayloadHash) -> BlockHandle -> IO ()
-commitBlockStateToDatabase db blockInfo blockHandle = throwOnDbError $ do
+commitBlockStateToDatabase :: SQLiteEnv -> Ranked (BlockHash, BlockPayloadHash) -> BlockHandle -> BlockCtx -> IO ()
+commitBlockStateToDatabase db blockInfo blockHandle ctx = throwOnDbError $ do
     let newTables = _pendingTableCreation $ _blockHandlePending blockHandle
     mapM_ (\tn -> createUserTable (toUtf8 tn)) newTables
     backendWriteUpdateBatch (_pendingWrites (_blockHandlePending blockHandle))
@@ -716,9 +719,10 @@ commitBlockStateToDatabase db blockInfo blockHandle = throwOnDbError $ do
             , SBlob (runPutS $ encodeBlockHash $ fst $ _ranked blockInfo)
             , SBlob (runPutS $ encodeBlockPayloadHash $ snd $ _ranked blockInfo)
             , SInt (fromIntegral t)
+            , SBlob (runPutS $ encodeHistoryCtx (ctx ^. bctxParentForkNumber) (ctx ^. bctxParentCreationTime))
             ]
         where
-        stmt = "INSERT INTO BlockHistory2 ('blockheight', 'hash', 'payloadhash', 'endingtxid') VALUES (?,?,?,?);"
+        stmt = "INSERT INTO BlockHistory2 ('blockheight', 'hash', 'payloadhash', 'endingtxid', 'ctxData') VALUES (?,?,?,?, ?);"
 
     createUserTable :: SQ3.Utf8 -> ExceptT LocatedSQ3Error IO ()
     createUserTable tablename = do
@@ -798,6 +802,7 @@ initSchema sql = throwOnDbError $ do
             \ endingtxid UNSIGNED BIGINT NOT NULL, \
             \ hash BLOB NOT NULL, \
             \ payloadhash BLOB NOT NULL, \
+            \ ctxData BLOBL NOT NULL, \
             \ CONSTRAINT blockHeightConstraint UNIQUE (blockheight), \
             \ CONSTRAINT hashConstraint UNIQUE (hash));"
         -- TODO PP: payload hash should really be NOT NULL but there may exist old databases without it.

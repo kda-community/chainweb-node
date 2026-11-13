@@ -553,6 +553,8 @@ createCheckpointerIndexes db logger = do
   logfun "Creating BlockHistory index"
   inTx db $ throwOnDbError $ exec_ db
     "CREATE UNIQUE INDEX IF NOT EXISTS BlockHistory_blockheight_unique_ix ON BlockHistory2 (blockheight)"
+  inTx db $ throwOnDbError $ exec_ db
+    "CREATE UNIQUE INDEX IF NOT EXISTS BlockHistory_hash_unique_ix ON BlockHistory2 (hash)"
 
   logfun "Creating VersionedTableCreation index"
   inTx db $ throwOnDbError $ exec_ db

@@ -24,12 +24,14 @@ import Chainweb.Miner.Pact (Miner(..), MinerId(..), MinerGuard(..), noMiner)
 import Chainweb.Pact.Backend.InMemDb qualified as InMemDb
 import Chainweb.Pact.Backend.Types
 import Chainweb.Pact.PactService (initialPayloadState, withPactService)
-import Chainweb.Pact.PactService.Checkpointer (readFrom, mkFakeParentCreationTime)
+import Chainweb.Pact.PactService.Checkpointer (readFrom)
 import Chainweb.Pact.PactService.Checkpointer qualified as Checkpointer
 import Chainweb.Pact.Transaction
 import Chainweb.Pact.TransactionExec
 import Chainweb.Pact.Types
 import Chainweb.Parent
+import Chainweb.PayloadProvider
+import Chainweb.Utils
 import Chainweb.Storage.Table.RocksDB
 import Chainweb.Test.Cut.TestBlockDb (TestBlockDb (_bdbPayloadDb), mkTestBlockDb)
 import Chainweb.Test.Pact.CmdBuilder
@@ -112,10 +114,8 @@ readFromAfterGenesis rdb act = runResourceT $ do
     serviceEnv <- withPactService cid Nothing mempty logger Nothing (_bdbPayloadDb tdb) readPool writeSql defaultPactServiceConfig (GenesisPayload PIN0.payloadBlock)
     liftIO $ do
         initialPayloadState logger serviceEnv
-        fakeParentCreationTime <- mkFakeParentCreationTime
         throwIfNoHistory =<<
-            readFrom logger cid writeSql fakeParentCreationTime
-                (Parent (gh cid ^. rankedBlockHash))
+            readFrom logger cid writeSql (blockCtxOfEvaluationCtx cid $ blockHeaderToEvaluationCtx $ Parent $ gh cid)
                 (Checkpointer.readPact5 "unexpected Pact 4" $ act)
 
 buyGasShouldTakeGasTokensFromTheTransactionSender :: RocksDb -> IO ()

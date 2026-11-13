@@ -293,6 +293,7 @@ forkInfoForHeader wdb hdr pldData parentHdr createPayload
         | createPayload = Just NewBlockCtx
             { _newBlockCtxMinerReward = blockMinerReward (height + 1)
             , _newBlockCtxParentCreationTime = Parent $ view blockCreationTime hdr
+            , _newBlockCtxParentForkNumber = Parent $ view blockForkNumber hdr
             }
         | otherwise = Nothing
     height = view blockHeight hdr

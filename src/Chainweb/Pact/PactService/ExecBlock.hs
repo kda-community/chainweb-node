@@ -320,7 +320,7 @@ applyCmdInBlock logger serviceEnv blockEnv miner txIdxInBlock tx = StateT $ \(bl
   resultOrGasError <- liftIO $ unsafeApplyCmdInBlock
     blockHandle
     (initialGasOf implicitVersion (_bctxChainId blockCtx)
-      (_bctxCurrentBlockHeight blockCtx) (_bctxParentForkNumber blockCtx) tx)
+      (_bctxCurrentBlockHeight blockCtx) (blockCtx ^. bctxParentForkNumber . _Parent) tx)
     alteredTx
   case resultOrGasError of
     Left err -> throwError err
@@ -541,7 +541,7 @@ execExistingBlock logger serviceEnv blockEnv payload = do
 
   let blockGasLimit =
         Pact.GasLimit . Pact.Gas . fromIntegral <$>
-          maxBlockGasLimit (_bctxParentForkNumber blockCtx) (_bctxCurrentBlockHeight blockCtx)
+          maxBlockGasLimit (blockCtx ^. bctxParentForkNumber . _Parent) (_bctxCurrentBlockHeight blockCtx)
 
   (V.fromList -> results, _finalBlockGasLimit) <- flip weaveStatesFst blockGasLimit $
     -- flip runStateT (postCoinbaseBlockHandle, blockGasLimit) $

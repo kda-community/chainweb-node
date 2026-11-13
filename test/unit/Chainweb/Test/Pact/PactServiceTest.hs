@@ -117,6 +117,12 @@ mkFixtureWith pactServiceConfig baseRdb = withVersion v $ do
     -- So by running an empty block with the creationTime set to the current time, we get these goals to align
     -- for future blocks we run.
     _ <- liftIO $ advanceAllChains fixture $ onChains []
+
+    -- Pre-Insert-Check is not aware of the Parent Creation Time, so pre-insert-check checks transaction time
+    -- relative to the 'future Grand-Paent"
+    -- Genesis being mined at Epoch, we have here to mine a second block here to not allow the mempool to do
+    -- its checks relative to a valid CreationTime (ie Block 1)
+    _ <- liftIO $ advanceAllChains fixture $ onChains []
     return fixture
 
 genesisPayload :: ChainId -> PayloadWithOutputs
@@ -603,23 +609,22 @@ makeEmptyBlock :: HasVersion => Fixture -> Parent BlockHeader -> IO BlockInProgr
 makeEmptyBlock Fixture{..} ph = do
     Pool.withResource (_psReadSqlPool serviceEnv) $ \roSql -> do
         (throwIfNoHistory =<<) $
-            Checkpointer.readFrom _fixtureLogger cid roSql (view blockCreationTime <$> ph) (view rankedBlockHash <$> ph) $
+            Checkpointer.readFrom _fixtureLogger cid roSql blockCtx $
                 Checkpointer.readPact5 "unexpected Pact 4" $ \blockEnv initialBlockHandle ->
                     PactService.makeEmptyBlock _fixtureLogger serviceEnv blockEnv initialBlockHandle
     where
     cid = _chainId ph
     serviceEnv = _fixturePacts ^?! atChain cid
+    blockCtx =  blockCtxOfEvaluationCtx cid $ blockHeaderToEvaluationCtx ph
 
 continueBlock :: HasVersion => Fixture -> BlockInProgress -> IO BlockInProgress
 continueBlock Fixture{..} bip = do
     Pool.withResource (_psReadSqlPool serviceEnv) $ \roSql -> do
         (throwIfNoHistory =<<) $
-            Checkpointer.readFrom _fixtureLogger cid roSql parentCreationTime parentRankedHash $
+            Checkpointer.readFrom _fixtureLogger cid roSql (bip ^. blockInProgressBlockCtx) $
                 Checkpointer.readPact5 "unexpected Pact 4" $ \blockEnv _initialBlockHandle ->
                     PactService.continueBlock _fixtureLogger serviceEnv (_psBlockDbEnv blockEnv) bip
     where
-    parentCreationTime = (_bctxParentCreationTime $ _blockInProgressBlockCtx bip)
-    parentRankedHash = (_bctxParentRankedBlockHash $ _blockInProgressBlockCtx bip)
     cid = _chainId bip
     serviceEnv = _fixturePacts ^?! atChain cid
 

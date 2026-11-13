@@ -291,7 +291,7 @@ data EvaluationCtx p = EvaluationCtx
         -- ^ Block hash of the parent block.
     , _evaluationCtxParentHeight :: !(Parent BlockHeight)
         -- ^ Block height of the parent block.
-    , _evaluationCtxParentForkNumber :: !ForkNumber
+    , _evaluationCtxParentForkNumber :: !(Parent ForkNumber)
         -- ^ Fork number of the parent block.
     , _evaluationCtxMinerReward :: !MinerReward
         -- ^ The miner reward that is assigned to the miner of the block. Miner
@@ -376,6 +376,8 @@ data NewBlockCtx = NewBlockCtx
         -- ^ the miner reward for the new block.
     , _newBlockCtxParentCreationTime :: !(Parent BlockCreationTime)
         -- ^ the creation time of the block on which the new is created.
+    , _newBlockCtxParentForkNumber:: !(Parent ForkNumber)
+        -- ^ The fork number of the parent
     }
     deriving (Show, Eq, Ord)
 
@@ -389,7 +391,7 @@ blockHeaderToEvaluationCtx (Parent ph) = EvaluationCtx
     { _evaluationCtxParentCreationTime = Parent $ view blockCreationTime ph
     , _evaluationCtxParentHash = Parent $ view blockHash ph
     , _evaluationCtxParentHeight = parentHeight
-    , _evaluationCtxParentForkNumber = view blockForkNumber ph
+    , _evaluationCtxParentForkNumber = Parent $ view blockForkNumber ph
     , _evaluationCtxMinerReward = blockMinerReward height
     , _evaluationCtxPayload = ()
     }
