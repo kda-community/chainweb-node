@@ -1,3 +1,5 @@
+{-# LANGUAGE ExplicitNamespaces #-}
+
 -- |
 -- Module: Chainweb.BlockHeaderDB
 -- Copyright: Copyright © 2018 Kadena LLC.
@@ -9,12 +11,21 @@
 --
 module Chainweb.BlockHeaderDB
 (
+-- * Ranked Block Header
+  RankedBlockHeader(..)
+, BlockRank(..)
+
 -- * Chain Database Handle
-  Configuration(..)
+, Configuration(..)
 , BlockHeaderDb
-, initBlockHeaderDb
+, RankedBlockHeaderDb(..)
 , closeBlockHeaderDb
+, initBlockHeaderDb
+, mkBlockHeaderDb
 , withBlockHeaderDb
+
+-- * Misc
+, type RankedBlockHeaderCas
 ) where
 
 -- internal imports
