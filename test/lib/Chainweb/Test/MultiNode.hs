@@ -90,7 +90,8 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (runResourceT)
 import Data.Aeson (ToJSON, Value, object, (.=))
 import Data.ByteString (ByteString)
-import Data.ByteString.Base16 qualified as Base16
+import Data.Base16.Types qualified as B16
+import Data.ByteString.Base16 qualified as B16
 import Data.Foldable
 import Data.Function
 import Data.HashMap.Strict qualified as HM
@@ -489,7 +490,7 @@ pactImportTest logLevel n rocksDb pactDir step = do
       logFunctionText logger' Info "Verifying state"
       snapshot@(snapshotBlockHeight, snapshotHashes) <- GrandHash.Import.pactVerify logger' pactConns rdb grands
       logFunctionText logger' Debug $ "SNAPSHOT BLOCKHEIGHT = " <> sshow (fst snapshot)
-      logFunctionText logger' Debug $ "SNAPSHOT HASHES = " <> sshow (HM.map (\s -> (T.decodeUtf8 (Base16.encode (getChainGrandHash s.pactHash)), view blockHeight s.blockHeader)) (snd snapshot))
+      logFunctionText logger' Debug $ "SNAPSHOT HASHES = " <> sshow (HM.map (\s -> (B16.extractBase16 (B16.encodeBase16 (getChainGrandHash s.pactHash)), view blockHeight s.blockHeader)) (snd snapshot))
 
       logFunctionText logger' Info "Making a copy of the pact state, and dropping the post-verified content"
       withSystemTempDirectory "pact-copy" $ \copyPactDir -> do

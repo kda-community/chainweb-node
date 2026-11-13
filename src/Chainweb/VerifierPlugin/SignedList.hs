@@ -237,4 +237,4 @@ decompressPublicKey cKey =
   & either (const Nothing) (Just . SBS.fromShort . ecdsaPublicKeyBytes)
 
 hexToBS :: BS.ByteString -> Maybe BS.ByteString
-hexToBS = either (const Nothing) Just . B16.decode
+hexToBS = either (const Nothing) Just . B16.decodeBase16Untyped
