@@ -1,7 +1,7 @@
 name: Build and publish application binaries
 
 permissions:
-  contents: read
+  contents: write
   packages: write
   attestations: write
   id-token: write
@@ -343,9 +343,30 @@ jobs:
       run: cabal outdated
     - name: Configure build
       run: cabal build all --dry-run
+
     - name: Generate new freeze file
       if: matrix.use-freeze-file != 'true'
       run: cabal freeze
+
+    - name: Generate and Commit freeze if necessary
+      # In case, we request a frozen build, but the freeze file doesn't exist
+      if: matrix.use-freeze-file == 'true'
+      run: |
+        if [ -f cabal.project.freeze ]; then
+        echo "File already exists, nothing to do."
+        exit 0
+        fi
+
+        cabal freeze
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git add cabal.project.freeze
+        git commit -m "Add missing cabal freeze file"
+        git push
+
+
     - name: Display Dependency Changes
       run: |
         diff -w <(git show HEAD:cabal.project.freeze) cabal.project.freeze || true
@@ -378,7 +399,6 @@ jobs:
           exe:evm-genesis \
           exe:tx-list \
           exe:run-nodes \
-          exe:pact-replay \
           test:chainweb-tests \
           test:multi-node-network-tests \
           test:remote-tests \
@@ -423,9 +443,9 @@ jobs:
         cp $(cabal list-bin compact) artifacts/chainweb
         cp $(cabal list-bin ea) artifacts/chainweb
         cp $(cabal list-bin genconf) artifacts/chainweb
+        cp $(cabal list-bin b64) artifacts/chainweb
         cp $(cabal list-bin known-graphs) artifacts/chainweb
         cp $(cabal list-bin pact-diff) artifacts/chainweb
-        cp $(cabal list-bin pact-replay) artifacts/chainweb
         cp $(cabal list-bin standalone-pruner) artifacts/chainweb
         cp $(cabal list-bin tx-list) artifacts/chainweb
         cp $(cabal list-bin run-nodes) artifacts/chainweb
@@ -457,6 +477,7 @@ jobs:
   remote-tests:
     name: Remote tests
     needs: [config, build]
+    if: ${{ always()  }}
     runs-on: ${{ matrix.os }}
     env:
       ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
@@ -542,6 +563,7 @@ jobs:
   rocksdb-library-tests:
     name: RocksDB library tests
     needs: [config, build]
+    if: ${{ always() }}
     runs-on: ${{ matrix.os }}
     env:
       ARTIFACTS_NAME: chainweb-applications.${{ matrix.use-freeze-file }}.${{ matrix.ghc }}.${{ matrix.os }}
@@ -639,6 +661,7 @@ jobs:
   unit-tests:
     name: Unit tests
     needs: [config, build]
+    if: ${{ always() }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -720,7 +743,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     outputs:
       docker-suffix: ${{ steps.frozen-tag.outputs.value }}${{ needs.config.outputs.tag-suffix }}
-    if: "${{ github.event_name != 'schedule' }}"
+    if: ${{ always() && github.event_name != 'schedule' }}
     strategy:
       fail-fast: false
       matrix:
@@ -847,3 +870,4 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
+        
