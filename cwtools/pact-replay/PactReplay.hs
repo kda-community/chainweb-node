@@ -219,11 +219,16 @@ parser = do
         logFunctionText logger Info $
             " rate " <> T.pack (printf "%.2f" rate) <> "/s"
             <> " at " <> brief height <> " (desc.) /"
-            <> " Failures = " <> (T.pack $ show currentFailures)
-            <> " / ETA: " <> (T.pack $ iso8601Show eta)
+            <> " Failures = " <> (T.pack $ show currentFailures) <> " / "
+            <> (fromMaybe "" $ formatEta <$> eta)
 
-    computeEta:: BlockHeight -> Double -> IO UTCTime
-    computeEta blocksToProcess rate = addUTCTime (realToFrac timeToEnd) <$> getCurrentTime
+    formatEta:: UTCTime -> T.Text
+    formatEta =  ((<>) "ETA: ") . T.pack . iso8601Show
+
+    computeEta:: BlockHeight -> Double -> IO (Maybe UTCTime)
+    computeEta blocksToProcess rate
+        | rate == 0 = pure Nothing
+        | otherwise = (Just . addUTCTime (realToFrac timeToEnd)) <$> getCurrentTime
       where
         timeToEnd = fromIntegral blocksToProcess / rate
 
