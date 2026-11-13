@@ -58,7 +58,7 @@ module Chainweb.BlockHash
 
 -- * Blockheight Ranked BlockHash
 , type RankedBlockHash
-, pattern RankedBlockHash
+, data RankedBlockHash
 , _rankedBlockHashHash
 , _rankedBlockHashHeight
 , encodeRankedBlockHash

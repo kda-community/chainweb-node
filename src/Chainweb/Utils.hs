@@ -261,7 +261,7 @@ module Chainweb.Utils
 , PureHandler(..)
 , handleException
 , type Renderer
-, pattern Renderer
+, data Renderer
 , renderException
 , renderExceptionJson
 , displayExceptionText
