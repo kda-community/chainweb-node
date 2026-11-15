@@ -14,7 +14,7 @@ on:
          default: 'False'
       optimizationLevel:
         description: optimization level that is used to compile pact and chainweb-node
-        default: '1'
+        default: '2'
       profiling:
         description: enable profiling runtime
         default: 'False'
@@ -81,7 +81,7 @@ jobs:
           echo "opt-level=$OPT_LEVEL" >> $GITHUB_OUTPUT
           TAG_SUFFIX+=-opt$OPT_LEVEL
         else
-          echo "opt-level=1" >> $GITHUB_OUTPUT
+          echo "opt-level=2" >> $GITHUB_OUTPUT
         fi
 
         # Debug info
@@ -396,6 +396,7 @@ jobs:
           exe:known-graphs \
           exe:standalone-pruner \
           exe:pact-diff \
+          exe:pact-replay \
           exe:evm-genesis \
           exe:tx-list \
           exe:run-nodes \
@@ -440,6 +441,7 @@ jobs:
         cp $(cabal list-bin test:multi-node-network-tests) artifacts/chainweb
         cp $(cabal list-bin bench) artifacts/chainweb
         cp $(cabal list-bin evm-genesis) artifacts/chainweb
+        cp $(cabal list-bin pact-replay) artifacts/chainweb
         cp $(cabal list-bin compact) artifacts/chainweb
         cp $(cabal list-bin ea) artifacts/chainweb
         cp $(cabal list-bin genconf) artifacts/chainweb

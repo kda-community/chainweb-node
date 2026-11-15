@@ -664,7 +664,7 @@ genesisParentBlockHash p = Parent $ BlockHash $ MerkleLogHash
 
 genesisRankedParentBlockHash :: (HasVersion, HasChainId p) => p -> Parent RankedBlockHash
 genesisRankedParentBlockHash p = Parent $ RankedBlockHash
-    (genesisHeight (_chainId p))
+    (genesisHeight (_chainId p)) -- As an exception we assume that the (ghost) parent of Genesis has the same blockheight than Genesis
     (unwrapParent $ genesisParentBlockHash p)
 
 -- | A block chain is globally uniquely identified by its genesis hash.
