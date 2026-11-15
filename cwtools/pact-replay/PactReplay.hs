@@ -195,7 +195,9 @@ parser = do
                                     let !(TimeSpan (timeTaken :: Micros)) = (endTime `diff` startTime)
                                     let !rate :: Double = int count * 1_000_000 / int timeTaken
 
-                                    writeIORef rateRef rate
+                                    -- Rate estimator using an IIR filter
+                                    modifyIORef' rateRef (\case 0.0 -> rate
+                                                                r -> (r * 0.9) + (rate * 0.1))
 
                                     return res
                                 )
