@@ -325,6 +325,30 @@ executable pact-diff
         -- external
         , base >= 4.12 && < 5
 
+
+-- Extract Block headers and Payload from a RocksDB
+executable rocksdb-extract
+    import: warning-flags, debugging-flags
+    default-language: Haskell2010
+    ghc-options:
+        -threaded
+        -rtsopts
+
+    hs-source-dirs: rocksdb-extract
+    main-is: Main.hs
+    build-depends:
+        -- internal
+        , chainweb
+        , chainweb-storage
+        -- external
+        , optparse-applicative
+        , base >= 4.12 && < 5
+        , directory
+        , streaming
+        , lens
+        , unordered-containers
+        , text
+
 executable run-nodes
     import: warning-flags, debugging-flags
     default-language: Haskell2010
