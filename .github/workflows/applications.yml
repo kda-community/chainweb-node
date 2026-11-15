@@ -396,7 +396,7 @@ jobs:
           exe:known-graphs \
           exe:standalone-pruner \
           exe:pact-diff \
-          exe:pact-replay \ 
+          exe:pact-replay \
           exe:evm-genesis \
           exe:tx-list \
           exe:run-nodes \
