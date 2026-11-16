@@ -118,13 +118,18 @@ parser = do
                     let wbhdb = mkWebBlockHeaderDb rdb (tabulateChains (mkBlockHeaderDb rdb))
 
                     -- start by finding our upper bound
-                    highestCutInDb <- unsafeMkCut <$> readHighestCutHeaders (logFunctionText logger) wbhdb cutTable
-                    upperBoundCut <- case maybeEnd of
-                        Nothing -> return highestCutInDb
-                        Just upperBound -> limitCut wbhdb upperBound highestCutInDb
+                    highestHeadersInDb <- readHighestCutHeaders (logFunctionText logger) wbhdb cutTable
+
+                    upperBounds <- forM (chains Dict) $ \cid -> do
+                        case maybeEnd of
+                            Nothing -> pure (cid, highestHeadersInDb HM.! cid)
+                            Just end -> do
+                                db <- getWebBlockHeaderDb wbhdb cid
+                                ancestor <- fromJuste <$> (TreeDB.seekAncestor db (highestHeadersInDb HM.! cid) $ fromIntegral end)
+                                return (cid, ancestor)
 
                     -- replay all chains concurrently
-                    failuresByChain <- forConcurrently (chains Dict `List.intersect` HM.keys (view cutHeaders upperBoundCut)) $ \cid -> runResourceT $ do
+                    failuresByChain <- forConcurrently upperBounds $ \(cid, upperBoundBlock) -> runResourceT $ do
                         let chainLogger = addLabel ("chain", brief cid) logger
                         bhdb <- getWebBlockHeaderDb wbhdb cid
 
@@ -134,8 +139,6 @@ parser = do
                             defaultPactServiceConfig
                             (genesisPayload cid)
 
-
-                        let upperBoundBlock = upperBoundCut ^?! cutHeaders . ix cid
                         let upper = HS.singleton (TreeDB.UpperBound $ view blockHash upperBoundBlock)
 
                         failureCountRef <- liftIO $ newIORef (0 :: Word) --This one will be resetted by the loggin thread
