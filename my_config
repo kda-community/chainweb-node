@@ -36,7 +36,7 @@ chainweb:
     private: false
     sessionTimeout: 240
   payloadProviders:
-    0-19:
+    0-4:
       allowReadsInLocal: false
       databaseDirectory: null
       enableLocalTimeout: false

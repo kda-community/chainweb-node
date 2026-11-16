@@ -22,28 +22,29 @@ module Main (main) where
 
 import Control.Exception hiding (Handler)
 import Chainweb.BlockHash
-import Chainweb.BlockHeader (blockHeight, blockForkNumber, blockHash, blockPayloadHash)
-import Chainweb.BlockHeaderDB.Internal (BlockHeaderDb(..), RankedBlockHeader(..), unsafeInsertBlockHeaderDb)
+import Chainweb.BlockHeader (BlockHeader, blockChainId, blockHeight, blockForkNumber, blockHash, blockPayloadHash)
+import Chainweb.BlockHeaderDB.Internal (BlockHeaderDb(..), RankedBlockHeader(..))
 import Chainweb.BlockHeight (BlockHeight(..))
 import Chainweb.ChainId
 import Chainweb.TreeDB
-import Chainweb.Cut.CutHashes (cutIdToText)
-import Chainweb.CutDB (cutHashesTable)
-import Chainweb.Logger (Logger, l2l, setComponent, logFunctionText)
+--import Chainweb.Cut.CutHashes (cutIdToText)
+import Control.Monad (forM_)
+import Chainweb.CutDB (cutHashesTable, readHighestCutHeaders)
+--import Chainweb.Logger (Logger, l2l, setComponent, logFunctionText)
 import Chainweb.Pact.Backend.ChainwebPactDb ()
-import Chainweb.Pact.Backend.PactState
-import Chainweb.Pact.Backend.Types
-import Chainweb.Pact.Backend.Utils
+--import Chainweb.Pact.Backend.PactState
+--import Chainweb.Pact.Backend.Types
+--import Chainweb.Pact.Backend.Utils
 import Chainweb.Pact.Payload.PayloadStore (addNewPayload, lookupPayloadWithHeight)
 import Chainweb.Pact.Payload.PayloadStore.RocksDB (newPayloadDb)
-import Chainweb.Storage.Table (Iterator(..), Entry(..), withTableIterator, unCasify, tableInsert)
-import Chainweb.Storage.Table.RocksDB (RocksDb, withRocksDb, withReadOnlyRocksDb, modernDefaultOptions, compactRangeRocksDb)
-import Chainweb.Utils (sshow, fromTextM, toText, int)
-import Chainweb.Version (ChainId, HasVersion(..), withVersion, ChainwebVersion(..))
-import Chainweb.Version.Guards (minimumBlockHeaderHistory)
-import Chainweb.Version.Mainnet (mainnet)
+import Chainweb.Storage.Table (Iterator(..), Entry(..), withTableIterator, unCasify, tableInsert, casInsert)
+import Chainweb.Storage.Table.RocksDB (RocksDb, withRocksDb, withReadOnlyRocksDb, modernDefaultOptions, compactRangeRocksDb, tableMaxEntry)
+import Chainweb.Utils (sshow, fromJuste, fromTextM, toText, int)
+import Chainweb.Version (withVersion, ChainwebVersion(..))
+--import Chainweb.Version.Guards (minimumBlockHeaderHistory)
+--import Chainweb.Version.Mainnet (mainnet)
 import Chainweb.Version.Registry (findKnownVersion)
-import Chainweb.Version.Testnet04 (testnet04)
+--import Chainweb.Version.Testnet04 (testnet04)
 import Chainweb.WebBlockHeaderDB (getWebBlockHeaderDb, initWebBlockHeaderDb)
 
 import qualified Streaming.Prelude as S
@@ -129,7 +130,15 @@ checkDirs Config{..} =    doesDirectoryExist fromDir >>= bool (error "Src Dir do
                        >> doesDirectoryExist toDir >>= bool (pure ()) (error "Dest dir already exists")
                        >> createDirectoryIfMissing True toDir
 
-doCopy :: Config -> IO()
+insertBlockHeader:: BlockHeaderDb -> BlockHeader -> IO ()
+insertBlockHeader db h = do
+  let rbh = RankedBlockHeader  h
+      rh = RankedBlockHash (h ^. blockHeight) (h ^. blockHash)
+  tableInsert (_chainDbCas db) rh rbh
+  tableInsert (_chainDbRankTable db) (h ^. blockHash) (h ^. blockHeight)
+
+
+doCopy :: Config -> IO ()
 doCopy Config{..} = do
   withVersion chainwebVersion $
     withReadOnlyRocksDb fromDir modernDefaultOptions $ \srcDb -> do
@@ -142,17 +151,29 @@ doCopy Config{..} = do
         srcHdb <- getWebBlockHeaderDb srcWbhdb cid
         dstHdb <- getWebBlockHeaderDb targetWbhdb cid
 
-        tip <- maxEntry srcHdb
-        genesisRank <- minRank srcHdb
+        let srcCut = cutHashesTable srcDb
+        let dstCut = cutHashesTable targetDb
 
-        getBranchIncreasing srcHdb tip genesisRank $ \headers ->
-          headers
-          & (case maxHeight of
+        -- Retrieve the Cut
+        lastCut <- fromJuste <$> (withTableIterator srcCut $ (\i -> iterLast i >> iterValue i))
+        casInsert dstCut lastCut
+
+        -- And add all headers from the cut to have a sane DB.
+        tipCut <- readHighestCutHeaders (\_ x -> print $ Text.unpack x) srcWbhdb srcCut
+        forM_ tipCut $  \h ->
+          getWebBlockHeaderDb targetWbhdb (h ^. blockChainId) >>= flip insertBlockHeader h
+
+
+        getBranch srcHdb HS.empty (HS.singleton (UpperBound (tipCut ^?! ix cid . blockHash)))
+          & (case minHeight of
             Nothing     -> id
-            Just height -> S.takeWhile (\h -> (h ^. blockHeight) <= height))
-          &  S.mapM_ (\h -> do
-                lookupPayloadWithHeight srcPayloads (Just $ h ^. blockHeight) (h ^. blockPayloadHash) >>= \case
-                    Nothing -> error "Missing payload: This is likely due to a corrupted database."
-                    Just payloadWithOutputs -> addNewPayload targetPayloads (h ^. blockHeight) payloadWithOutputs
+            Just height -> S.takeWhile (\h -> (h ^. blockHeight) >= height))
 
-                unsafeInsertBlockHeaderDb dstHdb h)
+          & S.mapM (\h -> case (h ^. blockHeight) `mod` 100000 of
+                            0 -> putStrLn ("Block: " <> show (h ^. blockHeight)) >> return h
+                            _ -> return h)
+
+          &  S.mapM_ (\h -> lookupPayloadWithHeight srcPayloads (Just $ h ^. blockHeight) (h ^. blockPayloadHash) >>= (\case
+                                Nothing -> putStrLn ("Missing payload: This is likely due to a corrupted database." <> show (h ^. blockHeight))
+                                Just payloadWithOutputs -> addNewPayload targetPayloads (h ^. blockHeight) payloadWithOutputs)
+                            >> insertBlockHeader dstHdb h)
