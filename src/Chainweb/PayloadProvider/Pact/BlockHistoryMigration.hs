@@ -27,7 +27,7 @@ import Chainweb.Parent
 import Chainweb.PayloadProvider
 import Streaming qualified as S
 import Streaming.Prelude qualified as S
-import Chainweb.Utils (sshow, whenM, fromJuste)
+import Chainweb.Utils (sshow, whenM)
 import Chainweb.Utils.Serialization (runPutS, runGetS)
 import Data.IORef (newIORef, readIORef, modifyIORef')
 import Control.Monad
@@ -93,7 +93,7 @@ migrateBlockHistoryTable logger cid sdb bhdb cleanup
                     let bph = view blockPayloadHash blockHeader
                         enc = runPutS $ encodeBlockPayloadHash bph
 
-                    envData <- fromJuste <$> if isGenesisBlockHeader blockHeader
+                    maybeEnvData <- if isGenesisBlockHeader blockHeader
                         then pure $ Just $ runPutS $ encodeHistoryCtx (Parent $ blockHeader ^. blockForkNumber)
                                                                       (Parent $ implicitVersion ^?! versionGenesis . genesisTime . atChain cid)
 
@@ -101,10 +101,11 @@ migrateBlockHistoryTable logger cid sdb bhdb cleanup
                                   pure $ Just $ runPutS $ encodeHistoryCtx (Parent $ parentHeader ^. blockForkNumber)
                                                                            (Parent $ parentHeader ^. blockCreationTime)
 
-                    throwOnDbError $ exec' sdb
-                      "INSERT INTO BlockHistory2 (blockheight, endingtxid, hash, payloadhash, ctxData) VALUES (?, ?, ?, ?, ?)"
-                      $ rr ++ [SBlob enc, SBlob envData]
-                    return (Just blockHeader)
+                    case maybeEnvData of
+                        Nothing -> return Nothing
+                        Just envData -> (throwOnDbError $ exec' sdb "INSERT INTO BlockHistory2 (blockheight, endingtxid, hash, payloadhash, ctxData) VALUES (?, ?, ?, ?, ?)"
+                                                        $ rr ++ [SBlob enc, SBlob envData]) >>  return (Just blockHeader)
+
                 _ -> error "unexpected row shape"
               )
               & S.last
