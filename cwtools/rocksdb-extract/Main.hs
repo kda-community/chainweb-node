@@ -20,60 +20,36 @@
 module Main (main) where
 
 
-import Control.Exception hiding (Handler)
 import Chainweb.BlockHash
-import Chainweb.BlockHeader (BlockHeader, blockChainId, blockHeight, blockForkNumber, blockHash, blockPayloadHash)
+import Chainweb.BlockHeader (BlockHeader, blockChainId, blockHeight, blockHash, blockPayloadHash)
 import Chainweb.BlockHeaderDB.Internal (BlockHeaderDb(..), RankedBlockHeader(..))
 import Chainweb.BlockHeight (BlockHeight(..))
 import Chainweb.ChainId
 import Chainweb.TreeDB
---import Chainweb.Cut.CutHashes (cutIdToText)
 import Control.Monad (forM_)
 import Chainweb.CutDB (cutHashesTable, readHighestCutHeaders)
---import Chainweb.Logger (Logger, l2l, setComponent, logFunctionText)
 import Chainweb.Pact.Backend.ChainwebPactDb ()
---import Chainweb.Pact.Backend.PactState
---import Chainweb.Pact.Backend.Types
---import Chainweb.Pact.Backend.Utils
 import Chainweb.Pact.Payload.PayloadStore (addNewPayload, lookupPayloadWithHeight)
 import Chainweb.Pact.Payload.PayloadStore.RocksDB (newPayloadDb)
-import Chainweb.Storage.Table (Iterator(..), Entry(..), withTableIterator, unCasify, tableInsert, casInsert)
-import Chainweb.Storage.Table.RocksDB (RocksDb, withRocksDb, withReadOnlyRocksDb, modernDefaultOptions, compactRangeRocksDb, tableMaxEntry)
-import Chainweb.Utils (sshow, fromJuste, fromTextM, toText, int)
+import Chainweb.Storage.Table (Iterator(..),  withTableIterator, tableInsert, casInsert)
+import Chainweb.Storage.Table.RocksDB (withRocksDb, withReadOnlyRocksDb, modernDefaultOptions)
+import Chainweb.Utils (fromJuste, fromTextM)
 import Chainweb.Version (withVersion, ChainwebVersion(..))
---import Chainweb.Version.Guards (minimumBlockHeaderHistory)
---import Chainweb.Version.Mainnet (mainnet)
+
 import Chainweb.Version.Registry (findKnownVersion)
---import Chainweb.Version.Testnet04 (testnet04)
 import Chainweb.WebBlockHeaderDB (getWebBlockHeaderDb, initWebBlockHeaderDb)
 
 import qualified Streaming.Prelude as S
 import Control.Lens
---import Control.Monad (forM, forM_, unless, void, when)
---import Control.Monad.IO.Class (MonadIO(liftIO))
---import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp)
---import Control.Monad.Trans.Resource (runResourceT)
---import Data.Function ((&))
---import Data.Int (Int64)
---import Data.LogMessage (SomeLogMessage, logText)
+
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Bool
 import qualified Data.HashSet as HS
---import Database.RocksDB.Types (Options(..), Compression(..))
---import Database.SQLite3 qualified as Lite
---import Database.SQLite3.Direct (Utf8(..), Database)
 import Options.Applicative qualified as O
---import Prelude hiding (log)
--- import Streaming qualified as S
--- import Streaming.Prelude qualified as S
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
---import System.Exit (exitFailure)
---import System.FilePath ((</>))
---import System.IO (Handle)
---import System.IO qualified as IO
---import UnliftIO.Async (pooledForConcurrently_)
+
 
 
 data Config = Config
@@ -154,26 +130,28 @@ doCopy Config{..} = do
         let srcCut = cutHashesTable srcDb
         let dstCut = cutHashesTable targetDb
 
-        -- Retrieve the Cut
+        -- Retrieve and write the most recent Cut
         lastCut <- fromJuste <$> (withTableIterator srcCut $ (\i -> iterLast i >> iterValue i))
         casInsert dstCut lastCut
 
-        -- And add all headers from the cut to have a sane DB.
+        -- And add all headers last headers related to that cut. Db is now consistent.
         tipCut <- readHighestCutHeaders (\_ x -> print $ Text.unpack x) srcWbhdb srcCut
         forM_ tipCut $  \h ->
           getWebBlockHeaderDb targetWbhdb (h ^. blockChainId) >>= flip insertBlockHeader h
 
 
         getBranch srcHdb HS.empty (HS.singleton (UpperBound (tipCut ^?! ix cid . blockHash)))
-          & (case minHeight of
-            Nothing     -> id
-            Just height -> S.takeWhile (\h -> (h ^. blockHeight) >= height))
+          -- For each header of the main branch
+          & case minHeight of
+              Nothing     -> id
+              Just height -> S.takeWhile ((<) height . view blockHeight)
 
           & S.mapM (\h -> case (h ^. blockHeight) `mod` 100000 of
-                            0 -> putStrLn ("Block: " <> show (h ^. blockHeight)) >> return h
+                            0 -> putStrLn ("Processing block: " <> show (h ^. blockHeight)) >> return h
                             _ -> return h)
 
+          -- Copy inconditionnaly the header, and the associatted payload if present
           &  S.mapM_ (\h -> lookupPayloadWithHeight srcPayloads (Just $ h ^. blockHeight) (h ^. blockPayloadHash) >>= (\case
-                                Nothing -> putStrLn ("Missing payload: This is likely due to a corrupted database." <> show (h ^. blockHeight))
+                                Nothing                 -> putStrLn ("Missing payload: This is likely due to a corrupted database." <> show (h ^. blockHeight))
                                 Just payloadWithOutputs -> addNewPayload targetPayloads (h ^. blockHeight) payloadWithOutputs)
                             >> insertBlockHeader dstHdb h)
