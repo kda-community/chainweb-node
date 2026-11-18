@@ -306,14 +306,10 @@ applyCmd
     -> IO (Either TxInvalidError (CommandResult [TxLog ByteString] (Pact.PactError Info)))
 applyCmd logger maybeGasLogger db miner txCtx txIdxInBlock spv initialGas cmd = do
   logDebug_ logger "applyCmd"
-  let flags = Set.fromList
-        [ FlagDisableRuntimeRTC
-        , FlagDisableHistoryInTransactionalMode
-        , FlagEnforceKeyFormats
-        , FlagRequireKeysetNs
-        ] `Set.union` guardDisablePact51Flags txCtx
-        `Set.union` guardDisablePact52And53Flags txCtx
-        `Set.union` guardDisablePact54Flags txCtx
+  let flags = Set.fromList [ FlagDisableHistoryInTransactionalMode, FlagRequireKeysetNs]
+                `Set.union`
+              flagsFor txCtx
+
   let gasLogsEnabled = maybe GasLogsDisabled (const GasLogsEnabled) maybeGasLogger
   gasEnv <- mkTableGasEnv (MilliGasLimit $ gasToMilliGas $ gasLimit ^. _GasLimit) gasLogsEnabled
   -- this process is "paid for", i.e. it's powered by a supply of gas that was
