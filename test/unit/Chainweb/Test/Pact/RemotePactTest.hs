@@ -54,7 +54,7 @@ import Chainweb.Pact.Types
 import Chainweb.RestAPI.Utils (someServerApplication)
 import Chainweb.Storage.Table.RocksDB
 import Chainweb.Test.Pact.CmdBuilder
-import Chainweb.Test.Pact.CutFixture (advanceAllChains, advanceAllChains_, advanceToForkHeight)
+import Chainweb.Test.Pact.CutFixture (advanceAllChains, advanceAllChains_)
 import Chainweb.Test.Pact.CutFixture qualified as CutFixture
 import Chainweb.Test.Pact.Utils
 import Chainweb.Test.TestVersions
@@ -911,7 +911,7 @@ localTests baseRdb =
                 let expectation = P.checkAll
                         [ P.fun _crResult ? P.match _PactResultOk ? P.equals (PInteger 1)
                         , P.fun _crMetaData ? P.match _Just ? P.match A._Object ? P.alignExact ? A.KeyMap.fromList
-                            [ ("blockHeight", P.equals ? A.Number 2)
+                            [ ("blockHeight", P.equals ? A.Number 3)
                             , ("blockTime", P.match A._Number P.succeed)
                             , ("prevBlockHash", P.match A._String P.succeed)
                             , ("publicMeta", P.match A._Object ? P.alignExact ? A.KeyMap.fromList
@@ -1078,7 +1078,7 @@ localTests baseRdb =
                 >>= P.match _LocalResultLegacy
                 ? P.checkAll
                 [ hasBalance ? P.lt startBalance
-                , hasBlockHeight (P.equals 3)
+                , hasBlockHeight (P.equals 4)
                 ]
 
             buildTextCmd (defaultCmd cid & set cbRPC (mkExec' "(coin.details 'sender00)"))
@@ -1086,7 +1086,7 @@ localTests baseRdb =
                 >>= P.match _LocalResultLegacy
                 ? P.checkAll
                 [ hasBalance ? P.lt startBalance
-                , hasBlockHeight (P.equals 3)
+                , hasBlockHeight (P.equals 4)
                 ]
 
             buildTextCmd (defaultCmd cid & set cbRPC (mkExec' "(coin.details 'sender00)"))
@@ -1094,7 +1094,7 @@ localTests baseRdb =
                 >>= P.match _LocalResultLegacy
                 ? P.checkAll
                 [ hasBalance ? P.equals startBalance
-                , hasBlockHeight (P.equals 2)
+                , hasBlockHeight (P.equals 3)
                 ]
 
             buildTextCmd (defaultCmd cid & set cbRPC (mkExec' "(coin.details 'sender00)"))
@@ -1102,11 +1102,11 @@ localTests baseRdb =
                 >>= P.match _LocalResultLegacy
                 ? P.checkAll
                 [ hasBalance ? P.equals startBalance
-                , hasBlockHeight (P.equals 1)
+                , hasBlockHeight (P.equals 2)
                 ]
 
             buildTextCmd (defaultCmd cid & set cbRPC (mkExec' "(coin.details 'sender00)"))
-                >>= local fx cid Nothing Nothing (Just (RewindDepth 3))
+                >>= local fx cid Nothing Nothing (Just (RewindDepth 4))
                 & P.throws
                 ? P.match _FailureResponse
                 ? P.fun responseBody
@@ -1157,7 +1157,7 @@ pollingMetadataTest baseRdb _step = withVersion v $ runResourceT $ do
             P.alignExact
             [ P.match _Just ? P.fun _crMetaData ? P.match _Just ? P.match A._Object ? P.alignExact ? A.KeyMap.fromList
                 [ ("blockHash", P.match (A._String . b64UrlNoPaddingPrism) P.succeed)
-                , ("blockHeight", P.equals (A.Number 2))
+                , ("blockHeight", P.equals (A.Number 3))
                 , ("blockPayloadHash", P.match (A._String . b64UrlNoPaddingPrism) P.succeed)
                 ]
             ]
@@ -1285,6 +1285,9 @@ mkFixture baseRdb = do
             , baseUrlPort = port
             , baseUrlPath = ""
             }
+
+    -- Mine at least one block to be sure to work on an up-to-date chain, for Tx TLL and Creation times verifications.
+    liftIO $ advanceAllChains_ fx
 
     return $ Fixture
         { _cutFixture = fx

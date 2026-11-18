@@ -223,9 +223,7 @@ runGenesisIfNeeded logger serviceEnv = do
             logFunctionText logger Debug "running genesis"
             let genesisBlockHash = genesisBlockHeader cid ^. blockHash
             let genesisPayloadHash = genesisBlockPayloadHash cid
-            let gTime = implicitVersion ^?! versionGenesis . genesisTime . atChain cid
             let targetSyncState = genesisConsensusState cid
-            let genesisRankedBlockHash = RankedBlockHash (genesisHeight cid) genesisBlockHash
             let evalCtx = genesisEvaluationCtx serviceEnv
             let blockCtx = blockCtxOfEvaluationCtx cid evalCtx
             let !genesisPayload = case _psGenesisPayload serviceEnv of
@@ -237,12 +235,12 @@ runGenesisIfNeeded logger serviceEnv = do
                 $ NEL.singleton
                 $ (
                 if pact5 cid (genesisHeight cid)
-                then Checkpointer.Pact5RunnableBlock $ \chainwebPactDb -> do
+                then Checkpointer.Pact5RunnableBlock blockCtx $ \chainwebPactDb -> do
                     _ <- Pact.execExistingBlock logger serviceEnv
                         (BlockEnv blockCtx chainwebPactDb)
                         (CheckablePayloadWithOutputs genesisPayload)
                     return ((), (genesisBlockHash, genesisPayloadHash))
-                else Checkpointer.Pact4RunnableBlock $ \blockDbEnv -> do
+                else Checkpointer.Pact4RunnableBlock blockCtx $ \blockDbEnv -> do
                     _ <- Pact4.execBlock logger serviceEnv
                         (Pact4.BlockEnv blockCtx blockDbEnv)
                         (CheckablePayloadWithOutputs genesisPayload)
@@ -263,8 +261,7 @@ runGenesisIfNeeded logger serviceEnv = do
                             emptyBlock <- (throwIfNoHistory =<<) $
                                 Checkpointer.readFrom logger cid
                                     (_psReadWriteSql serviceEnv)
-                                    (Parent gTime)
-                                    (Parent genesisRankedBlockHash)
+                                    blockCtx
                                     Checkpointer.PactRead
                                         { pact5Read = \blockEnv blockHandle ->
                                             makeEmptyBlock logger serviceEnv blockEnv blockHandle
@@ -289,9 +286,10 @@ execNewGenesisBlock
     -> IO PayloadWithOutputs
 execNewGenesisBlock logger serviceEnv newTrans = withTransaction (_psReadWriteSql serviceEnv) $ do
     let cid = _chainId serviceEnv
-    let parentCreationTime = Parent (implicitVersion ^?! versionGenesis . genesisTime . atChain cid)
-    historicalBlock <- Checkpointer.readFrom logger cid (_psReadWriteSql serviceEnv) parentCreationTime
-        (genesisRankedParentBlockHash cid)
+    let evalCtx = genesisEvaluationCtx serviceEnv
+    let blockCtx = blockCtxOfEvaluationCtx cid evalCtx
+
+    historicalBlock <- Checkpointer.readFrom logger cid (_psReadWriteSql serviceEnv) blockCtx
         Checkpointer.PactRead
             { pact5Read = \blockEnv startHandle -> do
 
@@ -310,10 +308,10 @@ execNewGenesisBlock logger serviceEnv newTrans = withTransaction (_psReadWriteSq
 
                 let fakeMempoolServiceEnv = serviceEnv
                         & psMempoolAccess .~ mempty
-                            { mpaGetBlock = \bf pbc evalCtx -> do
+                            { mpaGetBlock = \bf pbc _evalCtx -> do
                                 if _bfCount bf == 0
                                 then do
-                                    maybeInvalidTxs <- pbc evalCtx newTrans
+                                    maybeInvalidTxs <- pbc _evalCtx newTrans
                                     validTxs <- case partitionEithers (V.toList maybeInvalidTxs) of
                                         ([], validTxs) -> return validTxs
                                         (errs, _) -> error $ "Pact 5 genesis commands invalid: " <> sshow errs
@@ -356,8 +354,7 @@ execReadOnlyReplay logger serviceEnv evalCtx = do
             logger
             cid
             sql
-            (_evaluationCtxParentCreationTime evalCtx)
-            (_evaluationCtxRankedParentHash evalCtx)
+            (blockCtxOfEvaluationCtx cid evalCtx)
             Checkpointer.PactRead
                 { pact5Read = \blockEnv blockHandle ->
                     runExceptT $ flip evalStateT blockHandle $
@@ -394,8 +391,7 @@ execLocal logger serviceEnv cwtx preflight sigVerify rdepth = do
     where
 
     doLocal = Pool.withResource (view psReadSqlPool serviceEnv) $ \sql -> withTransaction sql $ do
-        fakeNewBlockCtx <- liftIO Checkpointer.mkFakeParentCreationTime
-        Checkpointer.readFromNthParent logger cid sql fakeNewBlockCtx (fromIntegral rewindDepth)
+        Checkpointer.readFromNthParent logger cid sql (fromIntegral rewindDepth)
             $ Checkpointer.readPact5 "Pact 4 cannot execute local calls" $ \blockEnv blockHandle -> do
                 let blockCtx = view psBlockCtx blockEnv
                 let requestKey = Pact.cmdToRequestKey cwtx
@@ -427,7 +423,7 @@ execLocal logger serviceEnv cwtx preflight sigVerify rdepth = do
                                     implicitVersion
                                     (_bctxChainId blockCtx)
                                     (_bctxCurrentBlockHeight blockCtx)
-                                    (_bctxParentForkNumber blockCtx)
+                                    (blockCtx ^. bctxParentForkNumber . _Parent)
                                     cwtx
                             applyCmdResult <- liftIO $ flip evalStateT blockHandle $ doChainwebPactDbTransaction (blockEnv ^. psBlockDbEnv) Nothing (\dbEnv spvSupport ->
                                 Pact.applyCmd
@@ -604,7 +600,7 @@ syncToFork logger serviceEnv hints forkInfo = do
                             if guardCtx pact5 blockCtx
                             then
                                 return $
-                                    Checkpointer.Pact5RunnableBlock $ \chainwebPactDb -> do
+                                    Checkpointer.Pact5RunnableBlock blockCtx $ \chainwebPactDb -> do
                                         (_, pwo, validatedTxs) <-
                                             Pact.execExistingBlock logger serviceEnv
                                                 (BlockEnv blockCtx chainwebPactDb)
@@ -617,7 +613,7 @@ syncToFork logger serviceEnv hints forkInfo = do
                                         return $ (DList.singleton validatedTxs, (_ranked rankedBHash, expectedPayloadHash))
                             else
                                 return $
-                                    Checkpointer.Pact4RunnableBlock $ \blockDbEnv -> do
+                                    Checkpointer.Pact4RunnableBlock blockCtx $ \blockDbEnv -> do
                                         (_, pwo) <-
                                             Pact4.execBlock logger serviceEnv
                                                 (Pact4.BlockEnv blockCtx blockDbEnv)
@@ -654,10 +650,11 @@ syncToFork logger serviceEnv hints forkInfo = do
                     -- immediately. then we set up a separate thread
                     -- to add new transactions to the block.
                     logFunctionText logger Debug "producing new block"
-                    emptyBlock <-
-                        Checkpointer.readFromLatest logger cid sql (_newBlockCtxParentCreationTime newBlockCtx)
-                            $ Checkpointer.readPact5 "Pact 4 cannot make new blocks" $ \blockEnv blockHandle ->
-                                makeEmptyBlock logger serviceEnv blockEnv blockHandle
+                    let blockCtx = (blockCtxOfNewBlockCtx cid (Parent $ _latestRankedBlockHash newConsensusState) newBlockCtx)
+                    emptyBlock <- throwIfNoHistory =<< (Checkpointer.readFrom logger cid sql blockCtx
+                                                       $ Checkpointer.readPact5 "Pact 4 cannot make new blocks"
+                                                       $ \blockEnv blockHandle -> makeEmptyBlock logger serviceEnv blockEnv blockHandle)
+
                     let payloadVar = view psMiningPayloadVar serviceEnv
 
                     -- cancel payload refresher thread
@@ -756,9 +753,7 @@ refreshPayloads logger serviceEnv = do
     maybeRefreshedBlockInProgress <-
         Pool.withResource (view psReadSqlPool serviceEnv) $ \sql ->
             withTransaction sql $
-                Checkpointer.readFrom logger cid sql
-                    (_bctxParentCreationTime $ _blockInProgressBlockCtx blockInProgress)
-                    (_bctxParentRankedBlockHash $ _blockInProgressBlockCtx blockInProgress)
+                Checkpointer.readFrom logger cid sql (_blockInProgressBlockCtx blockInProgress)
                     $ Checkpointer.readPact5 "Pact 4 cannot make new blocks" $ \blockEnv _bh -> do
                         let dbEnv = view psBlockDbEnv blockEnv
                         continueBlock logger serviceEnv dbEnv blockInProgress
@@ -856,9 +851,8 @@ execPreInsertCheckReq
 execPreInsertCheckReq logger serviceEnv txs = do
     let requestKeys = V.map Pact.cmdToRequestKey txs
     logFunctionText logger Info $ "(pre-insert check " <> sshow requestKeys <> ")"
-    fakeParentCreationTime <- Checkpointer.mkFakeParentCreationTime
     let act sql = withTransaction sql $
-            Checkpointer.readFromLatest logger cid sql fakeParentCreationTime $ Checkpointer.PactRead
+            Checkpointer.readFromLatest logger cid sql $ Checkpointer.PactRead
                 { pact5Read = \blockEnv bh -> do
                     forM txs $ \tx ->
                         fmap (either Just (\_ -> Nothing)) $ runExceptT $ do
@@ -931,12 +925,12 @@ execLookupPactTxs logger serviceEnv confDepth txs = do
     if V.null txs
     then return (Historical mempty)
     else do
-        go =<< liftIO Checkpointer.mkFakeParentCreationTime
+        go
     where
     depth = maybe 0 (fromIntegral . _confirmationDepth) confDepth
     cid = _chainId serviceEnv
-    go ctx = Pool.withResource (_psReadSqlPool serviceEnv) $ \sql -> withTransaction sql $
-        Checkpointer.readFromNthParent logger cid sql ctx depth
+    go = Pool.withResource (_psReadSqlPool serviceEnv) $ \sql -> withTransaction sql $
+        Checkpointer.readFromNthParent logger cid sql depth
             -- not sure about this, disallows looking up pact txs if we haven't
             -- caught up to pact 5
             $ Checkpointer.readPact5 "Pact 4 cannot look up transactions" $ \blockEnv _ -> do
