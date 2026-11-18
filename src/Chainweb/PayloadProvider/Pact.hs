@@ -63,13 +63,13 @@ instance HasChainId (PactPayloadProvider logger tbl) where
 
 instance (Logger logger, CanPayloadCas tbl) => PayloadProvider (PactPayloadProvider logger tbl) where
     prefetchPayloads p h ps = do
-        lf Info $ "prefetch: query: " <> sshow (length ps)
+        lf Debug $ "prefetch: query: " <> sshow (length ps)
         rs  <- PactService.getPayloadsForConsensusPayloads
             (pactPayloadProviderLogger p)
             (pactPayloadProviderServiceEnv p)
             h
             ps
-        lf Info $ "prefetch: got: " <> sshow (length rs)
+        lf Debug $ "prefetch: got: " <> sshow (length rs)
       where
         lf = logFunctionText (pactPayloadProviderLogger p)
 
