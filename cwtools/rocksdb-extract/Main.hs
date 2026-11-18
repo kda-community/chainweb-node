@@ -36,6 +36,8 @@ import Chainweb.Storage.Table.RocksDB (withRocksDb, withReadOnlyRocksDb, modernD
 import Chainweb.Utils (fromJuste, fromTextM)
 import Chainweb.Version (withVersion, ChainwebVersion(..))
 
+import qualified Database.RocksDB.Base as R
+
 import Chainweb.Version.Registry (findKnownVersion)
 import Chainweb.WebBlockHeaderDB (getWebBlockHeaderDb, initWebBlockHeaderDb)
 
@@ -44,6 +46,7 @@ import Control.Lens
 
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Bits
 import Data.Text qualified as Text
 import Data.Bool
 import qualified Data.HashSet as HS
@@ -51,13 +54,18 @@ import Options.Applicative qualified as O
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist)
 
 
+rocksDbOptions :: R.Options
+rocksDbOptions = modernDefaultOptions
+-- Restore original default value and save some RAM
+    {  R.writeBufferSize = 4 `shift` 20
+    }
+
 
 data Config = Config
   { chainwebVersion :: ChainwebVersion
   , fromDir :: FilePath
   , toDir :: FilePath
   , minHeight:: Maybe BlockHeight
-  , maxHeight :: Maybe BlockHeight
   , cid :: ChainId
   }
   deriving (Show)
@@ -76,7 +84,6 @@ getConfig = do
       fromDir <- O.strOption (O.long "from" <> O.help "Directory containing source RocksDB}")
       toDir <- O.strOption (O.long "to" <> O.help "Directory where to place the target RocksDB")
       minHeight <- (fmap parseHeight) <$> O.optional (O.strOption (O.long "min-height"))
-      maxHeight <- (fmap parseHeight) <$> O.optional ( O.strOption (O.long "max-height"))
 
       cid <- parseChainId <$> O.strOption (O.long "chain")
 
@@ -117,8 +124,8 @@ insertBlockHeader db h = do
 doCopy :: Config -> IO ()
 doCopy Config{..} = do
   withVersion chainwebVersion $
-    withReadOnlyRocksDb fromDir modernDefaultOptions $ \srcDb -> do
-      withRocksDb toDir modernDefaultOptions $ \targetDb -> do
+    withReadOnlyRocksDb fromDir rocksDbOptions $ \srcDb -> do
+      withRocksDb toDir rocksDbOptions $ \targetDb -> do
         let srcPayloads = newPayloadDb srcDb
         let targetPayloads = newPayloadDb targetDb
 
@@ -134,14 +141,14 @@ doCopy Config{..} = do
         lastCut <- fromJuste <$> (withTableIterator srcCut $ (\i -> iterLast i >> iterValue i))
         casInsert dstCut lastCut
 
-        -- And add all headers last headers related to that cut. Db is now consistent.
+        -- And add all headers related to that cut. DB is now consistent.
         tipCut <- readHighestCutHeaders (\_ x -> print $ Text.unpack x) srcWbhdb srcCut
         forM_ tipCut $  \h ->
           getWebBlockHeaderDb targetWbhdb (h ^. blockChainId) >>= flip insertBlockHeader h
 
 
         getBranch srcHdb HS.empty (HS.singleton (UpperBound (tipCut ^?! ix cid . blockHash)))
-          -- For each header of the main branch
+          -- For each header of the main branch in the stream
           & case minHeight of
               Nothing     -> id
               Just height -> S.takeWhile ((<) height . view blockHeight)

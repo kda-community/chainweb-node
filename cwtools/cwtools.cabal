@@ -341,6 +341,7 @@ executable rocksdb-extract
         , chainweb
         , chainweb-storage
         -- external
+        , rocksdb-haskell-kadena
         , optparse-applicative
         , base >= 4.12 && < 5
         , directory
