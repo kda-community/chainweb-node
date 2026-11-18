@@ -10,6 +10,7 @@ import Chainweb.Graph
 import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils
 import Chainweb.Utils (ResponseBodyTooLarge(..))
+import Chainweb.Version
 import Control.Exception (fromException)
 import Control.Lens
 import Control.Monad.IO.Class
@@ -30,8 +31,8 @@ import PropertyMatchers qualified as P
 
 
 tests :: TestTree
-tests = testCase "Chainweb.Test.ResponseSizeLimiter" $ do
-    (mgr, _) <- PeerResources.connectionManager False =<< PeerDB.newEmptyPeerDb (timedConsensusVersion 0 singletonChainGraph pairChainGraph)
+tests = testCase "Chainweb.Test.ResponseSizeLimiter" $ withVersion (timedConsensusVersion 0 singletonChainGraph pairChainGraph) $ do
+    (mgr, _) <- PeerResources.connectionManager False =<< PeerDB.newEmptyPeerDb
 
     runResourceT $ do
         let smallString = "small string"

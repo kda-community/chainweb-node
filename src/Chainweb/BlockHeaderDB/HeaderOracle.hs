@@ -33,7 +33,7 @@ import Chainweb.BlockHeader (BlockHeader, blockHash, blockHeight, blockForkNumbe
 import Chainweb.BlockHeaderDB (BlockHeaderDb)
 import Chainweb.TreeDB (seekAncestor)
 import Chainweb.TreeDB qualified as TreeDB
-import Chainweb.Version (_chainwebVersion)
+import Chainweb.Version
 import Chainweb.Version.Guards (minimumBlockHeaderHistory)
 import Control.Exception (Exception(..), throwIO)
 import Control.Lens
@@ -50,10 +50,12 @@ data HeaderOracle = HeaderOracle
 -- | Create a new 'HeaderOracle' specifically for SPV verification, with the given upper bound.
 --
 --   The lower bound of the oracle is determined by the 'spvProofExpirationWindow'.
-createSpv :: BlockHeaderDb -> BlockHeader -> IO HeaderOracle
+createSpv :: HasVersion => BlockHeaderDb -> BlockHeader -> IO HeaderOracle
 createSpv db upperBound = do
-    let mWindow = minimumBlockHeaderHistory (_chainwebVersion upperBound) (upperBound ^. blockForkNumber) (upperBound ^. blockHeight)
-    let gh = genesisBlockHeader (_chainwebVersion upperBound) upperBound
+    let mWindow = minimumBlockHeaderHistory
+            (upperBound ^. blockForkNumber)
+            (upperBound ^. blockHeight)
+    let gh = genesisBlockHeader upperBound
     let defaultOracle = create db gh upperBound
 
     case mWindow of
@@ -86,7 +88,7 @@ instance Exception InvalidHeaderOracleBounds where
 -- | Create a new 'HeaderOracle' with the given lower and upper bounds.
 --
 --   Throws an 'InvalidHeaderOracleBounds' exception if the lower bound is not an ancestor of the upper bound.
-create :: BlockHeaderDb -> BlockHeader -> BlockHeader -> IO HeaderOracle
+create :: HasVersion => BlockHeaderDb -> BlockHeader -> BlockHeader -> IO HeaderOracle
 create db lowerBound upperBound = do
     valid <- TreeDB.ancestorOf db (view blockHash lowerBound) (view blockHash upperBound)
     if valid
@@ -113,7 +115,8 @@ data HeaderOracleResponse
     deriving stock (Eq)
 
 -- | Query the oracle, asking if the block is within its bounds.
-query :: ()
+query
+    :: HasVersion
     => HeaderOracle
     -> BlockHash
     -> IO HeaderOracleResponse

@@ -28,6 +28,7 @@ import Chainweb.BlockHeight
 import Chainweb.Difficulty
 import Chainweb.ForkState
 import Chainweb.Graph hiding (AdjacentChainMismatch)
+import Chainweb.Parent
 import Chainweb.Test.Orphans.Internal ()
 import Chainweb.Test.TestVersions
 import Chainweb.Test.Utils.TestHeader
@@ -62,34 +63,14 @@ tests :: TestTree
 tests = testGroup "Chainweb.Test.Blockheader.Validation"
     [ prop_validateMainnet
     , prop_validateTestnet04
-    , prop_fail_validate
-    , prop_forkstate_validate
+    , withVersion mainnet prop_fail_validate
     , prop_da_validate
-    , prop_legacy_da_validate
-    , prop_forkVotesReset (barebonesTestVersion petersenChainGraph) 0
-    , prop_forkVotesReset (barebonesTestVersion petersenChainGraph) (int (forkEpochLength (barebonesTestVersion petersenChainGraph)))
-    , testProperty "validate arbitrary test header" prop_validateArbitrary
-    , testProperty "validate arbitrary test header for mainnet" $ prop_validateArbitrary Mainnet01
-    , testProperty "validate arbitrary test header for testnet04" $ prop_validateArbitrary Testnet04
-    , testProperty "validate arbitrary test header for devnet" $ prop_validateArbitrary RecapDevelopment
+    , withVersion mainnet prop_legacy_da_validate
+    , testProperty "validate arbitrary test header" $ \v -> withVersion v prop_validateArbitrary
+    , testProperty "validate arbitrary test header for mainnet" $ withVersion Mainnet01 $ prop_validateArbitrary
+    , testProperty "validate arbitrary test header for testnet04" $ withVersion Testnet04 $ prop_validateArbitrary
+    , testProperty "validate arbitrary test header for devnet" $ withVersion RecapDevelopment $ prop_validateArbitrary
     ]
-
--- -------------------------------------------------------------------------- --
--- Rules are not trivial
---
--- There is an input for which the rule fails.
---
-
-prop_forkVotesReset :: ChainwebVersion -> BlockHeight -> TestTree
-prop_forkVotesReset v h = testCase ("Invalid fork votes fail validation for " <> sshow v) $ do
-    hdr <- (blockHeight .~ h)
-        . (blockForkVotes .~ fromJuste (decode "2"))
-        . (blockChainwebVersion .~ _versionCode v)
-        <$> generate arbitrary
-    let r = prop_block_forkVotesReset hdr
-    assertBool
-        ("fork votes validation succeeded unexpectedly: " <> sshow  hdr)
-        (not r)
 
 -- -------------------------------------------------------------------------- --
 -- Rules are sound
@@ -112,16 +93,16 @@ prop_forkVotesReset v h = testCase ("Invalid fork votes fail validation for " <>
 -- * New minded blocks
 
 prop_validateMainnet :: TestTree
-prop_validateMainnet = prop_validateHeaders "validate Mainnet01 BlockHeaders" mainnet01Headers
+prop_validateMainnet = withVersion mainnet $ prop_validateHeaders "validate Mainnet01 BlockHeaders" mainnet01Headers
 
 prop_validateTestnet04 :: TestTree
-prop_validateTestnet04 = prop_validateHeaders "validate Testnet04 BlockHeaders" testnet04Headers
+prop_validateTestnet04 = withVersion testnet04 $ prop_validateHeaders "validate Testnet04 BlockHeaders" testnet04Headers
 
-prop_validateHeaders :: String -> [TestHeader] -> TestTree
+prop_validateHeaders :: HasVersion => String -> [TestHeader] -> TestTree
 prop_validateHeaders msg hdrs = testGroup msg $ do
     [ prop_validateHeader ("header " <> show @Int i) h | h <- hdrs | i <- [0..] ]
 
-prop_validateHeader :: String -> TestHeader -> TestTree
+prop_validateHeader :: HasVersion => String -> TestHeader -> TestTree
 prop_validateHeader msg h = testCase msg $ do
     now <- getCurrentTimeIntegral
     case validateBlockHeaderM now (testHeaderChainLookup h) (_testHeaderHdr h) of
@@ -139,19 +120,19 @@ prop_validateHeader msg h = testCase msg $ do
 -- would have to be valid.
 --
 
-prop_fail_validate :: TestTree
+prop_fail_validate :: HasVersion => TestTree
 prop_fail_validate = validate_cases "validate invalid BlockHeaders" validationFailures
 
 prop_forkstate_validate :: TestTree
-prop_forkstate_validate = validate_cases "fork state validation" forkValidation
+prop_forkstate_validate = withVersion Mainnet01 $ validate_cases "fork state validation" forkValidation
 
 prop_da_validate :: TestTree
-prop_da_validate = validate_cases "difficulty adjustment validation" daValidation
+prop_da_validate = withVersion recapDevnet $ validate_cases "difficulty adjustment validation" daValidation
 
-prop_legacy_da_validate :: TestTree
+prop_legacy_da_validate :: HasVersion => TestTree
 prop_legacy_da_validate = validate_cases "legacy difficulty adjustment validation" legacyDaValidation
 
-validate_cases :: HasCallStack => String -> [(TestHeader, [ValidationFailureType])] -> TestTree
+validate_cases :: HasVersion => String -> [(TestHeader, [ValidationFailureType])] -> TestTree
 validate_cases msg testCases = testCase msg $ do
     now <- getCurrentTimeIntegral
     traverse_ (f now) $ zip [0 :: Int ..] testCases
@@ -172,14 +153,12 @@ validate_cases msg testCases = testCase msg $ do
                     <> ", epochStart: " <> sshow (view blockEpochStart $ _testHeaderHdr h)
                     <> ", forkNumber: " <> sshow (view blockForkNumber $ _testHeaderHdr h)
                     <> ", forkVotes: " <> sshow (view blockForkVotes $ _testHeaderHdr h)
-                    <> ", isForkEpochStart: " <> sshow (isForkEpochStart v (view blockHeight $ _testHeaderHdr h))
-                    <> ", isForkCountBlock: " <> sshow (isForkCountBlock v (view blockHeight $ _testHeaderHdr h))
-                    <> ", parent header: " <> T.unpack (encodeToText $ ObjectEncoded $ view parentHeader $ _testHeaderParent h)
-                    <> ", parent forkNumber: " <> sshow (view blockForkNumber $ view parentHeader $ _testHeaderParent h)
-                    <> ", parent forkVotes: " <> sshow (view blockForkVotes $ view parentHeader $ _testHeaderParent h)
+                    <> ", isForkEpochStart: " <> sshow (isForkEpochStart (view blockHeight $ _testHeaderHdr h))
+                    <> ", isForkCountBlock: " <> sshow (isForkCountBlock (view blockHeight $ _testHeaderHdr h))
+                    <> ", parent header: " <> T.unpack (encodeToText $ ObjectEncoded $ view _Parent $ _testHeaderParent h)
+                    <> ", parent forkNumber: " <> sshow (view blockForkNumber $ view _Parent $ _testHeaderParent h)
+                    <> ", parent forkVotes: " <> sshow (view blockForkVotes $ view _Parent $ _testHeaderParent h)
                 | otherwise -> return ()
-      where
-      v = view chainwebVersion h
 
 -- -------------------------------------------------------------------------- --
 -- Tests for Rule Guards:
@@ -194,12 +173,12 @@ validate_cases msg testCases = testCase msg $ do
 -- -------------------------------------------------------------------------- --
 -- Validation of Arbitrary Test Headers
 
-prop_validateArbitrary :: ChainwebVersion -> Property
-prop_validateArbitrary v =
-    forAll (elements $ toList $ chainIds v) $ \cid ->
-        forAll (arbitraryTestHeader v cid) validateTestHeader
+prop_validateArbitrary :: HasVersion => Property
+prop_validateArbitrary =
+    forAll (elements $ toList chainIds) $ \cid ->
+        forAll (arbitraryTestHeader cid) validateTestHeader
 
-validateTestHeader :: TestHeader -> Property
+validateTestHeader :: HasVersion => TestHeader -> Property
 validateTestHeader h = case try val of
     Right (Left ValidationFailure{ _validationFailureFailures = errs }) -> verify errs
     Right _ -> property True
@@ -224,7 +203,7 @@ validationFailures =
     , ( hdr & testHeaderHdr . blockHash .~ nullBlockHash
       , [IncorrectHash]
       )
-    , ( hdr & testHeaderHdr . blockCreationTime .~ (view blockCreationTime . _parentHeader $ _testHeaderParent hdr)
+    , ( hdr & testHeaderHdr . blockCreationTime .~ (view blockCreationTime . unwrapParent $ _testHeaderParent hdr)
       , [IncorrectHash, IncorrectPow, CreatedBeforeParent]
       )
     , ( hdr & testHeaderHdr . blockHash %~ messWords encodeBlockHash decodeBlockHash (flip complementBit 0)
@@ -236,7 +215,7 @@ validationFailures =
     , ( hdr & testHeaderParent . coerced . blockHeight .~ 318359
       , [IncorrectHeight, IncorrectEpoch, IncorrectTarget]
       )
-    , ( hdr & testHeaderHdr . blockParent %~ messWords encodeBlockHash decodeBlockHash (flip complementBit 0)
+    , ( hdr & testHeaderHdr . blockParent %~ messWords (encodeBlockHash . unwrapParent) (Parent <$> decodeBlockHash) (flip complementBit 0)
       , [MissingParent]
       )
     , ( hdr & testHeaderHdr . blockPayloadHash %~ messWords encodeBlockPayloadHash decodeBlockPayloadHash (flip complementBit 0)
@@ -250,7 +229,11 @@ validationFailures =
       , [IncorrectHash, IncorrectPow, ChainMismatch, AdjacentChainMismatch]
       )
     , ( hdr & testHeaderHdr . blockChainwebVersion .~ _versionCode RecapDevelopment
-      , [IncorrectHash, IncorrectPow, UnknownForkNumber, VersionMismatch, InvalidForkVotes, IncorrectForkNumber, CreatedBeforeParent, AdjacentChainMismatch, InvalidAdjacentVersion, InvalidForkVotes]
+      -- , [IncorrectHash, IncorrectPow, VersionMismatch, InvalidFeatureFlags, CreatedBeforeParent, AdjacentChainMismatch, InvalidAdjacentVersion]
+      -- no longer. we don't check InvalidFeatureFlags according to the version
+      -- in the header anymore, but in the HasVersion version. Doesn't matter
+      -- materially because we get a VersionMismatch error anyway.
+      , [IncorrectHash, IncorrectPow, VersionMismatch, InvalidAdjacentVersion]
       )
     , ( hdr & testHeaderHdr . blockWeight .~ 10
       , [IncorrectHash, IncorrectPow, IncorrectWeight]
@@ -284,10 +267,10 @@ validationFailures =
     , ( hdr & testHeaderHdr . blockAdjacentHashes .~ BlockHashRecord mempty
       , [IncorrectHash, IncorrectPow, AdjacentChainMismatch]
       )
-    , ( hdr & testHeaderAdjs . each . parentHeader . blockChainwebVersion .~ _versionCode RecapDevelopment
+    , ( hdr & testHeaderAdjs . each . _Parent . blockChainwebVersion .~ _versionCode RecapDevelopment
       , [InvalidAdjacentVersion]
       )
-    , ( hdr & testHeaderAdjs . ix 0 . parentHeader . blockChainId .~ unsafeChainId 0
+    , ( hdr & testHeaderAdjs . ix 0 . _Parent . blockChainId .~ unsafeChainId 0
       , [AdjacentParentChainMismatch]
       )
     ]
@@ -317,7 +300,7 @@ validationFailures =
 -- Fork Validation
 
 
-forkValidation :: [(TestHeader, [ValidationFailureType])]
+forkValidation :: HasVersion => [(TestHeader, [ValidationFailureType])]
 forkValidation =
     -- while skipFeatureFlagValidationGuard is active (validation is trivially
     -- true)
@@ -403,14 +386,14 @@ forkValidation =
       )
     , ( hdr1
             & p . blockForkVotes .~ addVote resetVotes
-            & testHeaderAdjs . ix 0 . parentHeader . blockForkVotes .~ addVote resetVotes
+            & testHeaderAdjs . ix 0 . _Parent . blockForkVotes .~ addVote resetVotes
             & h . blockForkVotes .~ addVote resetVotes `quot` 2
       , [IncorrectHash, IncorrectPow]
       )
     , ( hdr1
             & p . blockForkVotes .~ addVote resetVotes
-            & testHeaderAdjs . ix 0 . parentHeader . blockForkVotes .~ addVote resetVotes
-            & testHeaderAdjs . ix 1 . parentHeader . blockForkVotes .~ addVote resetVotes
+            & testHeaderAdjs . ix 0 . _Parent . blockForkVotes .~ addVote resetVotes
+            & testHeaderAdjs . ix 1 . _Parent . blockForkVotes .~ addVote resetVotes
             & h . blockForkVotes .~ addVote resetVotes `quot` 2
       , [ IncorrectHash
         , IncorrectPow
@@ -453,13 +436,13 @@ forkValidation =
 
     -- test correct fork number increment at fork epoch start
     , ( hdr2
-        & p . blockForkVotes .~ int (forkEpochLength (_chainwebVersion hdr2)) * voteStep
+        & p . blockForkVotes .~ int forkEpochLength * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2
       , [IncorrectForkNumber]
       )
     , ( hdr2
-        & p . blockForkVotes .~ int (forkEpochLength (_chainwebVersion hdr2)) * voteStep
+        & p . blockForkVotes .~ int forkEpochLength * voteStep
         & h . blockForkVotes .~ resetVotes
         & h . blockForkNumber .~ view (p . blockForkNumber) hdr2 + 1
       , [IncorrectHash, IncorrectPow]
@@ -494,12 +477,12 @@ forkValidation =
   where
     h, p :: Lens' TestHeader BlockHeader
     h = testHeaderHdr
-    p = testHeaderParent . parentHeader
-    a = testHeaderAdjs . each . parentHeader
+    p = testHeaderParent . _Parent
+    a = testHeaderAdjs . each . _Parent
 
     -- The number of block heights within an fork epoch where voting happens.
     -- The remaining blocks are used to count votes.
-    voteLength = int $ forkEpochLength (_chainwebVersion hdr2) - voteCountingLength
+    voteLength = int $ forkEpochLength - voteCountingLength
 
     hdr0 = mainnet01Headers !! 21
 
@@ -515,9 +498,9 @@ forkValidation =
 -- -------------------------------------------------------------------------- --
 -- DA Validation
 
-daValidation :: [(TestHeader, [ValidationFailureType])]
+daValidation :: HasVersion => [(TestHeader, [ValidationFailureType])]
 daValidation =
-    -- test corret epoch transition
+    -- test correct epoch transition
     [ ( hdr, expected)
 
     -- epoch transition with wrong epoch start time
@@ -558,9 +541,9 @@ daValidation =
   where
     h, p :: Lens' TestHeader BlockHeader
     h = testHeaderHdr
-    p = testHeaderParent . parentHeader
+    p = testHeaderParent . _Parent
 
-    a = testHeaderAdjs . each . parentHeader
+    a = testHeaderAdjs . each . _Parent
 
     expected = [IncorrectHash, IncorrectPow, AdjacentChainMismatch, UnknownForkNumber]
 
@@ -584,7 +567,7 @@ daValidation =
         $ hdr'
 
     hdrAdjs = HM.fromList
-        $ (\x -> (view (parentHeader . blockChainId) x, x))
+        $ (\x -> (view (_Parent . blockChainId) x, x))
         <$> view testHeaderAdjs hdr'
     parentFork = view (p . blockForkNumber) hdr'
 
@@ -616,7 +599,7 @@ legacyDaValidation =
   where
     h, p :: Lens' TestHeader BlockHeader
     h = testHeaderHdr
-    p = testHeaderParent . parentHeader
+    p = testHeaderParent . _Parent
 
     -- From mainnet height 600000
     hdr = testHeader
@@ -641,10 +624,7 @@ legacyDaValidation =
 -- 530_500.
 --
 mainnet01Headers :: [TestHeader]
-mainnet01Headers = genesisTestHeaders Mainnet01 <>
-
-    -- 20: height 318266, skipFeatureFlagValidationGuard active, features used as
-    -- nonce
+mainnet01Headers = withVersion Mainnet01 genesisTestHeaders <>
     [ testHeader
         [ "parent" .= t "AFHBANxHkLyt2kf7v54FAByxfFrR-pBP8iMLDNKO0SSt-ntTEh1IVT2E4mSPkq02AwACAAAAfaGIEe7a-wGT8OdEXz9RvlzJVkJgmEPmzk42bzjQOi0GAAAAjFsgdB2riCtIs0j40vovGGfcFIZmKPnxEXEekcV28eUIAAAAQcKA2py0L5t1Z1u833Z93V5N4hoKv_7-ZejC_QKTCzTtgKwxXj4Eovf97ELmo_iBruVLoK_Yann5LQIAAAAAALFMJ1gcC8oKW90MW2xY07gN10bM2-GvdC7fDvKDDwAPBwAAAJkPwMVeS7ZkAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOdsEAAAAAAAFAAAAT3hhzb-eBQAAAGFSDbQAAJru7keLmw3rHfSVm9wkTHWQBBTwEPwEg8RA99vzMuj-"
         , "header" .=  t "AEbpAIzqpiins1r8v54FAJru7keLmw3rHfSVm9wkTHWQBBTwEPwEg8RA99vzMuj-AwACAAAAy7QSAHoIeFj0JXide_co-OaEzzYWbeZhAfphXI8-IR0GAAAAa-PzO_zUmk1yLOyt2kD3iI6cehKqQ_KdK8D6qZ-X6X4IAAAA79Vw2kqbVDHm9WDzksFwxZcmx5OJJNW-ge7jVa3HiHbtgKwxXj4Eovf97ELmo_iBruVLoK_Yann5LQIAAAAAAL701u70FOrdivm6quNUsKgfi2L8zYHeyOI0j2gfP16jBwAAANz0ZdfSwLZkAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOtsEAAAAAAAFAAAAT3hhzb-eBQAAAPvI7fkAAFFuYkCHZRcNl1k3-A1EZvyPxhiFKdHZwZRTqos57aiO"
@@ -712,14 +692,14 @@ mainnet01Headers = genesisTestHeaders Mainnet01 <>
     ]
 
 testnet04Headers :: [TestHeader]
-testnet04Headers = genesisTestHeaders Testnet04
+testnet04Headers = withVersion Testnet04 genesisTestHeaders
 
 -- TODO replace these by "interesting headers" form mainnet (e.g. fork block heights)
-_testnet04InvalidHeaders :: [(ParentHeader, BlockHeader, [ValidationFailureType])]
+_testnet04InvalidHeaders :: [(Parent BlockHeader, BlockHeader, [ValidationFailureType])]
 _testnet04InvalidHeaders = some
   where
     f (p, h, e) = (,,)
-        <$> (fmap ParentHeader . decode . wrap) p
+        <$> (fmap Parent . decode . wrap) p
         <*> (decode . wrap) h
         <*> pure e
 

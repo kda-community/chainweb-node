@@ -5,48 +5,66 @@
 {-# language QuasiQuotes #-}
 {-# language ViewPatterns #-}
 
-module Chainweb.Version.Development(devnet, pattern Development) where
+module Chainweb.Version.Development
+( devnet
+, pattern Development
+) where
 
 import qualified Data.Set as Set
 
 import Chainweb.BlockCreationTime
 import Chainweb.ChainId
 import Chainweb.Difficulty
-import Chainweb.Pact5.InitialGasModel
+import Chainweb.Pact.InitialGasModel
 import Chainweb.Graph
 import Chainweb.Time
 import Chainweb.Utils
 import Chainweb.Utils.Rule
 import Chainweb.Version
 
-import Pact.Types.Verifier
-
-import qualified Chainweb.BlockHeader.Genesis.Development0Payload as DN0
-import qualified Chainweb.BlockHeader.Genesis.Development1to19Payload as DNN
+import Pact.Core.Names
 
 pattern Development :: ChainwebVersion
 pattern Development <- ((== devnet) -> True) where
     Development = devnet
 
 devnet :: ChainwebVersion
-devnet = ChainwebVersion
+devnet = withVersion devnet $ ChainwebVersion
     { _versionCode = ChainwebVersionCode 0x00000002
     , _versionName = ChainwebVersionName "development"
     , _versionForks = tabulateHashMap $ \case
-        MigratePlatformShare -> AllChains ForkNever
-        _ -> AllChains ForkAtGenesis
-    , _versionUpgrades = AllChains mempty
+        MigratePlatformShare -> onAllChains ForkNever
+        _ -> onAllChains ForkAtGenesis
+    , _versionUpgrades = onAllChains mempty
     , _versionGraphs = Bottom (minBound, twentyChainGraph)
     , _versionBlockDelay = BlockDelay 30_000_000
     , _versionWindow = WindowWidth 120
     , _versionHeaderBaseSizeBytes = 318 - 110
     , _versionBootstraps = []
     , _versionGenesis = VersionGenesis
-        { _genesisBlockTarget = AllChains $ HashTarget (maxBound `div` 100_000)
-        , _genesisTime = AllChains $ BlockCreationTime [timeMicrosQQ| 2019-07-17T18:28:37.613832 |]
-        , _genesisBlockPayload = onChains $ concat
-            [ [(unsafeChainId 0, DN0.payloadBlock)]
-            , [(unsafeChainId i, DNN.payloadBlock) | i <- [1..19]]
+        { _genesisBlockTarget = onAllChains $ HashTarget (maxBound `div` 100_000)
+        , _genesisTime = onAllChains $ BlockCreationTime [timeMicrosQQ| 2019-07-17T18:28:37.613832 |]
+        , _genesisBlockPayload = onChains
+            [ (unsafeChainId 0, unsafeFromText "QzxVHFZ5go4PYd3QeAZhxP61hsVnICPw4BB9h-T3PDM")
+            , (unsafeChainId 1, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 2, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 3, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 4, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 5, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 6, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 7, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 8, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 9, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 10, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 11, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 12, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 13, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 14, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 15, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 16, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 17, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 18, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
+            , (unsafeChainId 19, unsafeFromText "66JSEmDIl6AqWTKN29LprukaeUmK0OOd4RufVO8e6-4")
             ]
         }
 
@@ -54,7 +72,7 @@ devnet = ChainwebVersion
     -- defaultChainwebConfiguration._configBlockGasLimit
     , _versionMaxBlockGasLimit = Bottom (minBound, Nothing)
     , _versionSpvProofRootValidWindow = Bottom (minBound, Nothing)
-    , _versionInitialGasModel = AllChains $  Bottom (minBound, post32GasModel)
+    , _versionInitialGasModel = onAllChains $ Bottom (minBound, post32GasModel)
     , _versionCheats = VersionCheats
         { _disablePow = True
         , _fakeFirstEpochStart = True
@@ -64,9 +82,10 @@ devnet = ChainwebVersion
         { _disablePeerValidation = True
         , _disableMempoolSync = False
         }
-    , _versionVerifierPluginNames = AllChains $ Bottom
+    , _versionVerifierPluginNames = onAllChains $ Bottom
         (minBound, Set.fromList $ map VerifierName ["hyperlane_v3_message", "allow", "signed_list"])
     , _versionQuirks = noQuirks
+    , _versionPayloadProviderTypes = onAllChains PactProvider
     , _versionForkNumber = 1
     , _versionForkVoteCastingLength = 120 * 119 -- 5 days
     }

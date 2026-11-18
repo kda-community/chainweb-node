@@ -22,6 +22,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE RankNTypes #-}
 
 #ifndef CURRENT_PACKAGE_VERSION
 #define CURRENT_PACKAGE_VERSION "UNKNOWN"
@@ -42,6 +43,7 @@ module Chainweb.RestAPI.Utils
   Reassoc
 , setErrText
 , setErrJSON
+, setErrJSONPact
 
 -- * API Version
 , Version
@@ -133,6 +135,7 @@ import Chainweb.RestAPI.Orphans ()
 import Chainweb.Utils
 import Chainweb.Utils.Paging
 import Chainweb.Version
+import qualified Pact.JSON.Encode as J
 
 -- -------------------------------------------------------------------------- --
 -- Servant Utils
@@ -165,6 +168,12 @@ setErrText m e = e
 setErrJSON :: ToJSON a => a -> ServerError -> ServerError
 setErrJSON m e = e
     { errBody = encode m
+    , errHeaders = addHeader ("Content-Type", "application/json;charset=utf-8") (errHeaders e)
+    }
+
+setErrJSONPact :: J.Encode a => a -> ServerError -> ServerError
+setErrJSONPact m e = e
+    { errBody = J.encode m
     , errHeaders = addHeader ("Content-Type", "application/json;charset=utf-8") (errHeaders e)
     }
 
