@@ -198,8 +198,8 @@ initHeaderDb config = do
 
     headerTable = newTable
         (_configRocksDb config)
-        (Codec encodeRankedHeader decodeRankedHeader)
-        (Codec (runPutS . encodeRankedBlockPayloadHash) (runGetS decodeRankedBlockPayloadHash))
+        (Codec encodeRankedHeader decodeRankedHeader False)
+        (Codec (runPutS . encodeRankedBlockPayloadHash) (runGetS decodeRankedBlockPayloadHash) True)
         ["EvmHeader", cidNs, "header"]
 
     !db = HeaderDb

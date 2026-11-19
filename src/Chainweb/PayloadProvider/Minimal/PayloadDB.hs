@@ -174,8 +174,8 @@ initPayloadDb config = do
 
     payloadTable = newTable
         (_configRocksDb config)
-        (Chainweb.Storage.Table.RocksDB.Codec encodeRankedPayload decodeRankedPayload)
-        (Codec (runPutS . encodeRankedBlockPayloadHash) (runGetS decodeRankedBlockPayloadHash))
+        (Chainweb.Storage.Table.RocksDB.Codec encodeRankedPayload decodeRankedPayload True)
+        (Codec (runPutS . encodeRankedBlockPayloadHash) (runGetS decodeRankedBlockPayloadHash) True)
         ["MinimalProvider", cidNs, "payload"]
 
     !db = PayloadDb

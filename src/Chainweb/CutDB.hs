@@ -240,8 +240,8 @@ cutHashesTable rdb = Casify $ newTable rdb valueCodec keyCodec ["CutHashes"]
   where
     keyCodec = Codec
         (\(a,b,c) -> runPutS $ encodeCutHeightBe a >> encodeBlockWeightBe b >> encodeCutId c)
-        (runGetS $ (,,) <$> decodeCutHeightBe <*> decodeBlockWeightBe <*> decodeCutId)
-    valueCodec = Codec encodeToByteString decodeStrictOrThrow'
+        (runGetS $ (,,) <$> decodeCutHeightBe <*> decodeBlockWeightBe <*> decodeCutId) True
+    valueCodec = Codec encodeToByteString decodeStrictOrThrow' True
 
 -- -------------------------------------------------------------------------- --
 -- Exceptions

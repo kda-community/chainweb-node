@@ -12,6 +12,7 @@ module Main (main) where
 -- import Chainweb.Pact.Backend.Bench qualified as Checkpointer
 -- import Chainweb.Pact.Backend.ForkingBench qualified as ForkingBench
 import Chainweb.MempoolBench qualified as MempoolBench
+import Chainweb.BlockHeaderDBBench qualified as BlockHeaderDBBench
 import Chainweb.CutDBBench qualified as CutDBBench
 -- import Chainweb.Pact.Backend.PactService qualified as PactService
 -- import Chainweb.Storage.Table.RocksDB (withTempRocksDb)
@@ -24,6 +25,7 @@ main :: IO ()
 main = defaultMain
     [ JSONEncoding.benchmarks
     , MempoolBench.bench
+    , BlockHeaderDBBench.bench
     , CutDBBench.bench
     ]
 

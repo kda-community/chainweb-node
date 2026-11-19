@@ -137,6 +137,7 @@ newDedupStore rdb vc kc n = DedupStore
             unless (B.length l == dedupHashSize)
                 $ throwM $ DedupStoreCorruptedData "Internal key has wrong size"
             return (DedupHash l)
+        , _codecUnsafeIter = False
         }
 
     dedupChunkCodec = Codec
@@ -148,6 +149,7 @@ newDedupStore rdb vc kc n = DedupStore
                     | B.length c < dedupHashSize
                         -> throwM $ DedupStoreCorruptedData "Got too short chunk"
                     | otherwise -> return $ Chunk a (DedupHash c) d
+        , _codecUnsafeIter = False
         }
 
 -- | Insert a new items into a 'DedupStore'.

@@ -674,6 +674,7 @@ test-suite chainweb-tests
         Chainweb.Test.BlockHeader.Validation
         Chainweb.Test.BlockHeaderDB
         Chainweb.Test.BlockHeaderDB.PruneForks
+        Chainweb.Test.BlockHeaderDBBranch
         Chainweb.Test.Chainweb.Utils.Paging
         Chainweb.Test.CutDB
         Chainweb.Test.Difficulty
@@ -930,6 +931,7 @@ benchmark bench
     main-is: Bench.hs
     type: exitcode-stdio-1.0
     other-modules:
+        Chainweb.BlockHeaderDBBench
         Chainweb.CutDBBench
         Chainweb.MempoolBench
         -- Chainweb.Pact.Backend.ApplyCmd

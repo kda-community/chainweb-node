@@ -85,6 +85,7 @@ intCodec :: Codec Int
 intCodec = Codec
     (B8.pack . show)
     (either (throwM . CodecException) return . readEither @Int . B8.unpack)
+    True
 
 intTable :: RocksDb -> B8.ByteString -> RocksDbTable Int Int
 intTable db tableName = newTable db intCodec intCodec [tableName]

@@ -197,8 +197,8 @@ initPayloadDb config = do
 
     payloadTable = newTable
         (_configRocksDb config)
-        (Codec encodeRankedPayload decodeRankedPayload)
-        (Codec (runPutS . encodeRankedBlockPayloadHash) (runGetS decodeRankedBlockPayloadHash))
+        (Codec encodeRankedPayload decodeRankedPayload False)
+        (Codec (runPutS . encodeRankedBlockPayloadHash) (runGetS decodeRankedBlockPayloadHash) True)
         ["EvmPayload", cidNs, "payload"]
 
     !db = PayloadDb
