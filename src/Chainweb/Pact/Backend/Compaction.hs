@@ -15,6 +15,7 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Chainweb.Pact.Backend.Compaction
@@ -36,7 +37,7 @@ module Chainweb.Pact.Backend.Compaction
 
 import Control.Exception hiding (Handler)
 import Chainweb.BlockHash
-import Chainweb.BlockHeader (blockHeight, blockForkNumber, blockHash, blockPayloadHash)
+import Chainweb.BlockHeader (blockHeight, blockHash, blockPayloadHash, genesisHeight)
 import Chainweb.BlockHeaderDB.Internal (BlockHeaderDb(..), RankedBlockHeader(..))
 import Chainweb.BlockHeight (BlockHeight(..))
 import Chainweb.Cut.CutHashes (cutIdToText)
@@ -46,27 +47,32 @@ import Chainweb.Pact.Backend.ChainwebPactDb ()
 import Chainweb.Pact.Backend.PactState
 import Chainweb.Pact.Backend.Types
 import Chainweb.Pact.Backend.Utils
+import Chainweb.Ranked
+import Chainweb.ChainId
+import Chainweb.Difficulty (_getBlockDelay)
+import Chainweb.Parent
+import Chainweb.PayloadProvider
 import Chainweb.Pact.Payload.PayloadStore (addNewPayload, lookupPayloadWithHeight)
 import Chainweb.Pact.Payload.PayloadStore.RocksDB (newPayloadDb)
+import Chainweb.Pact.Validations (defaultMaxTTLSeconds)
 import Chainweb.Storage.Table (Iterator(..), Entry(..), withTableIterator, unCasify, tableInsert)
 import Chainweb.Storage.Table.RocksDB (RocksDb, withRocksDb, withReadOnlyRocksDb, modernDefaultOptions)
-import Chainweb.Utils (sshow, fromTextM, toText, int)
-import Chainweb.Version (ChainId, HasVersion(..), withVersion, ChainwebVersion(..))
+import Chainweb.Utils (sshow, fromTextM, toText, int, fromJuste)
+import Chainweb.Version (HasVersion(..), withVersion, ChainwebVersion(..))
 import Chainweb.Version.Guards (minimumBlockHeaderHistory)
-import Chainweb.Version.Mainnet (mainnet)
 import Chainweb.Version.Registry (findKnownVersion)
-import Chainweb.Version.Testnet04 (testnet04)
 import Chainweb.WebBlockHeaderDB (getWebBlockHeaderDb, initWebBlockHeaderDb)
-import Control.Lens (set, over, (^.), _3, view)
+import Control.Lens
 import Control.Monad (forM, forM_, unless, void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp)
-import Control.Monad.Trans.Resource (runResourceT)
-import Data.Function ((&))
+import Control.Monad.Trans.Resource (runResourceT, ResourceT)
 import Data.Int (Int64)
+import Data.Word (Word64)
 import Data.LogMessage (SomeLogMessage, logText)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 import Data.Text (Text)
+import Control.Monad.Except
 import Data.Text qualified as Text
 import Database.RocksDB.Types (Options(..), Compression(..))
 import Database.SQLite3 qualified as Lite
@@ -86,21 +92,31 @@ import System.Logger qualified as YAL
 import System.Logger.Backend.ColorOption (useColor)
 import UnliftIO.Async (pooledForConcurrently_)
 
+stdErrHandle :: HandleBackendConfig
+stdErrHandle = defaultHandleBackendConfig
+                { _handleBackendConfigHandle = StdErr
+                }
+
+fileHandle:: FilePath -> HandleBackendConfig
+fileHandle f = defaultHandleBackendConfig
+               { _handleBackendConfigHandle = FileHandle f
+               }
+
+
 withDefaultLogger :: LL.LogLevel -> (YAL.Logger SomeLogMessage -> IO a) -> IO a
-withDefaultLogger ll f = withHandleBackend_ logText handleCfg $ \b ->
+withDefaultLogger ll f = withHandleBackend_ logText stdErrHandle $ \b ->
   withLogger defaultLoggerConfig b $ \l -> f (set setLoggerLevel (l2l ll) l)
-  where
-    handleCfg = defaultHandleBackendConfig
-      { _handleBackendConfigHandle = StdErr
-      }
 
-withRocksDbFileLogger :: FilePath -> LL.LogLevel -> (YAL.Logger SomeLogMessage -> IO a) -> IO a
-withRocksDbFileLogger ld ll f = do
-  createDirectoryIfMissing True {- do create parents -} ld
-  let logFile = ld </> "rocksDb.log"
-  let handleConfig = defaultHandleBackendConfig
-        { _handleBackendConfigHandle = FileHandle logFile
-        }
+withRocksDbFileLogger :: Maybe FilePath -> LL.LogLevel -> (YAL.Logger SomeLogMessage -> IO a) -> IO a
+withRocksDbFileLogger mld ll f = do
+
+  handleConfig <- case mld of
+    Nothing -> pure stdErrHandle
+    Just ld -> do
+        createDirectoryIfMissing True {- do create parents -} ld
+        let logFile = ld </> "rocksDb.log"
+        return $ fileHandle logFile
+
   withHandleBackend_' logText handleConfig $ \h b -> do
     IO.hSetBuffering h IO.LineBuffering
     withLogger defaultLoggerConfig b $ \l -> do
@@ -108,22 +124,26 @@ withRocksDbFileLogger ld ll f = do
             $ set setLoggerLevel (l2l ll) l
       f logger
 
-withPerChainFileLogger :: FilePath -> ChainId -> LL.LogLevel -> (YAL.Logger SomeLogMessage -> IO a) -> IO a
-withPerChainFileLogger ld chainId ll f = do
-  createDirectoryIfMissing True {- do create parents -} ld
-  let logFile = ld </> ("chain-" <> cid <> ".log")
-  let handleConfig = defaultHandleBackendConfig
-        { _handleBackendConfigHandle = FileHandle logFile
-        }
+withPerChainFileLogger :: Maybe FilePath -> ChainId -> LL.LogLevel -> (YAL.Logger SomeLogMessage -> IO a) -> IO a
+withPerChainFileLogger mld cid ll f = do
+
+  handleConfig <- case mld of
+    Nothing -> pure stdErrHandle
+    Just ld -> do
+        createDirectoryIfMissing True {- do create parents -} ld
+        let logFile = ld </> ("chain-" <> sCid <> ".log")
+        return $ fileHandle logFile
+
   withHandleBackend_' logText handleConfig $ \h b -> do
     IO.hSetBuffering h IO.LineBuffering
     withLogger defaultLoggerConfig b $ \l -> do
       let logger = setComponent "compaction"
-            $ over setLoggerScope (("chain", toText chainId) :)
+            $ over setLoggerScope (("chain", toText cid) :)
             $ set setLoggerLevel (l2l ll) l
       f logger
   where
-    cid = Text.unpack (toText chainId)
+    sCid = Text.unpack (toText cid)
+
 
 withHandleBackend_' :: (MonadIO m, MonadBaseControl IO m)
   => (msg -> Text)
@@ -145,7 +165,7 @@ data Config = Config
   , fromDir :: FilePath
   , toDir :: FilePath
   , concurrent :: ConcurrentChains
-  , logDir :: FilePath
+  , logDir :: Maybe FilePath
   , compactRocksDb :: Bool
     -- ^ Compact the RocksDB at all?
   , compactPactState :: Bool
@@ -185,7 +205,7 @@ getConfig = do
       fromDir <- O.strOption (O.long "from" <> O.help "Directory containing SQLite Pact state and RocksDB block data to compact (expected to be in $DIR/0/{sqlite,rocksDb}")
       toDir <- O.strOption (O.long "to" <> O.help "Directory where to place the compacted Pact state and block data. It will place them in $DIR/0/{sqlite,rocksDb}, respectively.")
       concurrent <- O.flag SingleChain ManyChainsAtOnce (O.long "parallel" <> O.help "Turn on multi-threaded compaction. The threads are per-chain.")
-      logDir <- O.strOption (O.long "log-dir" <> O.help "Directory where compaction logs will be placed.")
+      logDir <- O.optional $ O.strOption (O.long "log-dir" <> O.help "Directory where compaction logs will be placed.")
       -- Hidden options
       compactRocksDb <- O.switch
         (O.long "compact-rocksdb"
@@ -211,8 +231,75 @@ main :: IO ()
 main = do
   compact =<< getConfig
 
-doCompactPactState :: (Logger logger) => logger -> Retainment -> BlockHeight -> SQLiteEnv -> SQLiteEnv -> IO ()
-doCompactPactState logger rt targetBlockHeight srcDb targetDb = do
+-- This is the extra depth we keep on top of the already kown final state
+blockHeightKeepDepth :: BlockHeight
+blockHeightKeepDepth = 2_000
+
+data CompactionTarget = CompactionTarget
+  { _targetCompactHeight :: BlockHeight -- Main compaction height (for Sqlite)
+  , _headersCompactHeight :: BlockHeight -- Headers compaction height (to keep a little bit more history than Sqlite)
+  , _txIndexCompactionHeight :: BlockHeight -- When TxIndex compaction is requested, it's necessary to keep at least a "max-TTL" length history
+  , _historyCompactHeight :: BlockHeight -- BlockHistory table compaction height (this is necessary for SPVs)
+  }
+  deriving (Show)
+
+getFinalHeight :: Database -> IO (Maybe BlockHeight)
+getFinalHeight db = either (const Nothing) (\cs ->  Just $ _finalHeight cs) <$> (runExceptT $ getConsensusState db)
+
+finalHeightToCompactionHeight :: BlockHeight -> BlockHeight
+finalHeightToCompactionHeight = subtract blockHeightKeepDepth
+
+finalHeightToTxIndexHeight:: HasVersion => BlockHeight -> BlockHeight
+finalHeightToTxIndexHeight = subtract $ BlockHeight $ ttlInBlocks
+  where
+    blockDelay = _getBlockDelay $ _versionBlockDelay $ implicitVersion
+    ttlInBlocks = 1_000_000 * fromIntegral defaultMaxTTLSeconds
+                                      `quot`
+                              fromIntegral blockDelay
+
+getMinimumBlockHeaderHistoryAt  :: HasVersion => Database -> BlockHeight -> IO (Maybe Word64)
+getMinimumBlockHeaderHistoryAt db bh  = toHistoryDepth <$> (runExceptT $ lookupBlocEnvkWithHeight db bh)
+  where
+    toHistoryDepth = \case
+      Right (Just (rbh,  fn, _ )) -> minimumBlockHeaderHistory (unwrapParent fn) (pred $ _rankedHeight rbh)
+      _ -> Nothing
+
+
+getChainTarget :: (HasVersion, Logger logger) => logger -> Config -> ChainId -> ResourceT IO (Maybe CompactionTarget)
+getChainTarget logger cfg cid = do
+      db <- withChainDb cid logger (pactDir cfg.fromDir)
+      finalHeight <- liftIO $ getFinalHeight db
+
+      case finalHeight of
+        Nothing -> return Nothing
+        Just h -> do
+          mh <- liftIO $ getMinimumBlockHeaderHistoryAt db h
+          return $ Just $ CompactionTarget h (finalHeightToCompactionHeight h)
+                                             (finalHeightToTxIndexHeight h)
+                                             (toHistoryheight h $ BlockHeight <$> mh)
+
+  where
+    toHistoryheight h mMinH = case mMinH of
+          Nothing -> genesisHeight cid -- Unlimited history required => Go to Genenis
+          Just minH | h <= minH -> genesisHeight cid -- target block less than 0 => Genesis
+          Just minH -> max (h - minH) (genesisHeight cid) -- In all other case, find the block evenually with "low-capped" by genesis
+
+
+getAllChainsTarget :: (HasVersion, Logger logger) => logger -> Config -> ResourceT IO (ChainMap CompactionTarget)
+getAllChainsTarget logger cfg = (onChains . catMaybes . zipWith (\c target -> (c,) <$> target) allChains)
+                                  <$> mapM (getChainTarget logger cfg) allChains
+
+
+updateConsensusState :: (Logger logger) => logger ->  SQLiteEnv -> ExceptT LocatedSQ3Error IO ()
+updateConsensusState logger sql = do
+        liftIO $ logFunctionText logger LL.Info "Restore consensus state"
+        currentSync <- fromJuste <$> getLatestBlock sql
+
+        setConsensusState sql $ ConsensusState currentSync currentSync currentSync
+
+
+doCompactPactState :: (Logger logger) => logger -> Retainment -> CompactionTarget -> SQLiteEnv -> SQLiteEnv -> IO ()
+doCompactPactState logger rt CompactionTarget{..} srcDb targetDb = do
   let logfun = logFunctionText logger
 
   -- These pragmas are tuned for fast insertion on systems with a wide range
@@ -244,14 +331,25 @@ doCompactPactState logger rt targetBlockHeight srcDb targetDb = do
   -- This is extremely fast and low residency
   do
     logfun LL.Info "Compacting BlockHistory"
-    activeRow <- getBlockHistoryRowAt logger srcDb targetBlockHeight
-    throwOnDbError $ exec' targetDb "INSERT INTO BlockHistory2 ('blockheight', 'hash', 'payloadhash', 'endingtxid') VALUES (?1, ?2, ?3, ?4)" activeRow
+    let query = "SELECT blockheight, hash, payloadhash, endingtxid, ctxData FROM  BlockHistory2 WHERE blockheight>=?"
+    let insertStmt = "INSERT INTO BlockHistory2 ('blockheight', 'hash', 'payloadhash', 'endingtxid', 'ctxData') VALUES (?,?,?,?,?);"
+
+    Lite.withStatement targetDb insertStmt $ \stmt -> do
+      throwSqlError $ qryStream srcDb query [SInt (int _historyCompactHeight)] [RInt, RBlob, RBlob, RInt, RBlob] $ \tblRows -> do
+        S.chunksOf 10_000 tblRows
+          & S.mapsM_ (\chunk -> do
+              inTx targetDb $ flip S.mapM_ chunk $ \row -> do
+                throwOnDbError $ bindParams stmt row
+                void (stepThenReset stmt)
+            )
+
+  throwOnDbError $ updateConsensusState logger targetDb
 
   -- Compact VersionedTableMutation
   -- This is extremely fast and low residency
   do
     logfun LL.Info "Compacting VersionedTableMutation"
-    activeRows <- getVersionedTableMutationRowsAt logger srcDb targetBlockHeight
+    activeRows <- getVersionedTableMutationRowsAt logger srcDb _targetCompactHeight
     Lite.withStatement targetDb "INSERT INTO VersionedTableMutation VALUES (?1, ?2)" $ \stmt -> do
       forM_ activeRows $ \row -> do
         throwOnDbError $ bindParams stmt row
@@ -289,7 +387,7 @@ doCompactPactState logger rt targetBlockHeight srcDb targetDb = do
       else do
         logfun LL.Info "Copying over compacted TransactionIndex"
         let wholeTableQuery = "SELECT txhash, blockheight FROM TransactionIndex WHERE blockheight >= ?1 ORDER BY blockheight"
-        pure (wholeTableQuery, [SInt (int (targetBlockHeight - blockHeightKeepDepth))])
+        pure (wholeTableQuery, [SInt (int _txIndexCompactionHeight)])
 
     throwSqlError $ qryStream srcDb query args [RBlob, RInt] $ \tblRows -> do
       Lite.withStatement targetDb "INSERT INTO TransactionIndex VALUES (?1, ?2)" $ \stmt -> do
@@ -316,36 +414,21 @@ doCompactPactState logger rt targetBlockHeight srcDb targetDb = do
 
   -- Grab the endingtxid for determining latest state at the
   -- target height
-  endingTxId <- getEndingTxId srcDb targetBlockHeight
+  endingTxId <- getEndingTxId srcDb _targetCompactHeight
   logfun LL.Info $ "Ending TxId is " <> sshow endingTxId
 
   -- Compact all user tables
   logfun LL.Info "Starting user tables"
-  getLatestPactTableNamesAt srcDb targetBlockHeight
+  getLatestPactTableNamesAt srcDb _targetCompactHeight
     & S.mapM_ (\tblname -> do
         compactTable logger srcDb targetDb (fromUtf8 tblname) endingTxId
       )
 
   logfun LL.Info "Compaction done"
 
--- We are trying to make sure that we keep around at least 3k blocks.
--- The compaction target is 1k blocks prior to the latest common
--- blockheight (i.e. min (map blockHeight allChains)), so we take
--- the target and add 1k, but the chains can differ at most by the
--- diameter of the chaingraph, so we also add that to make sure that
--- we have full coverage of every chain.
---
--- To keep around another 2k blocks (to get to ~3k), we subtract 2k
--- from the target.
---
--- Note that the number 3k was arbitrary but chosen to be a safe
--- amount of data more than what is in SQLite.
-blockHeightKeepDepth :: BlockHeight
-blockHeightKeepDepth = 2_000
 
 compact :: Config -> IO ()
 compact cfg = withVersion cfg.chainwebVersion $ do
-  let cids = allChains
 
   let _compactThese = case (cfg.compactRocksDb, cfg.compactPactState) of
         (False, False) -> CompactNeither
@@ -353,13 +436,12 @@ compact cfg = withVersion cfg.chainwebVersion $ do
         (True, False) -> CompactOnlyRocksDb
         (True, True) -> CompactBoth
 
-  -- Get the target blockheight.
-  targetBlockHeight <- withDefaultLogger LL.Debug $ \logger -> do
-    -- Locate the latest (safe) blockheight as per the pact state.
-    -- See 'locateLatestSafeTarget' for the definition of 'safe' here.
-    targetBlockHeight <- locateLatestSafeTarget logger cfg.chainwebVersion (pactDir cfg.fromDir) cids
-    logFunctionText logger LL.Debug $ "targetBlockHeight: " <> sshow targetBlockHeight
+  targetMap <- withDefaultLogger LL.Debug $ \logger -> runResourceT $ getAllChainsTarget logger cfg
 
+  iforM_ targetMap (\c t -> withDefaultLogger LL.Debug $ \logger ->
+                              logFunctionText logger LL.Info $ "Chain " <> (toText c) <> ":" <> sshow t)
+
+  withDefaultLogger LL.Debug $ \logger -> do
     let initDir = do
           -- Check that the target directory doesn't exist already,
           -- then create its entire tree.
@@ -384,14 +466,13 @@ compact cfg = withVersion cfg.chainwebVersion $ do
         createDirectoryIfMissing True (rocksDir cfg.toDir)
         createDirectoryIfMissing True (pactDir cfg.toDir)
 
-    pure targetBlockHeight
 
   -- Compact RocksDB.
   when cfg.compactRocksDb $ do
     withRocksDbFileLogger cfg.logDir LL.Debug $ \logger -> do
       withReadOnlyRocksDb (rocksDir cfg.fromDir) modernDefaultOptions $ \srcRocksDb -> do
         withRocksDb (rocksDir cfg.toDir) (modernDefaultOptions { compression = NoCompression }) $ \targetRocksDb -> do
-          doCompactRocksDb (set setLoggerLevel (l2l LL.Info) logger) cids (targetBlockHeight - blockHeightKeepDepth) srcRocksDb targetRocksDb
+          doCompactRocksDb (set setLoggerLevel (l2l LL.Info) logger) targetMap srcRocksDb targetRocksDb
 
   -- Compact the pact state.
   let retainment = Retainment
@@ -399,11 +480,11 @@ compact cfg = withVersion cfg.chainwebVersion $ do
         , compactThese = _compactThese
         }
   when cfg.compactPactState $ do
-    forChains_ cfg.concurrent cids $ \cid -> do
+    forChains_ cfg.concurrent targetMap $ \cid target -> do
       withPerChainFileLogger cfg.logDir cid LL.Debug $ \logger -> runResourceT $ do
         srcDb <- withChainDb cid logger (pactDir cfg.fromDir)
         targetDb <- withChainDb cid logger (pactDir cfg.toDir)
-        liftIO $ doCompactPactState logger retainment targetBlockHeight srcDb targetDb
+        liftIO $ doCompactPactState logger retainment target srcDb targetDb
 
 compactTable :: (Logger logger)
   => logger      -- ^ logger
@@ -505,14 +586,26 @@ createCheckpointerTables :: (Logger logger)
 createCheckpointerTables db logger = do
   let logfun = logFunctionText logger LL.Info
 
-  logfun "Creating Checkpointer table BlockHistory"
+  logfun "Creating Checkpointer table BlockHistory2"
   inTx db $ throwOnDbError $ exec_ db $ mconcat
     [ "CREATE TABLE IF NOT EXISTS BlockHistory2 "
     , "(blockheight UNSIGNED BIGINT NOT NULL"
     , ", endingtxid UNSIGNED BIGINT NOT NULL"
     , ", hash BLOB NOT NULL"
     , ", payloadhash BLOB NOT NULL"
+    , ", ctxData BLOBL NOT NULL"
     , ");"
+    ]
+
+  logfun "Creating Checkpointer table ConsensusState"
+  inTx db $ throwOnDbError $ exec_ db $ mconcat
+    [ "CREATE TABLE IF NOT EXISTS ConsensusState"
+    , "(blockheight UNSIGNED BIGINT NOT NULL,"
+    , "hash BLOB NOT NULL,"
+    , "payloadhash BLOB NOT NULL,"
+    , "safety TEXT NOT NULL,"
+    , "CONSTRAINT safetyConstraint UNIQUE (safety)"
+    , "ON CONFLICT REPLACE);"
     ]
 
   logfun "Creating Checkpointer table VersionedTableCreation"
@@ -599,22 +692,6 @@ createUserTableIndex db tblname = do
       , tbl tblname, " (txid DESC)"
       ]
 
--- | Returns the active @(blockheight, hash, endingtxid)@ from BlockHistory2
-getBlockHistoryRowAt :: (Logger logger)
-  => logger
-  -> Database
-  -> BlockHeight
-  -> IO [SType]
-getBlockHistoryRowAt logger db target = do
-  r <- throwOnDbError $ qry db "SELECT blockheight, hash, payloadhash, endingtxid FROM BlockHistory2 WHERE blockheight = ?1" [SInt (int target)] [RInt, RBlob, RBlob, RInt]
-  case r of
-    [row@[SInt bh, SBlob _hash, SBlob _phash, SInt _endingTxId]] -> do
-      unless (target == int bh) $ do
-        exitLog logger "BlockHeight mismatch in BlockHistory2 query. This is a bug in the compaction tool. Please report it on the issue tracker or discord."
-      pure row
-    _ -> do
-      exitLog logger "getBlockHistoryRowAt query: invalid query"
-
 -- | Returns active @[(tablename, blockheight)]@ from VersionedTableMutation
 getVersionedTableMutationRowsAt :: (Logger logger)
   => logger
@@ -631,42 +708,6 @@ getVersionedTableMutationRowsAt logger db target = do
     _ -> do
       exitLog logger "getVersionedTableMutationRowsAt query: invalid query"
 
--- | Locate the latest "safe" target blockheight for compaction.
---
---   In mainnet/testnet, this is determined
---   to be the @mininum (map latestBlockHeight chains) - 1000@.
---
---   In devnet, this is just the latest common blockheight
---   (or @minimum (map latestBlockHeight chains)@).
-locateLatestSafeTarget :: (Logger logger)
-  => logger
-  -> ChainwebVersion
-  -> FilePath
-  -> [ChainId]
-  -> IO BlockHeight
-locateLatestSafeTarget logger v dbDir cids = do
-  let logfun = logFunctionText logger
-
-  let logger' = set setLoggerLevel (l2l LL.Error) logger
-  latestCommon <- getLatestCommonBlockHeight logger' dbDir cids
-  earliestCommon <- getEarliestCommonBlockHeight logger' dbDir cids
-
-  logfun LL.Debug $ "Latest Common BlockHeight: " <> sshow latestCommon
-  logfun LL.Debug $ "Earliest Common BlockHeight: " <> sshow earliestCommon
-
-  -- Make sure we have at least 1k blocks of depth for prod.
-  -- In devnet or testing versions we don't care.
-  let safeDepth :: BlockHeight
-      safeDepth
-        | v == mainnet || v == testnet04 = BlockHeight 1_000
-        | otherwise = BlockHeight 0
-
-  when (latestCommon - earliestCommon < safeDepth) $ do
-    exitLog logger "locateLatestSafeTarget: Not enough history to safely compact. Aborting."
-
-  let target = latestCommon - safeDepth
-  logfun LL.Debug $ "Compaction target blockheight is: " <> sshow target
-  pure target
 
 -- | Log an error message, then exit with code 1.
 exitLog :: (Logger logger)
@@ -685,10 +726,12 @@ stepThenReset stmt = do
 
 -- | This is either 'forM_' or 'pooledForConcurrently_', depending on
 --   the 'ConcurrentChains' input.
-forChains_ :: ConcurrentChains -> [ChainId] -> (ChainId -> IO a) -> IO ()
+forChains_ :: ConcurrentChains -> ChainMap b -> (ChainId -> b -> IO a) -> IO ()
 forChains_ = \case
-  SingleChain -> forM_
-  ManyChainsAtOnce -> pooledForConcurrently_
+  SingleChain -> iforM_
+  ManyChainsAtOnce -> indexedPooledForConcurrently_
+    where
+      indexedPooledForConcurrently_ f action = pooledForConcurrently_ (itoList f) $ \(i, a) -> action i a
 
 -- | Swallow a SQLite 'Lite.Error' and throw it.
 throwSqlError :: IO (Either Lite.Error a) -> IO a
@@ -716,12 +759,11 @@ rocksDir db = db </> "0/rocksDb"
 doCompactRocksDb :: (Logger logger)
   => HasVersion
   => logger
-  -> [ChainId] -- ^ ChainIds
-  -> BlockHeight -- ^ minBlockHeight for payload copying
+  -> ChainMap CompactionTarget -- CompactionTarget
   -> RocksDb -- ^ source db, should be opened read-only
   -> RocksDb -- ^ target db
   -> IO ()
-doCompactRocksDb logger cids minBlockHeight srcDb targetDb = do
+doCompactRocksDb logger chainTargets srcDb targetDb = do
   let log = logFunctionText logger
 
   -- Copy over entirety of CutHashes table
@@ -748,7 +790,7 @@ doCompactRocksDb logger cids minBlockHeight srcDb targetDb = do
   log LL.Info "Initializing payload db"
   srcWbhdb <- initWebBlockHeaderDb srcDb
   targetWbhdb <- initWebBlockHeaderDb targetDb
-  forM_ cids $ \cid -> do
+  iforM_ chainTargets $ \cid target  -> do
     let log' = logFunctionText (addChainIdLabel cid logger)
     log' LL.Info $ "Starting chain " <> toText cid
     srcBlockHeaderDb <- getWebBlockHeaderDb srcWbhdb cid
@@ -762,34 +804,7 @@ doCompactRocksDb logger cids minBlockHeight srcDb targetDb = do
           Nothing -> exitLog logger "Missing final payload. This is likely due to a corrupted database."
           Just rbh -> pure $ _getRankedBlockHeader rbh
 
-      -- The header that we start at depends on whether or not
-      -- we have a minimal block header history window.
-      --
-      -- On old enough chainweb versions, we just copy over every
-      -- single block header that's available.
-      --
-      -- On new enough chainweb versions, we want to only copy over
-      -- the minimal number of block headers.
-      -- Note, this behaviour may be dangerous in case of changes on the minimum block history.
-      --
-      -- TODO = Option to prune headers history to the minimum should be enabled by flag.
-      case minimumBlockHeaderHistory
-          (latestHeader ^. blockForkNumber)
-          (latestHeader ^. blockHeight) of
-        -- Go to the earliest possible entry. We migrate all BlockHeaders, for now.
-        -- They are needed for SPV.
-        --
-        -- Constructing SPV proofs actually needs the payloads, but validating
-        -- them does not.
-        Nothing -> do
-          iterFirst it
-
-        Just minBlockHeaderHistory -> do
-          let runBack =
-                let x = int minBlockHeight
-                    y = minBlockHeaderHistory
-                in if x >= y then x - y else 0
-          iterSeek it $ RankedBlockHash (BlockHeight runBack) nullBlockHash
+      iterSeek it $ RankedBlockHash (_headersCompactHeight target) nullBlockHash
 
       earliestHeader <- do
         iterValue it >>= \case
@@ -817,27 +832,19 @@ doCompactRocksDb logger cids minBlockHeight srcDb targetDb = do
                 let blkHeight = view blockHeight blkHeader
                 let blkHash   = view blockHash blkHeader
 
-                -- Migrate the ranked block table and rank table
-                -- unconditionally.
-                -- Right now, the headers are definitely needed (we can't delete any).
-                --
-                -- Not sure about the rank table, though. We keep it to be
-                -- conservative.
                 log' LL.Debug $ "Copying over BlockHeader " <> toText blkHash
                 tableInsert (_chainDbCas targetBlockHeaderDb) (RankedBlockHash blkHeight blkHash) rankedBlockHeader
                 tableInsert (_chainDbRankTable targetBlockHeaderDb) blkHash blkHeight
 
-                -- We only add the payloads for blocks that are in the
-                -- interesting range.
-                when (blkHeight >= minBlockHeight) $ do
-                  -- Insert the payload into the new database
-                  let payloadHash = blkHeader ^. blockPayloadHash
-                  log' LL.Info $ "Migrating block payload " <> sshow payloadHash <> " for BlockHeight " <> sshow blkHeight
-                  lookupPayloadWithHeight srcPayloads (Just blkHeight) payloadHash >>= \case
-                    Nothing -> do
-                      exitLog logger "Missing payload: This is likely due to a corrupted database."
-                    Just payloadWithOutputs -> do
-                      addNewPayload targetPayloads blkHeight payloadWithOutputs
+                -- Insert the payload into the new database
+                -- Headers may be deleted..; But better to keep them, otherise the node will need to dload them again
+                let payloadHash = blkHeader ^. blockPayloadHash
+                log' LL.Info $ "Migrating block payload " <> sshow payloadHash <> " for BlockHeight " <> sshow blkHeight
+                lookupPayloadWithHeight srcPayloads (Just blkHeight) payloadHash >>= \case
+                  Nothing -> do
+                    exitLog logger "Missing payload: This is likely due to a corrupted database."
+                  Just payloadWithOutputs -> do
+                    addNewPayload targetPayloads blkHeight payloadWithOutputs
 
                 logHeaderProgress blkHeight
 
