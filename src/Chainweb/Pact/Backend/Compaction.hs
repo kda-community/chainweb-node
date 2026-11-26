@@ -50,6 +50,7 @@ import Chainweb.Pact.Backend.PactState
 import Chainweb.Pact.Backend.Types
 import Chainweb.Pact.Backend.Utils
 import Chainweb.Ranked
+import Data.IORef
 import Chainweb.ChainId
 import Chainweb.Difficulty (_getBlockDelay)
 import Chainweb.Parent
@@ -59,7 +60,7 @@ import Chainweb.Pact.Payload.PayloadStore.RocksDB (newPayloadDb)
 import Chainweb.Pact.Validations (defaultMaxTTLSeconds)
 import Chainweb.Storage.Table (Iterator(..), Entry(..), withTableIterator, unCasify, tableInsert)
 import Chainweb.Storage.Table.RocksDB (RocksDb, withRocksDb, withReadOnlyRocksDb, modernDefaultOptions)
-import Chainweb.Utils (sshow, fromTextM, toText, int, fromJuste)
+import Chainweb.Utils (sshow, fromTextM, toText, int, fromJuste, runForever)
 import Chainweb.Version (HasVersion(..), withVersion, ChainwebVersion(..))
 import Chainweb.Version.Guards (minimumBlockHeaderHistory)
 import Chainweb.Version.Registry (findKnownVersion)
@@ -74,6 +75,9 @@ import Data.Word (Word64)
 import Data.LogMessage (SomeLogMessage, logText)
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.Text (Text)
+import Text.Printf (printf)
+import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Monad.Except
 import Data.Text qualified as Text
 import Database.RocksDB.Types (Options(..), Compression(..))
@@ -505,7 +509,6 @@ compactTable :: (Logger logger)
   -> Int64       -- ^ target blockheight
   -> IO ()
 compactTable logger srcDb targetDb tblname endingTxId = do
-  let logfun = logFunctionText logger
   let tblnameUtf8 = toUtf8 tblname
 
   logfun LL.Info $ "Creating table " <> tblname
@@ -558,21 +561,32 @@ compactTable logger srcDb targetDb tblname endingTxId = do
   let activeStateQryArgs = [SInt endingTxId]
   let activeStateQryRetTypes = [RText, RInt, RBlob]
 
-  e <- qryStream srcDb activeStateQryText activeStateQryArgs activeStateQryRetTypes $ \rs -> do
-    Lite.withStatement targetDb upsertQuery $ \upsertRow -> do
-      logfun LL.Info $ "Inserting compacted rows into table " <> tblname
+  -- Quick & Dirty Estimate ... but it most case we should be close to the truth
+  totalEstimatedRows <- throwOnDbError $ qry srcDb ("SELECT MAX(rowid) FROM" <> "[" <> tblnameUtf8 <> "]")  [] [RInt] >>= \case
+    [[SInt count]] -> pure count
+    _              -> pure 1
 
-      rs
-        & S.chunksOf 10_000
-        & S.mapsM_ (\chunk -> do
-            inTx targetDb $ flip S.mapM_ chunk $ \row -> do
-              case row of
-                [SText _, SInt _, SBlob _] -> do
-                  throwOnDbError $ bindParams upsertRow row
-                  void $ stepThenReset upsertRow
-                _badRowShape -> do
-                  exitLog logger "Encountered invalid row shape while compacting"
-          )
+  rowsDoneRef <- newIORef (0 :: Int64)
+
+  logfun LL.Info $ "Estimated rows count" <> sshow totalEstimatedRows
+
+  e <- withAsync (logProgress rowsDoneRef totalEstimatedRows) $ \_ -> do
+    qryStream srcDb activeStateQryText activeStateQryArgs activeStateQryRetTypes $ \rs -> do
+      Lite.withStatement targetDb upsertQuery $ \upsertRow -> do
+        logfun LL.Info $ "Inserting compacted rows into table " <> tblname
+
+        rs
+          & S.chunksOf 10_000
+          & S.mapsM_ (\chunk -> do
+              inTx targetDb $ flip S.mapM_ chunk $ \row -> do
+                case row of
+                  [SText _, SInt _, SBlob _] -> do
+                    throwOnDbError $ bindParams upsertRow row
+                    void $ stepThenReset upsertRow
+                    modifyIORef' rowsDoneRef succ
+                  _badRowShape -> do
+                    exitLog logger "Encountered invalid row shape while compacting"
+            )
 
   -- This index only makes sense during construction of the target database, not after.
   -- If we were to keep this index around, the node would not be able to operate, since
@@ -588,6 +602,22 @@ compactTable logger srcDb targetDb tblname endingTxId = do
     Right () -> pure ()
 
   logfun LL.Info $ "Done compacting table " <> tblname
+
+  where
+    logfun = logFunctionText logger
+
+    logProgress :: IORef Int64 -> Int64 -> IO ()
+    logProgress doneRef total = runForever logfun "LogProgess" $ do
+      threadDelay 2_000_000
+      current <-  readIORef doneRef
+      let percent = (100.0 :: Double) * fromIntegral current / fromIntegral total
+
+      logfun LL.Info $ mconcat
+        ["Progess : "
+        , sshow current <> "/" <> sshow total
+        , " (" <> (Text.pack $ printf "%.2f" percent) <> " %)"
+        ]
+
 
 -- | Create all the checkpointer tables
 createCheckpointerTables :: (Logger logger)
