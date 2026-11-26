@@ -28,6 +28,8 @@ module Chainweb.Pact.Backend.Compaction
   , doCompactRocksDb
   , Retainment(..)
   , defaultRetainment
+  , CompactionTarget
+  , targetAtCommonHeight
 
   -- * Compaction logging utilities
   , withDefaultLogger
@@ -242,6 +244,15 @@ data CompactionTarget = CompactionTarget
   , _historyCompactHeight :: BlockHeight -- BlockHistory table compaction height (this is necessary for SPVs)
   }
   deriving (Show)
+
+-- Not recommended => Mainly for tests
+targetAtCommonHeight :: BlockHeight -> CompactionTarget
+targetAtCommonHeight h = CompactionTarget {_targetCompactHeight = h
+                                        , _headersCompactHeight = h
+                                        , _txIndexCompactionHeight = h
+                                        , _historyCompactHeight = h
+                                        }
+
 
 getFinalHeight :: Database -> IO (Maybe BlockHeight)
 getFinalHeight db = either (const Nothing) (\cs ->  Just $ _finalHeight cs) <$> (runExceptT $ getConsensusState db)

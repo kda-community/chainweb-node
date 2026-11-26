@@ -702,7 +702,7 @@ sigmaCompact :: ()
   -> IO ()
 sigmaCompact srcDb targetDb targetBlockHeight = do
   Sigma.withDefaultLogger Warn $ \logger -> do
-    Sigma.doCompactPactState logger Sigma.defaultRetainment targetBlockHeight srcDb targetDb
+    Sigma.doCompactPactState logger Sigma.defaultRetainment (Sigma.targetAtCommonHeight targetBlockHeight) srcDb targetDb
 
 getPWOByHeader :: BlockHeader -> TestBlockDb -> IO PayloadWithOutputs
 getPWOByHeader h (TestBlockDb _ pdb _) =
