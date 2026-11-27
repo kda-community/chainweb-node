@@ -93,7 +93,7 @@ import Control.Monad.Trans.Resource
 excludedTables :: [Utf8]
 excludedTables = checkpointerTables ++ compactionTables
   where
-    checkpointerTables = ["BlockHistory2", "VersionedTableCreation", "VersionedTableMutation", "TransactionIndex"]
+    checkpointerTables = ["BlockHistory2", "VersionedTableCreation", "VersionedTableMutation", "TransactionIndex", "ConsensusState"]
     compactionTables = ["CompactGrandHash", "CompactActiveRow"]
 
 -- | Get the latest blockheight on chain.

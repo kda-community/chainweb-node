@@ -84,7 +84,7 @@ main = do
     isDifferentRef <- newIORef @(Map ChainId IsDifferent) M.empty
 
     forM_ cids $ \cid -> do
-      C.withPerChainFileLogger cfg.logDir cid Info $ \logger -> do
+      C.withPerChainFileLogger (Just cfg.logDir) cid Info $ \logger -> do
         let logText = logFunctionText logger
 
         sqliteFileExists1 <- doesPactDbExist cid cfg.firstDbDir
