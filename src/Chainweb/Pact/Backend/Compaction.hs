@@ -244,7 +244,7 @@ blockHeightKeepDepth = 2_000
 data CompactionTarget = CompactionTarget
   { _targetCompactHeight :: BlockHeight -- Main compaction height (for Sqlite)
   , _headersCompactHeight :: BlockHeight -- Headers compaction height (to keep a little bit more history than Sqlite)
-  , _txIndexCompactionHeight :: BlockHeight -- When TxIndex compaction is requested, it's necessary to keep at least a "max-TTL" length history
+  , _txIndexCompactHeight :: BlockHeight -- When TxIndex compaction is requested, it's necessary to keep at least a "max-TTL" length history
   , _historyCompactHeight :: BlockHeight -- BlockHistory table compaction height (this is necessary for SPVs)
   }
   deriving (Show)
@@ -253,7 +253,7 @@ data CompactionTarget = CompactionTarget
 targetAtCommonHeight :: BlockHeight -> CompactionTarget
 targetAtCommonHeight h = CompactionTarget {_targetCompactHeight = h
                                         , _headersCompactHeight = h
-                                        , _txIndexCompactionHeight = h
+                                        , _txIndexCompactHeight = h
                                         , _historyCompactHeight = h
                                         }
 
@@ -402,7 +402,7 @@ doCompactPactState logger rt CompactionTarget{..} srcDb targetDb = do
       else do
         logfun LL.Info "Copying over compacted TransactionIndex"
         let wholeTableQuery = "SELECT txhash, blockheight FROM TransactionIndex WHERE blockheight >= ?1 ORDER BY blockheight"
-        pure (wholeTableQuery, [SInt (int _txIndexCompactionHeight)])
+        pure (wholeTableQuery, [SInt (int _txIndexCompactHeight)])
 
     throwSqlError $ qryStream srcDb query args [RBlob, RInt] $ \tblRows -> do
       Lite.withStatement targetDb "INSERT INTO TransactionIndex VALUES (?1, ?2)" $ \stmt -> do
